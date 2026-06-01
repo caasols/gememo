@@ -1213,12 +1213,16 @@
       const ageMin = cachedTranscriptAt ? Math.round((Date.now() - cachedTranscriptAt) / 60000) : null;
       const ageSuffix = ageMin !== null ? `, ${ageMin} min old` : '';
 
-      // Always attempt a fresh Gemini run on Leave — this captures the final
-      // minutes of discussion that the last periodic snapshot missed.
-      // The cache is used as a fallback if the fresh flow fails or times out.
-      // InjectionTimeoutError (tab backgrounded during prompt injection) and
-      // GeminiNotActiveError are the expected failure modes; both fall back gracefully.
-      if (true) { // always try fresh — old 'if (cachedTranscript)' path below as fallback
+      // Attempt a fresh Gemini run on Leave to capture the final minutes of
+      // discussion that the last periodic snapshot missed — UNLESS the most
+      // recent snapshot is fresh enough (< half the snapshot interval, i.e. < 4 min).
+      // In that case the snapshot already has up-to-date content and a redundant
+      // Gemini run only adds latency and risks a "Native host has exited" cascade.
+      const snapshotAgeSec = cachedTranscriptAt ? (Date.now() - cachedTranscriptAt) / 1000 : Infinity;
+      const skipFreshRun = snapshotAgeSec < (snapshotIntervalMs / 2 / 1000);
+      if (skipFreshRun) {
+        sendLog(`Leave clicked — recent snapshot (${Math.round(snapshotAgeSec)}s old) is fresh enough, skipping extra Gemini run`);
+      } else {
         sendLog('Leave clicked — attempting fresh Gemini capture for final notes...');
         try {
           transcript = await runGeminiFlow(60_000);

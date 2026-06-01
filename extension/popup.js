@@ -202,6 +202,10 @@ function save(patch) {
 function groupLogs(logs) {
   const groups = [];
   for (const entry of logs) {
+    // Skip entries with no meeting title — system/extension events that are
+    // not relevant to the user. These will be reconsidered in a future redesign
+    // of the logging architecture (see ROADMAP UX-6 · System log rethink).
+    if (!entry.title) continue;
     const last = groups[groups.length - 1];
     if (last && last.title === entry.title) {
       last.entries.push(entry);
@@ -248,7 +252,7 @@ function renderLogs(logs) {
       const message = entry.message || '';
       const backupMatch = entry.status === 'err' ? message.match(/backup at (.+)$/) : null;
       const retryChip = backupMatch
-        ? `<button class="btn log-retry-btn" data-title="${escapeHtml(group.title || '')}" data-backup="${escapeHtml(backupMatch[1])}">Retry</button>`
+        ? `<button class="btn log-retry-btn" data-title="${escapeHtml(entry.title || group.title || '')}" data-backup="${escapeHtml(backupMatch[1])}">Retry</button>`
         : '';
       return `
         <div class="log-entry">
