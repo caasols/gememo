@@ -1,0 +1,82 @@
+// Shared extension constants.
+// Loaded before content_meet.js (via manifest content_scripts) and before
+// popup.js (via popup.html). Edit DEFAULT_PROMPT here only — nowhere else.
+
+const DEFAULT_PROMPT =
+  'List the meeting attendees by name under a heading "Attendees".\n\n' +
+  'Write 1–2 sentences for meetings under 30 minutes, or 3–4 sentences for longer meetings, under a heading "Summary" describing the purpose and main outcome of this meeting.\n\n' +
+  'Under a heading "Key Points", summarise the discussion as detailed bullet points. ' +
+  'Each bullet must start with a topic label followed by a colon, then a thorough explanation with full context.\n\n' +
+  'Under a heading "Decisions Made", list every concrete agreement or decision reached during the meeting as bullet points. ' +
+  'Only classify something as a decision if the transcript contains agreement language such as "we decided", "we agreed", "the team will", "it was confirmed", or an explicit vote. ' +
+  'Include the rationale when stated.\n\n' +
+  'Under a heading "Action Items", list all follow-up tasks grouped by owner. ' +
+  'Use the speaker\'s name as it appears in the transcript — never write "I" or "they". ' +
+  'For each item include the deadline if mentioned, otherwise write "no deadline set". ' +
+  'Do not invent action items not explicitly stated.\n\n' +
+  'Under a heading "Next Steps", list agreed follow-up meetings, reviews, demos, and conditional checkpoints. ' +
+  'These are shared calendar commitments — not individual tasks. ' +
+  'Include the date or trigger condition when stated. ' +
+  'If no shared events were mentioned, omit this section.\n\n' +
+  'Under a heading "Open Questions", list both unresolved questions that require decisions or research before progress, ' +
+  'and risks or concerns raised during the meeting — even if no action was agreed immediately.\n\n' +
+  'Only include information explicitly discussed in the meeting. ' +
+  'Be ultra detailed — these notes must stand alone so anyone reading them later knows exactly what happened and what to do next. ' +
+  'If the transcript contains very little content (a brief exchange with fewer than 2–3 minutes of real discussion), a single brief paragraph is sufficient — do not create empty section headings. ' +
+  'Do not use vague filler phrases like "the team discussed" or "various topics were covered". ' +
+  'Do not invent facts, names, dates, or commitments not in the transcript. ' +
+  'If a section has no content, omit the heading entirely. ' +
+  'Format everything as plain text. Do not use asterisks, underscores, backticks, or any other markdown formatting characters.';
+
+// Few-shot example prepended to every prompt so Gemini has a concrete format anchor.
+// Shows: 4 attendees, 2 decisions with rationale, 3 action items with owner names + deadlines,
+// 1 Next Step, 1 risk, 1 open question — exactly what DEFAULT_PROMPT instructs.
+const EXAMPLE_NOTES =
+  'Attendees\n' +
+  'Alice Chen, Bob Martinez, Carlos Rodriguez, Diana Kim\n\n' +
+  'Summary\n' +
+  'The team reviewed the Q3 payments architecture proposal and agreed to adopt an event-driven approach. ' +
+  'The database migration was deferred to Q4 to avoid overlap with the peak-period load tests.\n\n' +
+  'Key Points\n' +
+  'Event-driven architecture: Alice presented a Kafka-based proposal for decoupling the payments service. ' +
+  'Bob confirmed the p99 latency target of 200ms is achievable. The team approved moving forward pending the schema spec.\n' +
+  'Database migration deferral: Carlos flagged that running the migration during Q3 feature freeze creates unacceptable risk ' +
+  'given the load test dependency. The team agreed to push it to Q4.\n' +
+  'Monitoring gaps: Diana noted that the current Datadog dashboards do not cover the new event consumers ' +
+  'and must be extended before rollout.\n\n' +
+  'Decisions Made\n' +
+  'Adopt event-driven architecture for the payments service. ' +
+  'Rationale: decouples scaling and keeps latency within the p99 target.\n' +
+  'Defer database migration to Q4. ' +
+  'Rationale: Q3 timing conflicts with the peak period; load test results are needed first.\n\n' +
+  'Action Items\n' +
+  'Alice Chen: Draft the event schema spec by June 6.\n' +
+  'Bob Martinez: Prototype the Kafka consumer and share results by June 10.\n' +
+  'Diana Kim: Extend Datadog monitors for event consumers before rollout. No deadline set.\n\n' +
+  'Next Steps\n' +
+  'Architecture review scheduled for June 13 to validate the schema spec before implementation begins.\n\n' +
+  'Open Questions\n' +
+  'What is the fallback if Kafka is unavailable during a payments spike? No decision reached.\n' +
+  'Risk: the Q4 migration window may conflict with the holiday freeze. ' +
+  'Carlos to confirm dates with the infrastructure team.';
+
+// Pure response-extraction logic shared between content_meet.js and tests.js.
+// Takes an element (the Gemini side-panel aside) and returns the last model
+// reply with UI chrome stripped, or null if no response is present.
+// content_meet.js wraps this with a live document.querySelector call;
+// tests.js passes a mock element directly.
+function extractLastResponseFromEl(el) {
+  const full = el?.innerText?.trim() || '';
+  const parts = full.split('Gemini response\n');
+  if (parts.length < 2) return null;
+  return parts[parts.length - 1]
+    .replace(/\n\n\nNote:.*$/s, '')       // "Note: No relevant info..." disclaimer
+    .replace(/\n+Copy\n.*$/s, '')          // Copy / Report / thumbs feedback row
+    .replace(/\n*(\d+\n){1,4}\d+ source.*$/s, '') // citation footer e.g. "1\n1 source"
+    .replace(/(?<=[a-zA-Z])\.(\d{1,3})(?=[^a-zA-Z0-9.]|$)/g, '.') // "word.1" → "word."
+    // Second citation pass: strip digits directly after letters or closing quotes
+    // Handles: "Carlos Sol1" → "Sol", '"move."1' → '"move."'
+    // Uses single-digit [1-9] to avoid corrupting "Python 3.11" (digit precedes digit → no match)
+    .replace(/(?<=[a-zA-Z"'])([1-9])(?=[\s\n]|$)/gm, '')
+    .trim();
+}

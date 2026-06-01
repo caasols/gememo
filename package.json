@@ -1,0 +1,12 @@
+{
+  "name": "gememo",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:python": "python3 -m pytest native_host/ -v",
+    "test:all": "python3 -m pytest native_host/ -v && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}

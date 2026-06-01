@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MM2C Test Fixture</title></head>
+<body>
+<script>
+  // Fixture mode: skip tests that require a live Google Meet DOM
+  window.MM2C_FIXTURE_MODE = true;
+  // Prevent auto-run so Playwright can call MM2C_TESTS.run() explicitly
+  window.MM2C_SKIP_AUTORUN = true;
+</script>
+<script src="../extension/constants.js"></script>
+<script src="../extension/tests.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Unit and integration tests for YAML frontmatter in meeting_minutes_host.py."""
+
+import sys
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from meeting_minutes_host import build_yaml_frontmatter, handle_snapshot
+
+
+class TestBuildYamlFrontmatter(unittest.TestCase):
+
+    def _dt(self) -> datetime:
+        return datetime(2026, 5, 31, 9, 12, 0)
+
+    def test_final_note_fields(self):
+        """Final note frontmatter has date, title, source, tags — no snapshot key."""
+        result = build_yaml_frontmatter("Q3 Planning", self._dt())
+        self.assertTrue(result.startswith("---\n"), f"Should start with ---: {result!r}")
+        self.assertTrue(result.endswith("---\n"), f"Should end with ---: {result!r}")
+        self.assertIn("date: 2026-05-31", result)
+        self.assertIn('title: "Q3 Planning"', result)
+        self.assertIn("source: google-meet", result)
+        self.assertIn("tags: [meeting, 2026/05]", result)
+        self.assertNotIn("snapshot:", result)
+
+    def test_snapshot_flag_present(self):
+        """Snapshot frontmatter includes snapshot: true."""
+        result = build_yaml_frontmatter("Standup", self._dt(), snapshot=True)
+        self.assertIn("snapshot: true", result)
+
+    def test_no_snapshot_flag_on_final(self):
+        """Final note frontmatter must not contain the snapshot key at all."""
+        result = build_yaml_frontmatter("Standup", self._dt(), snapshot=False)
+        self.assertNotIn("snapshot:", result)
+
+    def test_title_double_quotes_escaped(self):
+        """Double quotes in the title are escaped as \\\" in the YAML string."""
+        result = build_yaml_frontmatter('Team "Sync"', self._dt())
+        self.assertIn(r'title: "Team \"Sync\""', result)
+
+    def test_month_tag_zero_padded(self):
+        """Single-digit months are zero-padded: 2026/01 not 2026/1."""
+        dt = datetime(2026, 1, 5, 9, 0, 0)
+        result = build_yaml_frontmatter("Meeting", dt)
+        self.assertIn("tags: [meeting, 2026/01]", result)
+
+    def test_attendees_block_list_in_frontmatter(self):
+        """Attendees list renders as YAML block sequence."""
+        result = build_yaml_frontmatter(
+            "Standup", self._dt(),
+            attendees=["Alice Chen", "Bob Martinez", "Carlos Rodriguez"]
+        )
+        self.assertIn("attendees:", result)
+        self.assertIn("  - Alice Chen", result)
+        self.assertIn("  - Bob Martinez", result)
+        self.assertIn("  - Carlos Rodriguez", result)
+        # Block list — not inline [...]
+        self.assertNotIn("attendees: [", result)
+
+    def test_empty_attendees_omitted(self):
+        """Empty attendees list produces no attendees key in frontmatter."""
+        result = build_yaml_frontmatter("Standup", self._dt(), attendees=[])
+        self.assertNotIn("attendees:", result)
+
+    def test_duration_min_in_frontmatter(self):
+        """duration_min renders as integer when provided."""
+        result = build_yaml_frontmatter("Meeting", self._dt(), duration_min=47)
+        self.assertIn("duration_min: 47", result)
+
+    def test_duration_min_omitted_when_none(self):
+        """duration_min key absent when not provided."""
+        result = build_yaml_frontmatter("Meeting", self._dt())
+        self.assertNotIn("duration_min:", result)
+
+
+class TestHandleSnapshotFrontmatter(unittest.TestCase):
+
+    def _msg(self, tmp: str, file_type: str = "markdown") -> dict:
+        return {
+            "transcript": "snapshot body content",
+            "meetingTitle": "Standup",
+            "timestamp": "2026-05-31T09:12:00Z",
+            "fileBackupType": file_type,
+            "fileBackupPath": tmp,
+        }
+
+    def test_md_snapshot_starts_with_frontmatter(self):
+        """.md snapshot file starts with YAML frontmatter block."""
+        with tempfile.TemporaryDirectory() as tmp:
+            handle_snapshot(self._msg(tmp, "markdown"))
+            snaps = list(Path(tmp).glob("*-snap.md"))
+            self.assertEqual(len(snaps), 1)
+            content = snaps[0].read_text(encoding="utf-8")
+            self.assertTrue(content.startswith("---\n"), repr(content[:40]))
+            self.assertIn("snapshot: true", content)
+            self.assertIn("snapshot body content", content)
+
+    def test_txt_snapshot_has_no_frontmatter(self):
+        """.txt snapshot file has no YAML frontmatter."""
+        with tempfile.TemporaryDirectory() as tmp:
+            handle_snapshot(self._msg(tmp, "txt"))
+            snaps = list(Path(tmp).glob("*-snap.txt"))
+            self.assertEqual(len(snaps), 1)
+            content = snaps[0].read_text(encoding="utf-8")
+            self.assertFalse(content.startswith("---"), repr(content[:40]))
+
+
+if __name__ == "__main__":
+    unittest.main()

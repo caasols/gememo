@@ -1,0 +1,649 @@
+const DEFAULT_FILE_PATH = '~/Downloads/meeting-notes';
+
+const KEYS = [
+  'mm2c_enabled', 'mm2c_prompt',
+  'mm2c_output_app',
+  'mm2c_craft_folder_id',
+  'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
+  'mm2c_last_status', 'mm2c_logs', 'mm2c_capture_state',
+  'mm2c_last_snapshot',
+  'mm2c_note_language',
+  'mm2c_prompt_rules',
+  'mm2c_snapshot_interval_min',
+  'mm2c_obsidian_vault_path',
+  'mm2c_last_failed',
+];
+
+const $ = id => document.getElementById(id);
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatSnapshotAge(ts, now = Date.now()) {
+  const diffMs  = Math.max(0, now - ts);
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) {
+    return `${Math.floor(diffMs / 1000)}s ago`;
+  }
+  return `${diffMin} min ago`;
+}
+
+// Returns a "Xm Ys" string for the time remaining until nextAt (ms timestamp).
+// Returns null when nextAt is 0 (no snapshot scheduled yet).
+function formatCountdown(nextAt, now = Date.now()) {
+  if (!nextAt) return null;
+  const ms = nextAt - now;
+  if (ms <= 0) return 'due now';
+  const totalSec = Math.round(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+}
+
+// Shows/hides widget AND updates content. Only called from MM2C_STATUS_QUERY callback.
+function renderSnapshotWidget(snap) {
+  if (!snap) {
+    $('snapshot-widget').classList.add('hidden');
+    return;
+  }
+  $('snapshot-widget').classList.remove('hidden');
+  $('snapshot-age').textContent = `Last snapshot: ${formatSnapshotAge(snap.ts)}`;
+  $('snapshot-preview').textContent = snap.preview || '';
+}
+
+// Updates content ONLY if widget is already visible. Called from applyState and onChanged.
+function updateSnapshotContent(snap) {
+  if ($('snapshot-widget').classList.contains('hidden')) return;
+  if (!snap) return;
+  $('snapshot-age').textContent = `Last snapshot: ${formatSnapshotAge(snap.ts)}`;
+  $('snapshot-preview').textContent = snap.preview || '';
+}
+
+function renderRules(rules) {
+  const list = $('rules-list');
+  list.innerHTML = '';
+  if (!rules || rules.length === 0) {
+    list.innerHTML = '<div class="rules-empty">No rules yet. Add one to use a custom prompt for specific meetings.</div>';
+    return;
+  }
+  rules.forEach((rule, i) => {
+    const item = document.createElement('div');
+    item.className = 'rule-item';
+    item.dataset.index = i;
+    item.innerHTML = `
+      <div class="rule-header">
+        <input class="rule-regex" type="text" placeholder="e.g. DAILY" value="${escapeHtml(rule.regex || '')}">
+        <button class="btn-rule-action" data-action="up" data-index="${i}" title="Move up">↑</button>
+        <button class="btn-rule-action" data-action="down" data-index="${i}" title="Move down">↓</button>
+        <button class="btn-rule-action danger" data-action="delete" data-index="${i}" title="Delete">✕</button>
+      </div>
+      <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function applyState(s) {
+  const enabled = s.mm2c_enabled !== false;
+  $('enabled').checked = enabled;
+  document.body.classList.toggle('ext-disabled', !enabled);
+
+  $('prompt').value = s.mm2c_prompt || DEFAULT_PROMPT;
+
+  // Output app selector — default to 'craft' for existing users
+  const outputApp = s.mm2c_output_app || 'craft';
+  $('output-app').value = outputApp;
+  $('craft-sub-options').classList.toggle('hidden', outputApp !== 'craft');
+  $('obsidian-sub-options').classList.toggle('hidden', outputApp !== 'obsidian');
+  $('obsidian-vault-path').value = s.mm2c_obsidian_vault_path || '';
+
+  $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
+
+  const fileBackupOn = s.mm2c_file_backup_enabled === true;
+  $('file-backup-enabled').checked = fileBackupOn;
+  $('file-backup-sub').classList.toggle('hidden', !fileBackupOn);
+  $('file-type').value = s.mm2c_file_backup_type || 'markdown';
+  $('file-path').value = s.mm2c_file_backup_path || DEFAULT_FILE_PATH;
+
+  const last = s.mm2c_last_status || '';
+  $('status').textContent = last || 'Not in a meeting.';
+  const cls = (last.startsWith('Error') || last.startsWith('Native host') || last.startsWith('Host'))
+    ? 'err' : last.startsWith('Warning') ? 'warn' : last ? 'ok' : '';
+  $('status-banner').className = 'status-banner' + (cls ? ' ' + cls : '');
+
+  // Override with live capture state — takes precedence over mm2c_last_status
+  if (s.mm2c_capture_state === 'capturing') {
+    $('status').textContent = 'Capturing notes…';
+    $('status-banner').className = 'status-banner ok';
+  }
+
+  // Update snapshot preview content (visibility is controlled by MM2C_STATUS_QUERY callback)
+  updateSnapshotContent(s.mm2c_last_snapshot || null);
+
+  // Render note language selection
+  const lang = s.mm2c_note_language || '';
+  const PRESETS = ['', 'English', 'Spanish', 'Portuguese', 'French', 'German', 'Italian', 'Dutch'];
+  if (PRESETS.includes(lang)) {
+    $('note-language').value = lang;
+    $('note-language-custom-row').classList.add('hidden');
+  } else {
+    $('note-language').value = '__custom__';
+    $('note-language-custom').value = lang;
+    $('note-language-custom-row').classList.remove('hidden');
+  }
+
+  renderRules(s.mm2c_prompt_rules || []);
+  $('snapshot-interval').value = s.mm2c_snapshot_interval_min || 8;
+
+  // Keep capture-now button in sync with capture state
+  const capturing = s.mm2c_capture_state === 'capturing';
+  const captureBtn = $('capture-now-btn');
+  if (captureBtn) {
+    captureBtn.disabled    = capturing;
+    captureBtn.textContent = capturing ? 'Capturing notes…' : 'Capture now';
+  }
+
+  renderLogs(s.mm2c_logs);
+
+  // Retry widget — shown when last send failed with a recoverable backup
+  const failed = s.mm2c_last_failed;
+  const retryWidget = $('retry-widget');
+  if (retryWidget) {
+    if (failed?.title) {
+      retryWidget.classList.remove('hidden');
+      const el = $('retry-title');
+      if (el) el.textContent = failed.title.length > 45
+        ? failed.title.slice(0, 45) + '…'
+        : failed.title;
+    } else {
+      retryWidget.classList.add('hidden');
+    }
+  }
+}
+
+function setHostStatus(ok, error, hostVersion, versionMismatch) {
+  const dot      = $('host-dot');
+  const label    = $('host-label');
+  const setupBtn = $('setup-btn');
+  const panel    = $('setup-panel');
+
+  if (ok && versionMismatch) {
+    dot.className = 'host-dot warn';
+    const extVersion = chrome.runtime.getManifest().version;
+    label.textContent = `Version mismatch — click Set up to reinstall (host v${hostVersion}, extension v${extVersion})`;
+    setupBtn.classList.remove('hidden');
+    panel.classList.add('hidden');
+  } else if (ok) {
+    dot.className = 'host-dot ok';
+    label.textContent = hostVersion ? `Native host ready (v${hostVersion})` : 'Native host ready';
+    setupBtn.classList.add('hidden');
+    panel.classList.add('hidden');
+  } else {
+    dot.className = 'host-dot err';
+    label.textContent = error || 'Native host not found — click Set up to install';
+    setupBtn.classList.remove('hidden');
+    // Pre-fill the install command with the actual extension ID
+    const extId = chrome.runtime.id;
+    $('install-cmd').textContent = `bash "$(mdfind -name install.sh | grep gememo | head -1)" ${extId}`;
+  }
+}
+
+function save(patch) {
+  chrome.storage.local.set(patch);
+}
+
+// ── Logs ───────────────────────────────────────────────────────────────────
+
+function groupLogs(logs) {
+  const groups = [];
+  for (const entry of logs) {
+    const last = groups[groups.length - 1];
+    if (last && last.title === entry.title) {
+      last.entries.push(entry);
+    } else {
+      groups.push({ title: entry.title, entries: [entry] });
+    }
+  }
+  return groups;
+}
+
+function formatLogTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return time;
+  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `${date} ${time}`;
+}
+
+function renderLogs(logs) {
+  const list = $('log-list');
+  const countEl = $('logs-count');
+
+  if (!Array.isArray(logs) || logs.length === 0) {
+    list.innerHTML = '<div class="log-empty">No activity yet. Notes will appear here after your meetings.</div>';
+    countEl.textContent = '';
+    return;
+  }
+
+  const groups = groupLogs(logs);
+  countEl.textContent = `${groups.length} meeting${groups.length === 1 ? '' : 's'} · ${logs.length} entr${logs.length === 1 ? 'y' : 'ies'}`;
+
+  list.innerHTML = groups.map((group, i) => {
+    const groupClass = i === 0 ? 'log-group expanded' : 'log-group';
+    const groupTitle = group.title || 'System';
+    const groupDate = formatLogTime(group.entries[0].ts);
+    const entryCount = group.entries.length;
+    const meta = `${groupDate} · ${entryCount} entr${entryCount === 1 ? 'y' : 'ies'}`;
+
+    const entriesHtml = group.entries.map(entry => {
+      const dotClass = entry.status === 'ok' ? 'ok' : entry.status === 'warn' ? 'warn' : entry.status === 'err' ? 'err' : 'info';
+      const time = formatLogTime(entry.ts);
+      const message = entry.message || '';
+      const backupMatch = entry.status === 'err' ? message.match(/backup at (.+)$/) : null;
+      const retryChip = backupMatch
+        ? `<button class="btn log-retry-btn" data-title="${escapeHtml(group.title || '')}" data-backup="${escapeHtml(backupMatch[1])}">Retry</button>`
+        : '';
+      return `
+        <div class="log-entry">
+          <span class="log-dot ${dotClass}"></span>
+          <div class="log-content">
+            <div class="log-header">
+              <span class="log-time">${escapeHtml(time)}</span>
+              ${retryChip}
+            </div>
+            <div class="log-message">${escapeHtml(message)}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="${groupClass}">
+        <div class="log-group-header">
+          <span class="log-group-chevron">▶</span>
+          <span class="log-group-title">${escapeHtml(groupTitle)}</span>
+          <span class="log-group-meta">${escapeHtml(meta)}</span>
+        </div>
+        <div class="log-group-entries">${entriesHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+
+const TABS = ['main', 'rules', 'settings', 'logs', 'about'];
+
+function switchTab(tabName) {
+  TABS.forEach(t => {
+    $(`tab-${t}`).classList.toggle('active', t === tabName);
+    $(`${t}-panel`).classList.toggle('hidden', t !== tabName);
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  chrome.storage.local.get(KEYS, applyState);
+
+  // About tab — populate from Chrome runtime
+  $('about-version').textContent = `v${chrome.runtime.getManifest().version}`;
+  $('about-ext-id').textContent  = chrome.runtime.id;
+
+  $('copy-ext-id').addEventListener('click', () => {
+    navigator.clipboard.writeText(chrome.runtime.id).then(() => {
+      const btn = $('copy-ext-id');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  });
+
+  $('retry-btn').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_last_failed'], ({ mm2c_last_failed }) => {
+      if (!mm2c_last_failed) return;
+      const btn = $('retry-btn');
+      btn.textContent = 'Retrying…';
+      btn.disabled = true;
+      chrome.runtime.sendMessage({
+        type:       'MM2C_RETRY',
+        title:      mm2c_last_failed.title,
+        backupPath: mm2c_last_failed.backupPath,
+      }, (response) => {
+        btn.textContent = 'Retry →';
+        btn.disabled = false;
+        if (response?.ok) {
+          $('retry-widget').classList.add('hidden');
+          chrome.storage.local.get(KEYS, applyState);
+        }
+      });
+    });
+  });
+
+  $('retry-dismiss').addEventListener('click', () => {
+    chrome.storage.local.remove('mm2c_last_failed');
+    $('retry-widget').classList.add('hidden');
+  });
+
+  // Query the active Meet tab for live meeting state — also called every 10 s to auto-refresh.
+  function queryMeetingState() {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (!tabId) return;
+      chrome.tabs.sendMessage(tabId, { type: 'MM2C_STATUS_QUERY' }, (response) => {
+        if (chrome.runtime.lastError) return; // not a Meet tab or content script not ready
+        const inMeeting = !!response?.inMeeting;
+        $('capture-footer').classList.toggle('hidden', !inMeeting);
+        $('capture-footer-spacer').classList.toggle('hidden', !inMeeting);
+        if (!inMeeting) {
+          $('snapshot-widget').classList.add('hidden');
+          return;
+        }
+        // Show snapshot widget if a snapshot exists
+        chrome.storage.local.get(['mm2c_last_snapshot'], ({ mm2c_last_snapshot }) => {
+          renderSnapshotWidget(mm2c_last_snapshot || null);
+          const nextEl = $('snapshot-next');
+          if (nextEl) {
+            const countdown = formatCountdown(response.nextSnapshotAt || 0);
+            const firstEta  = formatCountdown(response.firstSnapshotAt || 0);
+            if (countdown) {
+              nextEl.textContent = `Next in: ${countdown}`;
+              nextEl.classList.remove('hidden');
+            } else if (firstEta) {
+              nextEl.textContent = `First snapshot in: ${firstEta}`;
+              nextEl.classList.remove('hidden');
+            } else {
+              nextEl.classList.add('hidden');
+            }
+          }
+        });
+        // Don't overwrite "Capturing notes…" with a stale "In meeting…" message
+        chrome.storage.local.get(['mm2c_capture_state'], ({ mm2c_capture_state }) => {
+          if (mm2c_capture_state === 'capturing') return; // button already shows "Capturing…"
+          const captureBtn = $('capture-now-btn');
+          if (captureBtn) {
+            captureBtn.disabled    = !response.geminiActive;
+            captureBtn.textContent = response.geminiActive ? 'Capture now' : 'Open Gemini to capture';
+          }
+          const msg = response.geminiActive
+            ? 'In meeting — notes captured when you leave'
+            : 'In meeting — open the Gemini panel to enable capture';
+          const cls = response.geminiActive ? 'ok' : 'warn';
+          $('status').textContent = msg;
+          $('status-banner').className = `status-banner ${cls}`;
+        });
+      });
+    });
+  }
+  queryMeetingState();
+  const refreshTimer = setInterval(queryMeetingState, 10_000);
+  window.addEventListener('unload', () => clearInterval(refreshTimer));
+
+  chrome.runtime.sendMessage({ type: 'MM2C_CHECK_HOST' }, (response) => {
+    setHostStatus(response?.ok === true, response?.error, response?.hostVersion, response?.versionMismatch);
+    if (response?.home) {
+      // If the user hasn't saved a custom path yet, resolve ~ to the real home dir
+      chrome.storage.local.get(['mm2c_file_backup_path'], (data) => {
+        if (!data.mm2c_file_backup_path) {
+          const fullDefault = `${response.home}/Downloads/meeting-notes`;
+          $('file-path').value = fullDefault;
+        }
+      });
+    }
+  });
+
+  // Tab switching
+  TABS.forEach(t => $(`tab-${t}`).addEventListener('click', () => switchTab(t)));
+
+  // Setup panel toggle
+  $('setup-btn').addEventListener('click', () => {
+    $('setup-panel').classList.toggle('hidden');
+  });
+
+  $('copy-cmd').addEventListener('click', () => {
+    const cmd = $('install-cmd').textContent;
+    navigator.clipboard.writeText(cmd).then(() => {
+      const btn = $('copy-cmd');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  });
+
+  $('enabled').addEventListener('change', e => {
+    document.body.classList.toggle('ext-disabled', !e.target.checked);
+    save({ mm2c_enabled: e.target.checked });
+  });
+
+  $('prompt-toggle').addEventListener('click', () => {
+    const body   = $('prompt-body');
+    const btn    = $('prompt-toggle');
+    const hidden = body.classList.toggle('hidden');
+    btn.classList.toggle('open', !hidden);
+  });
+
+  $('rules-toggle').addEventListener('click', () => {
+    const body = $('rules-body');
+    const btn  = $('rules-toggle');
+    const hidden = body.classList.toggle('hidden');
+    btn.classList.toggle('open', !hidden);
+  });
+
+  $('add-rule-btn').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_prompt_rules'], ({ mm2c_prompt_rules }) => {
+      const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
+      rules.push({ regex: '', prompt: '' });
+      save({ mm2c_prompt_rules: rules });
+      renderRules(rules);
+    });
+  });
+
+  $('rules-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const idx    = parseInt(btn.dataset.index, 10);
+    const action = btn.dataset.action;
+    chrome.storage.local.get(['mm2c_prompt_rules'], ({ mm2c_prompt_rules }) => {
+      const rules = Array.isArray(mm2c_prompt_rules) ? [...mm2c_prompt_rules] : [];
+      if (action === 'delete') {
+        rules.splice(idx, 1);
+      } else if (action === 'up' && idx > 0) {
+        [rules[idx - 1], rules[idx]] = [rules[idx], rules[idx - 1]];
+      } else if (action === 'down' && idx < rules.length - 1) {
+        [rules[idx], rules[idx + 1]] = [rules[idx + 1], rules[idx]];
+      }
+      save({ mm2c_prompt_rules: rules });
+      renderRules(rules);
+    });
+  });
+
+  $('rules-list').addEventListener('blur', (e) => {
+    const item = e.target.closest('.rule-item');
+    if (!item) return;
+    const idx = parseInt(item.dataset.index, 10);
+    chrome.storage.local.get(['mm2c_prompt_rules'], ({ mm2c_prompt_rules }) => {
+      const rules = Array.isArray(mm2c_prompt_rules) ? [...mm2c_prompt_rules] : [];
+      if (!rules[idx]) return;
+      const regex  = item.querySelector('.rule-regex').value.trim();
+      const prompt = item.querySelector('.rule-prompt').value.trim();
+      rules[idx] = { regex, prompt };
+      save({ mm2c_prompt_rules: rules });
+    });
+  }, true);
+
+  $('prompt').addEventListener('change', e => {
+    save({ mm2c_prompt: e.target.value.trim() || DEFAULT_PROMPT });
+  });
+
+  $('output-app').addEventListener('change', e => {
+    const app = e.target.value;
+    $('craft-sub-options').classList.toggle('hidden', app !== 'craft');
+    $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
+    save({ mm2c_output_app: app });
+  });
+
+  $('craft-folder-id').addEventListener('change', e => {
+    save({ mm2c_craft_folder_id: e.target.value.trim() });
+  });
+
+  $('reset-prompt').addEventListener('click', () => {
+    $('prompt').value = DEFAULT_PROMPT;
+    save({ mm2c_prompt: DEFAULT_PROMPT });
+  });
+
+  $('file-backup-enabled').addEventListener('change', e => {
+    $('file-backup-sub').classList.toggle('hidden', !e.target.checked);
+    save({ mm2c_file_backup_enabled: e.target.checked });
+  });
+
+  $('file-type').addEventListener('change', e => {
+    save({ mm2c_file_backup_type: e.target.value });
+  });
+
+  $('note-language').addEventListener('change', e => {
+    const val = e.target.value;
+    if (val === '__custom__') {
+      $('note-language-custom-row').classList.remove('hidden');
+    } else {
+      $('note-language-custom-row').classList.add('hidden');
+      save({ mm2c_note_language: val });
+    }
+  });
+
+  $('note-language-custom').addEventListener('change', e => {
+    const val = e.target.value.trim();
+    if (val) save({ mm2c_note_language: val });
+  });
+
+  $('snapshot-interval').addEventListener('change', e => {
+    const raw = parseInt(e.target.value, 10);
+    const clamped = Math.max(3, Math.min(30, isNaN(raw) ? 8 : raw));
+    e.target.value = clamped;
+    save({ mm2c_snapshot_interval_min: clamped });
+  });
+
+  $('obsidian-vault-path').addEventListener('click', () => {
+    const input = $('obsidian-vault-path');
+    const prev = input.value;
+    input.value = 'Selecting…';
+    input.disabled = true;
+    chrome.runtime.sendMessage({ type: 'MM2C_CHOOSE_FOLDER' }, (response) => {
+      input.disabled = false;
+      if (response?.path) {
+        input.value = response.path;
+        save({ mm2c_obsidian_vault_path: response.path });
+      } else {
+        input.value = prev;
+      }
+    });
+  });
+
+  $('file-path').addEventListener('click', () => {
+    const input = $('file-path');
+    const prev = input.value;
+    input.value = 'Selecting…';
+    input.disabled = true;
+    chrome.runtime.sendMessage({ type: 'MM2C_CHOOSE_FOLDER' }, (response) => {
+      input.disabled = false;
+      if (response?.path) {
+        input.value = response.path;
+        save({ mm2c_file_backup_path: response.path });
+      } else {
+        input.value = prev;
+      }
+    });
+  });
+
+  // Live updates — refresh log list and capture state whenever storage changes while popup is open
+  chrome.storage.onChanged.addListener((changes) => {
+    if ('mm2c_logs' in changes) {
+      renderLogs(changes.mm2c_logs.newValue);
+    }
+    if ('mm2c_last_snapshot' in changes) {
+      updateSnapshotContent(changes.mm2c_last_snapshot.newValue || null);
+    }
+    if ('mm2c_prompt_rules' in changes) {
+      renderRules(changes.mm2c_prompt_rules.newValue || []);
+    }
+    if ('mm2c_capture_state' in changes) {
+      const capturing = changes.mm2c_capture_state.newValue === 'capturing';
+      const captureBtn = $('capture-now-btn');
+      if (captureBtn) {
+        captureBtn.disabled    = capturing;
+        captureBtn.textContent = capturing ? 'Capturing notes…' : 'Capture now';
+      }
+      if (capturing) {
+        $('status').textContent = 'Capturing notes…';
+        $('status-banner').className = 'status-banner ok';
+      } else {
+        // Capture ended — re-read all state to show updated mm2c_last_status
+        chrome.storage.local.get(KEYS, applyState);
+      }
+    }
+  });
+
+  $('log-list').addEventListener('click', (e) => {
+    const retryBtn = e.target.closest('.log-retry-btn');
+    if (!retryBtn) return;
+    e.stopPropagation();
+    retryBtn.textContent = 'Retrying…';
+    retryBtn.disabled = true;
+    chrome.runtime.sendMessage({
+      type:       'MM2C_RETRY',
+      title:      retryBtn.dataset.title,
+      backupPath: retryBtn.dataset.backup,
+    }, (response) => {
+      retryBtn.textContent = response?.ok ? 'Sent ✓' : 'Failed ✗';
+    });
+  });
+
+  // Collapsible log groups — toggle via event delegation
+  $('log-list').addEventListener('click', (e) => {
+    const header = e.target.closest('.log-group-header');
+    if (!header) return;
+    header.closest('.log-group').classList.toggle('expanded');
+  });
+
+  // Snapshot preview expand/collapse
+  $('snapshot-header').addEventListener('click', () => {
+    const header  = $('snapshot-header');
+    const preview = $('snapshot-preview');
+    const isOpen  = header.classList.toggle('expanded');
+    preview.classList.toggle('hidden', !isOpen);
+  });
+
+  // Capture now — sends MM2C_CAPTURE_NOW directly to content script via tabs API
+  $('capture-now-btn').addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (!tabId) return;
+      chrome.tabs.sendMessage(tabId, { type: 'MM2C_CAPTURE_NOW' });
+    });
+  });
+
+  // Download logs as JSON
+  $('download-logs').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => {
+      const data = JSON.stringify(mm2c_logs || [], null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `mm2c-logs-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+
+  // Clear logs
+  $('clear-logs').addEventListener('click', () => {
+    chrome.storage.local.set({ mm2c_logs: [] }, () => {
+      renderLogs([]);
+    });
+  });
+});
