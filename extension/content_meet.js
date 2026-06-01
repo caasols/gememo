@@ -1204,24 +1204,15 @@
       // If a periodic snapshot is currently running, await its natural completion.
       // No cap or force-release — the snapshot is bounded by its own 90 s timeout
       // in runGeminiFlow(90_000). When it finishes, cachedTranscript is up to date.
-      if (geminiFlowPromise) {
-        sendLog('Snapshot in progress — waiting for it to complete...');
+      // If a periodic snapshot was actively running when Leave was clicked,
+      // wait for it and use that result directly — no point running Gemini again
+      // immediately after it just finished. If no snapshot was in progress,
+      // always attempt a fresh capture to get the final minutes of discussion.
+      const snapshotWasActive = !!geminiFlowPromise;
+      if (snapshotWasActive) {
+        sendLog('Snapshot in progress when Leave clicked — waiting for it to complete...');
         await geminiFlowPromise;
-        sendLog('Snapshot complete — proceeding with leave');
-      }
-
-      const ageMin = cachedTranscriptAt ? Math.round((Date.now() - cachedTranscriptAt) / 60000) : null;
-      const ageSuffix = ageMin !== null ? `, ${ageMin} min old` : '';
-
-      // Attempt a fresh Gemini run on Leave to capture the final minutes of
-      // discussion that the last periodic snapshot missed — UNLESS the most
-      // recent snapshot is fresh enough (< half the snapshot interval, i.e. < 4 min).
-      // In that case the snapshot already has up-to-date content and a redundant
-      // Gemini run only adds latency and risks a "Native host has exited" cascade.
-      const snapshotAgeSec = cachedTranscriptAt ? (Date.now() - cachedTranscriptAt) / 1000 : Infinity;
-      const skipFreshRun = snapshotAgeSec < (snapshotIntervalMs / 2 / 1000);
-      if (skipFreshRun) {
-        sendLog(`Leave clicked — recent snapshot (${Math.round(snapshotAgeSec)}s old) is fresh enough, skipping extra Gemini run`);
+        sendLog('Snapshot complete — using result directly, skipping redundant Gemini run');
       } else {
         sendLog('Leave clicked — attempting fresh Gemini capture for final notes...');
         try {
@@ -1235,6 +1226,9 @@
           }
         }
       }
+
+      const ageMin = cachedTranscriptAt ? Math.round((Date.now() - cachedTranscriptAt) / 60000) : null;
+      const ageSuffix = ageMin !== null ? `, ${ageMin} min old` : '';
 
       if (!transcript && cachedTranscript) {
         // Fresh flow failed or Gemini was not active — use last periodic snapshot.
