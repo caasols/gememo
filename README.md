@@ -5,6 +5,8 @@
 
 A Chrome extension that captures Google Meet notes automatically when you leave a call — using Google's own Gemini AI that's already running inside your meeting. No bot, no API key, no subscription.
 
+Unlike Fireflies, Otter.ai, or Granola, Gememo doesn't send a bot into your call. It reads the Gemini transcript that's already in your browser, formats it, and saves it to your note app the moment you click Leave — silently, in the background, without stealing focus.
+
 <!-- ![Gememo Screenshot](./metadata/gememo-1.png) -->
 
 ## Installation
@@ -99,10 +101,6 @@ Open the extension popup → **Settings tab**:
 6. Submit a pull request
 
 Please open a discussion first for larger changes so we can align on the approach. The [ROADMAP.md](ROADMAP.md) has a prioritised work queue if you're looking for where to start.
-
-## Why not a bot?
-
-Most AI meeting note tools (Fireflies, Otter.ai, Granola) join your meeting as a visible bot participant, record audio, and ship it to their cloud. Gememo reads the Gemini transcript that's already in your browser — no bot joins your call, no audio leaves your machine, and there's no subscription fee.
 
 ## License
 
