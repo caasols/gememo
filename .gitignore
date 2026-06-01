@@ -1,0 +1,48 @@
+# ── macOS ────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+*.pyo
+
+# ── Editor & IDE ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.orig
+
+# ── Claude Code / AI tooling ─────────────────────────────────────────────────
+.claude/
+docs/superpowers/
+
+# ── Internal development documents ──────────────────────────────────────────
+# These contain implementation notes and backlog items not meant for public consumption.
+ROADMAP.md
+
+# ── Test artefacts (generated, not source) ───────────────────────────────────
+node_modules/
+test-results/
+playwright-report/
+
+# ── Secrets & credentials ─────────────────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# ── Build / cache artefacts ──────────────────────────────────────────────────
+*.zip
+dist/
+build/
+
+# Session context (local only)
+context.md
