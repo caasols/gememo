@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MM2C DOM Fixture</title></head>
+<body>
+<script>
+  window.MM2C_FIXTURE_MODE = true;
+  window.MM2C_SKIP_AUTORUN = true;
+
+  // Minimal chrome API stub so content_meet.js loads without throwing.
+  window.chrome = {
+    runtime: { onMessage: { addListener: () => {} }, lastError: null },
+    storage: {
+      local: {
+        get: () => Promise.resolve({}),
+        set: () => Promise.resolve(),
+        remove: () => Promise.resolve(),
+      },
+      onChanged: { addListener: () => {} },
+    },
+  };
+</script>
+<script src="../extension/constants.js"></script>
+<script src="../extension/content_meet.js"></script>
+<script>
+  window.MM2C_DOM_TESTS = (() => {
+    const results = [];
+
+    function assert(label, condition, detail = '') {
+      const ok = !!condition;
+      results.push({ ok, label, detail });
+      console[ok ? 'log' : 'error'](`${ok ? '✅' : '❌'} ${label}${detail ? ' — ' + detail : ''}`);
+    }
+
+    function assertEq(label, actual, expected) {
+      const ok = JSON.stringify(actual) === JSON.stringify(expected);
+      const detail = ok ? '' : `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
+      results.push({ ok, label, detail });
+      console[ok ? 'log' : 'error'](`${ok ? '✅' : '❌'} ${label}${detail ? ' — ' + detail : ''}`);
+    }
+
+    async function withFixture(html, fn) {
+      const container = document.createElement('div');
+      container.innerHTML = html;
+      document.body.appendChild(container);
+      try { await fn(container); }
+      finally { container.remove(); }
+    }
+
+    async function run() {
+      results.length = 0;
+      const { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton } =
+        window.MM2C_SELECTORS;
+      const savedTitle = document.title;
+
+      // ── getMeetingTitle ──────────────────────────────────────────────────────
+      console.group('getMeetingTitle');
+
+      document.title = 'Meet - Sprint Planning';
+      assertEq('scheduled meeting title extracted', getMeetingTitle(), 'Sprint Planning');
+
+      document.title = 'Meet – Q3 Review'; // em-dash
+      assertEq('em-dash variant extracted', getMeetingTitle(), 'Q3 Review');
+
+      document.title = 'Meet - abc-defg-hij'; // room code
+      assertEq('room code returns empty string', getMeetingTitle(), '');
+
+      document.title = 'Google Meet';
+      await withFixture('<div data-meeting-title="Roadmap sync"></div>', () => {
+        assertEq('DOM data-meeting-title fallback used', getMeetingTitle(), 'Roadmap sync');
+      });
+
+      document.title = 'Google Meet';
+      assertEq('no usable title returns empty string', getMeetingTitle(), '');
+
+      document.title = savedTitle;
+      console.groupEnd();
+
+      // ── getAttendeeNames ─────────────────────────────────────────────────────
+      console.group('getAttendeeNames');
+
+      await withFixture(`
+        <div data-participant-id="1"><span data-self-name="Alice"></span></div>
+        <div data-participant-id="2"><span data-self-name="Bob"></span></div>
+      `, () => {
+        const names = getAttendeeNames();
+        assert('two participants extracted', names.length === 2);
+        assert('Alice in result', names.includes('Alice'));
+        assert('Bob in result', names.includes('Bob'));
+      });
+
+      await withFixture(`
+        <div data-participant-id="1"><span data-self-name="Alice"></span></div>
+        <div data-participant-id="2"><span data-self-name="Alice"></span></div>
+      `, () => {
+        assertEq('duplicate name deduplicated', getAttendeeNames(), ['Alice']);
+      });
+
+      await withFixture(`
+        <div data-participant-id="1"><span data-self-name="123"></span></div>
+      `, () => {
+        assertEq('numeric string ignored', getAttendeeNames(), []);
+      });
+
+      await withFixture(`
+        <div data-participant-id="1"><span data-self-name=""></span></div>
+      `, () => {
+        assertEq('empty name ignored', getAttendeeNames(), []);
+      });
+
+      console.groupEnd();
+
+      // ── getGeminiTriggerElement ──────────────────────────────────────────────
+      console.group('getGeminiTriggerElement');
+
+      await withFixture('<button aria-label="Gemini"></button>', () => {
+        assert('aria-label button returns element', !!getGeminiTriggerElement());
+      });
+
+      await withFixture('<div role="button">Geminispark_off</div>', () => {
+        assert('div role=button with Gemini text returns element', !!getGeminiTriggerElement());
+      });
+
+      await withFixture('<div role="button">Take notes with Gemini</div>', () => {
+        assert('"Take notes with Gemini" fallback returns element', !!getGeminiTriggerElement());
+      });
+
+      await withFixture('', () => {
+        assert('returns null when no trigger present', getGeminiTriggerElement() === null);
+      });
+
+      console.groupEnd();
+
+      // ── getLeaveButton ───────────────────────────────────────────────────────
+      console.group('getLeaveButton');
+
+      await withFixture('<button aria-label="Leave call"></button>', () => {
+        assert('Leave call button found', !!getLeaveButton());
+      });
+
+      await withFixture('', () => {
+        assert('returns null when absent', getLeaveButton() === null);
+      });
+
+      console.groupEnd();
+
+      const passed = results.filter(r => r.ok).length;
+      return { passed, total: results.length, results };
+    }
+
+    return { run };
+  })();
+</script>
+</body>
+</html>
