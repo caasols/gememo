@@ -2019,7 +2019,73 @@ window.MM2C_TESTS = (() => {
     return { passed, total, results };
   }
 
-  return { run };
+  // ── onLeaveClick send-path test helper ────────────────────────────────────
+  // Re-implements only the "send MM2C_RESPONSE when transcript is available"
+  // branch of onLeaveClick, with injectable deps.
+  // KEEP IN SYNC with onLeaveClick send block in content_meet.js.
+  //
+  // Intentional simplifications vs production:
+  //   • No fresh Gemini flow attempt — tests the send path only.
+  //   • durationMin always null — meetingJoinedAt not tracked in test state.
+  //   • No 20 s send timeout — _sendMessage is synchronous in tests.
+  async function onLeaveClick_test({ cachedTranscript, meetingTitle, attendees, _sendMessage = () => {} }) {
+    if (!cachedTranscript) return;
+    _sendMessage({
+      type: 'MM2C_RESPONSE',
+      text: cachedTranscript,
+      meetingTitle,
+      attendees,
+      durationMin: null,
+    });
+  }
+
+  // ── Smoke test suite ───────────────────────────────────────────────────────
+  async function runSmoke() {
+    results.length = 0;
+    console.group('Smoke: onLeaveClick send path');
+
+    // Case 1: happy path — transcript present, message sent with correct shape
+    const spy1 = [];
+    await onLeaveClick_test({
+      cachedTranscript: 'Sprint notes captured by Gemini.',
+      meetingTitle: 'Sprint Planning',
+      attendees: ['Alice', 'Bob'],
+      _sendMessage: msg => spy1.push(msg),
+    });
+    assert('MM2C_RESPONSE sent when transcript present', spy1.length === 1);
+    assertEq('message type is MM2C_RESPONSE', spy1[0]?.type, 'MM2C_RESPONSE');
+    assertEq('text field contains transcript', spy1[0]?.text, 'Sprint notes captured by Gemini.');
+    assertEq('meetingTitle forwarded', spy1[0]?.meetingTitle, 'Sprint Planning');
+
+    // Case 2: null transcript — no message sent
+    const spy2 = [];
+    await onLeaveClick_test({
+      cachedTranscript: null,
+      meetingTitle: 'Empty Meeting',
+      attendees: [],
+      _sendMessage: msg => spy2.push(msg),
+    });
+    assert('no MM2C_RESPONSE sent when transcript is null', spy2.length === 0);
+
+    // Case 3: attendees array forwarded correctly
+    const spy3 = [];
+    await onLeaveClick_test({
+      cachedTranscript: 'notes',
+      meetingTitle: 'Team Sync',
+      attendees: ['Carlos', 'María'],
+      _sendMessage: msg => spy3.push(msg),
+    });
+    // assertEq uses === so compare the JSON string directly for arrays
+    assert('attendees array forwarded in payload',
+      JSON.stringify(spy3[0]?.attendees) === JSON.stringify(['Carlos', 'María']));
+
+    console.groupEnd();
+
+    const passed = results.filter(r => r.ok).length;
+    return { passed, total: results.length, results };
+  }
+
+  return { run, runSmoke };
 })();
 
 // Auto-run — skipped when MM2C_SKIP_AUTORUN is set (e.g. Playwright fixture mode)
