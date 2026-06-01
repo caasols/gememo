@@ -1,6 +1,8 @@
 # Gememo
 
-> Automated, bot-free Google Meet notes — saved to Craft, Obsidian, Bear, or Apple Notes the moment you leave a call.
+[![CI](https://github.com/caasols/gememo/actions/workflows/ci.yml/badge.svg)](https://github.com/caasols/gememo/actions/workflows/ci.yml)
+
+> Automated, bot-free Google Meet notes — saved to Craft, Apple Notes, or Obsidian the moment you leave a call.
 
 When you click the red **Leave call** button, this Chrome extension intercepts it, asks Google's own Gemini AI to summarise what happened, and saves a formatted note to your note-taking app — silently, in the background, without stealing focus.
 
@@ -32,7 +34,7 @@ Before installing, make sure you have:
 - **macOS** (native host is macOS-only)
 - **Google Chrome** (MV3 extension)
 - **Google Workspace account** with Gemini in Google Meet enabled ([check here](https://workspace.google.com/intl/en/products/gemini/))
-- **Craft** installed and running ([craft.do](https://craft.do)) — or Obsidian / Bear / Apple Notes (in progress)
+- **A supported output app** — Craft ([craft.do](https://craft.do)), Apple Notes, or Obsidian (all included)
 - **Python 3.9+** (`python3 --version`)
 
 ---
@@ -82,12 +84,13 @@ The script will ask for the extension ID from step 1, then write the Chrome nati
 
 ### Step 3 — Configure your output destination
 
-Open the extension popup → **Settings tab** → **Output app** → select **Craft**.
+Open the extension popup → **Settings tab** → **Output app** → choose one:
 
-Optionally set a **Craft inbox folder ID** (leave blank to save to Unsorted):
-1. Right-click any doc in the target folder in Craft
-2. Select **Copy Deeplink**
-3. Paste the `docId` parameter value from the URL
+| App | Notes |
+|---|---|
+| **Craft** | Default. Optionally set an inbox folder ID (right-click folder → Copy Deeplink → use the `docId`). |
+| **Apple Notes** | Zero config. Notes land in the default Notes folder. |
+| **Obsidian** | Click the Vault folder field to pick your vault. Gememo writes YAML-frontmatted `.md` files that Obsidian picks up automatically. |
 
 ### Step 4 (Optional) — Configure file backup
 
@@ -119,12 +122,12 @@ Google Meet — red Leave call button clicked
             └─ native_host/meeting_minutes_host.py
                  ├─ formats markdown (strips bold/backtick markers)
                  ├─ writes final backup file (if enabled)
-                 ├─ writes temp file → scripts/push_to_craft.py
-                 │    ├─ starts local HTTP server for x-callback-url confirmation
-                 │    └─ opens craftdocs://x-callback-url/importDocument?filePath=...
-                 ├─ on Craft failure: retries with most recent snapshot file
-                 ├─ on persistent failure: shows backup file path in popup
-                 └─ macOS notification: "Meeting Notes → Craft"
+                 ├─ routes to output app (Craft / Apple Notes / Obsidian)
+                 │    Craft: opens craftdocs://createdocument?content=... (no file access needed)
+                 │    Apple Notes: osascript with HTML body
+                 │    Obsidian: writes YAML-frontmatted .md to vault folder
+                 ├─ on failure: stores mm2c_last_failed; retry widget appears in popup
+                 └─ macOS notification on success
 ```
 
 ---
@@ -139,12 +142,13 @@ The extension will:
 3. Format and save the note to Craft in the background
 4. Show a macOS notification when done
 
-**The popup (click the extension icon) has 4 tabs:**
+**The popup (click the extension icon) has 5 tabs:**
 
-- **Main** — live status: whether a meeting is active, last snapshot time, host connection
+- **Main** — live status: whether a meeting is active, last snapshot time, host connection, retry widget on failure
 - **Rules** — default prompt editor + per-meeting-type prompt rules (e.g. standup format for daily scrums)
 - **Settings** — snapshot frequency, note language, output destination, file backup
-- **Logs** — full activity log grouped by meeting
+- **Logs** — full activity log grouped by meeting, with per-entry Retry button on errors
+- **About** — version, GitHub link, extension ID copy button
 
 **Mid-meeting features:**
 - **Periodic snapshots** — every 8 minutes (configurable 3–30 min) the extension captures the current Gemini summary in memory. Snapshots also go to the backup folder if enabled.
@@ -240,23 +244,28 @@ gememo/
 
 ## Running the tests
 
-### JavaScript (Playwright — headless, no Meet tab needed)
+### Full suite (recommended)
+
+```bash
+npm run test:all   # 62 Python tests + 196 JS/Playwright tests
+```
+
+### JavaScript only (Playwright — headless, no Meet tab needed)
 
 ```bash
 # One-time setup
 npm install
 npx playwright install chromium
 
-# Run tests
-npm test
-# → 129 tests should pass
+npm test           # 196 tests: pure-function, DOM fixture, and smoke tests
 ```
 
-### Python (native host unit tests)
+### Python only (native host unit tests)
 
 ```bash
-python3 -m pytest native_host/ -v
-# → Requires Python 3.9+, no external dependencies
+npm run test:python   # or: python3 -m pytest native_host/ -v
+# Requires Python 3.9+, no external dependencies
+# Note: includes integration tests that briefly open Apple Notes
 ```
 
 ---
@@ -266,8 +275,7 @@ python3 -m pytest native_host/ -v
 Contributions welcome. The [ROADMAP.md](ROADMAP.md) has a prioritised work queue — Phase 1 items (prompt text improvements) are the easiest starting point and have the highest impact per line changed.
 
 **Before submitting a PR:**
-- Run `npm test` — all 129 Playwright tests should pass
-- Run `python3 -m pytest native_host/ -v` — all Python tests should pass
+- Run `npm run test:all` — all tests should pass (CI runs the same command)
 - DOM selector changes should be verified against a live Google Meet session
 
 **To report a broken selector:** Google updates Meet's DOM periodically. Open an issue with the selector name, the old value, and the new value you found in DevTools. Fixes are usually one-line.
