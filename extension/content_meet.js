@@ -1061,6 +1061,8 @@
     if (m) {
       const name = m[1].trim();
       if (name && !isMeetCode(name)) return name;
+      // Tab title IS the room code — personal Meet link with no calendar event
+      if (name && isMeetCode(name)) return `Personal meeting (${name})`;
     }
 
     // 2. DOM fallback — filter out codes here too
@@ -1072,9 +1074,9 @@
     for (const c of candidates) {
       const t = c?.trim();
       if (t && !isMeetCode(t)) return t;
+      if (t && isMeetCode(t)) return `Personal meeting (${t})`;
     }
 
-    console.log('[MM2C] No usable meeting title found (tab title was:', JSON.stringify(raw), ')');
     return '';
   }
 

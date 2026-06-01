@@ -12,9 +12,11 @@ PUSH_PY="$SCRIPT_DIR/../scripts/push_to_craft.py"
 CHROME_HOSTS="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 HOST_NAME="io.gememo.host"
 
-# Install the host files to ~/Library/Application Support/ so Chrome can
-# always execute them — files in ~/Documents may be blocked by macOS TCC.
-INSTALL_DIR="$HOME/Library/Application Support/MeetingMinutesToCraft"
+# Install the host to ~/Library/Application Support/Gememo so Chrome can
+# always execute it — files in ~/Documents may be blocked by macOS TCC.
+# meeting_minutes_host.py and push_to_craft.py are symlinked to the project
+# so changes propagate without re-running install.
+INSTALL_DIR="$HOME/Library/Application Support/Gememo"
 INSTALLED_PY="$INSTALL_DIR/meeting_minutes_host.py"
 WRAPPER="$INSTALL_DIR/run_host.sh"
 
@@ -28,10 +30,19 @@ fi
 
 PYTHON3="$(command -v python3)"
 
-# Copy the Python host and push script to a TCC-safe location and create the wrapper there.
+# Symlink the Python host and push script so changes in the project propagate
+# automatically without re-running install.
 mkdir -p "$INSTALL_DIR"
-cp "$HOST_PY" "$INSTALLED_PY"
-cp "$PUSH_PY" "$INSTALL_DIR/push_to_craft.py"
+
+# Remove old MeetingMinutesToCraft directory if present from a previous install
+OLD_DIR="$HOME/Library/Application Support/MeetingMinutesToCraft"
+if [[ -d "$OLD_DIR" ]]; then
+  echo "Removing old install directory: $OLD_DIR"
+  rm -rf "$OLD_DIR"
+fi
+
+ln -sf "$HOST_PY" "$INSTALLED_PY"
+ln -sf "$PUSH_PY" "$INSTALL_DIR/push_to_craft.py"
 chmod +x "$INSTALLED_PY"
 
 # Detect Craft space ID from the local app cache so notes always land in
