@@ -61,8 +61,8 @@
       document.title = 'Meet – Q3 Review'; // em-dash
       assertEq('em-dash variant extracted', getMeetingTitle(), 'Q3 Review');
 
-      document.title = 'Meet - abc-defg-hij'; // room code
-      assertEq('room code returns empty string', getMeetingTitle(), '');
+      document.title = 'Meet - abc-defg-hij'; // room code — personal Meet link
+      assertEq('room code returns readable label', getMeetingTitle(), 'Personal meeting (abc-defg-hij)');
 
       document.title = 'Google Meet';
       await withFixture('<div data-meeting-title="Roadmap sync"></div>', () => {

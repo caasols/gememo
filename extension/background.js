@@ -271,17 +271,12 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
     const meetTitle = tab.title?.replace(/^Meet\s*[-–]\s*/i, '').trim() || 'Meet';
 
     chrome.tabs.sendMessage(activeInfo.tabId, { type: 'MM2C_STATUS_QUERY' }, (response) => {
-      if (chrome.runtime.lastError) {
-        // Content script not injected yet (page still loading)
-        appendLog('info', meetTitle, 'Switched to Meet tab — page loading');
-        return;
-      }
+      if (chrome.runtime.lastError) return; // page still loading — not in a meeting, skip log
       if (response?.inMeeting) {
         const gemStr = response.geminiActive ? ', Gemini active' : ', Gemini not active';
         appendLog('info', meetTitle, `Switched to Meet tab — in meeting${gemStr}`);
-      } else {
-        appendLog('info', meetTitle, 'Switched to Meet tab — not in a meeting');
       }
+      // Not in a meeting — nothing useful to log
     });
   });
 });
