@@ -7,7 +7,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## The story so far
 
-Gememo started as a single-file proof-of-concept that could leave a Google Meet call and save a Craft note. By v0.1.83 it has a full prompt pipeline, three output destinations, offline DOM tests, CI, and a retry system for failed sends. The sections below trace that arc.
+Gememo started as a single-file proof-of-concept that could leave a Google Meet call and save a Craft note. By v0.1.84 it has a full prompt pipeline, three output destinations, offline DOM tests, CI, and a retry system for failed sends. The sections below trace that arc.
+
+---
+
+## [0.1.84] – 2026-06-01 · Log hygiene, install rename, room code labels
+
+### Added
+- **CI** — GitHub Actions workflow running `npm run test:all` on every push (`ubuntu-latest`, Node 20, Python 3.11)
+- **CHANGELOG** — full version history from v1.0.0 to present in keepachangelog format
+- **README** — rewritten in project style: badges, one-liner + differentiator, feature bullets with bold label/em-dash, output app table, config table, numbered troubleshooting
+
+### Fixed
+- **UX-5a** — personal Meet room codes (e.g. `ecj-jduu-oez`) now show as `"Personal meeting (ecj-jduu-oez)"` in logs and YAML frontmatter instead of a raw unreadable code
+- **UX-5b** — removed "Switched to Meet tab — not in a meeting" log entries; non-meeting tab visits no longer generate log noise or create a spurious "Google Meet" log group
+- **BUG-5** — `install.sh` renamed install directory from `MeetingMinutesToCraft` → `Gememo`; switched from file copies to symlinks so changes to `meeting_minutes_host.py` and `push_to_craft.py` in the project directory propagate automatically without re-running install; old directory removed on upgrade
 
 ---
 
