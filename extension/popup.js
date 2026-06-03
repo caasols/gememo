@@ -4,6 +4,9 @@ const DEFAULT_FILE_PATH = '~/Downloads/meeting-notes';
 // null = no Meet tab active; set by queryMeetingState().
 let activeMetTabId = null;
 
+// Logs tab tier toggle — when false, level:'debug' entries are hidden (UX-6).
+let showDebugLogs = false;
+
 const GLOBAL_KEYS = [
   'mm2c_enabled', 'mm2c_prompt',
   'mm2c_output_app',
@@ -330,6 +333,8 @@ function formatLogTime(ts) {
 function renderLogs(logs) {
   const list = $('log-list');
   const countEl = $('logs-count');
+
+  logs = filterLogsByLevel(logs, showDebugLogs); // two-tier: hide debug by default (UX-6)
 
   if (!Array.isArray(logs) || logs.length === 0) {
     list.innerHTML = '<div class="log-empty">No activity yet. Notes will appear here after your meetings.</div>';
@@ -821,5 +826,11 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.set({ mm2c_logs: [] }, () => {
       renderLogs([]);
     });
+  });
+
+  // Two-tier logging toggle — show/hide diagnostic (debug) entries (UX-6)
+  $('show-debug-logs').addEventListener('change', (e) => {
+    showDebugLogs = e.target.checked;
+    chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => renderLogs(mm2c_logs));
   });
 });

@@ -23,8 +23,8 @@ const removeFailureByPath = (list, p) => (Array.isArray(list) ? list : []).filte
 let pendingLogs = []; // entries waiting to be written to storage
 let flushTimer  = null; // debounce handle
 
-function appendLog(status, title, message) {
-  pendingLogs.push({ ts: Date.now(), status, title: title || '', message: message || '' });
+function appendLog(status, title, message, level = 'user') {
+  pendingLogs.push({ ts: Date.now(), status, title: title || '', message: message || '', level });
   clearTimeout(flushTimer);
   flushTimer = setTimeout(flushLogs, 100);
 }
@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         if (versionMismatch) {
           const extVersion = chrome.runtime.getManifest().version;
-          appendLog('warn', '', `Host version mismatch: extension v${extVersion}, host v${hostVersion}`);
+          appendLog('warn', '', `Host version mismatch: extension v${extVersion}, host v${hostVersion}`, 'debug');
         }
         sendResponse({ ok, error: err, home: response?.home || null, hostVersion, versionMismatch });
       });
@@ -185,7 +185,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       break; // no return true — fire-and-forget, content script gets no reply
 
     case 'MM2C_LOG':
-      appendLog('info', msg.meetingTitle || '', msg.message || '');
+      appendLog('info', msg.meetingTitle || '', msg.message || '', msg.level || 'user');
       break;
 
     case 'MM2C_WARNING':
@@ -329,7 +329,7 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
       if (chrome.runtime.lastError) return; // page still loading — not in a meeting, skip log
       if (response?.inMeeting) {
         const gemStr = response.geminiActive ? ', Gemini active' : ', Gemini not active';
-        appendLog('info', meetTitle, `Switched to Meet tab — in meeting${gemStr}`);
+        appendLog('info', meetTitle, `Switched to Meet tab — in meeting${gemStr}`, 'debug');
       }
       // Not in a meeting — nothing useful to log
     });

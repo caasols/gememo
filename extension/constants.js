@@ -60,6 +60,13 @@ const EXAMPLE_NOTES =
   'Risk: the Q4 migration window may conflict with the holiday freeze. ' +
   'Carlos to confirm dates with the infrastructure team.';
 
+// Pure helper — two-tier logging (UX-6). Returns the log entries visible at the
+// current tier: when showDebug is false, entries explicitly marked level:'debug'
+// are hidden. Legacy entries with no level are treated as user-facing.
+function filterLogsByLevel(logs, showDebug) {
+  return (Array.isArray(logs) ? logs : []).filter(e => showDebug || e.level !== 'debug');
+}
+
 // Section headings the note pipeline produces — used to bound the Action Items
 // block when extracting tasks (P6-B).
 const _NOTE_HEADING_RE = /^#{0,3}\s*\*{0,2}\s*(attendees|summary|key points|decisions made|action items|next steps|open questions|updates|blockers|discussion|decisions|follow-up|what went well|what to improve)\s*\*{0,2}\s*:?\s*$/i;

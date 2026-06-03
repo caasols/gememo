@@ -2136,6 +2136,21 @@ window.MM2C_TESTS = (() => {
   assert('formatActionItemsMarkdown: no meta → bare task',
     formatActionItemsMarkdown([{ owner: '', task: 'Do thing', deadline: null }])
       === '- [ ] Do thing');
+
+  // filterLogsByLevel — two-tier logging: hide debug entries by default (UX-6)
+  const _logs = [
+    { level: 'user', message: 'saved' },
+    { level: 'debug', message: 'perf: ...' },
+    { message: 'legacy entry' }, // no level → treated as user
+  ];
+  assert('filterLogsByLevel: hides debug when showDebug=false',
+    filterLogsByLevel(_logs, false).length === 2);
+  assert('filterLogsByLevel: keeps legacy (no level) entries',
+    filterLogsByLevel(_logs, false).some(e => e.message === 'legacy entry'));
+  assert('filterLogsByLevel: shows all when showDebug=true',
+    filterLogsByLevel(_logs, true).length === 3);
+  assert('filterLogsByLevel: tolerates non-array',
+    Array.isArray(filterLogsByLevel(null, false)) && filterLogsByLevel(null, false).length === 0);
 }
 
   async function run() {
