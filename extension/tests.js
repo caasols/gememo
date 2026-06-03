@@ -2098,6 +2098,19 @@ window.MM2C_TESTS = (() => {
     formatPerfLog(12340, 1840, 920) === 'perf: Gemini flow 12.3s · prompt 1840 chars · response 920 chars');
   assert('formatPerfLog: rounds to one decimal',
     formatPerfLog(5000, 100, 50) === 'perf: Gemini flow 5.0s · prompt 100 chars · response 50 chars');
+
+  // groupOutcome — best-outcome status dot for a log group (UX-7).
+  // Precedence: ok > err > warn > info.
+  assert('groupOutcome: any ok → ok',
+    groupOutcome([{ status: 'info' }, { status: 'err' }, { status: 'ok' }]) === 'ok');
+  assert('groupOutcome: err over warn when no ok',
+    groupOutcome([{ status: 'warn' }, { status: 'err' }]) === 'err');
+  assert('groupOutcome: warn when no ok/err',
+    groupOutcome([{ status: 'info' }, { status: 'warn' }]) === 'warn');
+  assert('groupOutcome: all info → info',
+    groupOutcome([{ status: 'info' }, { status: 'info' }]) === 'info');
+  assert('groupOutcome: empty → info',
+    groupOutcome([]) === 'info');
 }
 
   async function run() {
