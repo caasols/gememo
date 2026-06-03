@@ -311,6 +311,26 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
   });
 });
 
+// ── Tab cleanup ────────────────────────────────────────────────────────────
+// When a Meet tab closes, remove all its tab-scoped storage keys and its
+// entry from mm2c_failed_list. Prevents unbounded key accumulation.
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.storage.local.remove([
+    _tabKey('mm2c_capture_state', tabId),
+    _tabKey('mm2c_last_snapshot',  tabId),
+    _tabKey('mm2c_last_status',    tabId),
+  ]);
+  chrome.storage.session.remove(_tabKey('mm2c_last_fingerprint', tabId));
+  chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
+    if (!Array.isArray(mm2c_failed_list)) return;
+    const updated = removeFailure(mm2c_failed_list, tabId);
+    if (updated.length !== mm2c_failed_list.length) {
+      chrome.storage.local.set({ mm2c_failed_list: updated });
+    }
+  });
+});
+
 function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, fileBackupEnabled, fileBackupType, fileBackupPath }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
