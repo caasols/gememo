@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for wait_for_craft_callback and build_import_url in push_to_craft.py."""
+"""Tests for push_to_craft.py URL builders and callback handler."""
 
 from __future__ import annotations
 
@@ -8,12 +8,13 @@ import sys
 import threading
 import time
 import unittest
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-from push_to_craft import wait_for_craft_callback, build_import_url
+from push_to_craft import wait_for_craft_callback, build_import_url, build_createdocument_url, strip_yaml_frontmatter
 
 
 def _port_from_url(url: str) -> int | None:
@@ -31,6 +32,130 @@ def _fire_after_delay(port: int, path: str, delay: float = 0.05) -> None:
         except Exception:
             pass
     threading.Thread(target=_do, daemon=True).start()
+
+
+class TestBuildCreatedocumentUrl(unittest.TestCase):
+    """build_createdocument_url — % double-encoding so macOS open + Craft both decode correctly.
+
+    Chain: content % → replace → %25 → quote → %2525 in URL
+           macOS open decodes once: %2525 → %25
+           Craft decodes once:      %25   → %
+    """
+
+    def _decode_once(self, url: str) -> str:
+        """Simulate macOS open's single URL-decode pass."""
+        return urllib.parse.unquote(url)
+
+    def _extract_content(self, url: str) -> str:
+        """Pull the raw content= value from a craftdocs://createdocument URL."""
+        qs = url.split('?', 1)[1]
+        params = dict(p.split('=', 1) for p in qs.split('&') if '=' in p)
+        return params.get('content', '')
+
+    def test_percent_double_encoded_in_url(self):
+        """% in content produces %2525 in the URL (double-encoded)."""
+        url = build_createdocument_url('Title', 'Success rate is 50%')
+        raw_content = self._extract_content(url)
+        self.assertIn('%2525', raw_content, "% should be double-encoded as %2525")
+        self.assertNotIn('%25%', raw_content)
+
+    def test_craft_receives_percent_after_open_decode(self):
+        """After one URL-decode (simulating macOS open), content still has %25 — Craft decodes to %."""
+        url = build_createdocument_url('Title', 'A/B test: 50% conversion')
+        after_open = self._decode_once(url)
+        after_craft = self._decode_once(after_open.split('content=')[1].split('&')[0])
+        self.assertIn('50%', after_craft)
+
+    def test_multiple_percent_signs(self):
+        """Multiple % in content are all double-encoded."""
+        url = build_createdocument_url('Title', '10% done, 50% reviewed, 100% shipped')
+        raw_content = self._extract_content(url)
+        self.assertEqual(raw_content.count('%2525'), 3)
+
+    def test_percent_at_end_of_string(self):
+        """% at the end of content doesn't produce a dangling invalid sequence."""
+        url = build_createdocument_url('Title', 'Completion: 75%')
+        raw_content = self._extract_content(url)
+        self.assertTrue(raw_content.endswith('%2525'))
+
+    def test_content_without_percent_unaffected(self):
+        """Content with no % is URL-encoded normally — no double-encoding artifacts."""
+        content = '## Summary\n\nThe team agreed on the plan.'
+        url = build_createdocument_url('Title', content)
+        self.assertNotIn('%2525', url)
+        after_craft = urllib.parse.unquote(self._extract_content(url))
+        self.assertEqual(after_craft, content)
+
+    def test_url_scheme_and_action(self):
+        """URL starts with craftdocs://createdocument."""
+        url = build_createdocument_url('My Meeting', 'Notes here')
+        self.assertTrue(url.startswith('craftdocs://createdocument?'))
+
+    def test_title_encoded_in_url(self):
+        """Title is URL-encoded and present."""
+        url = build_createdocument_url('[Duff] Daily stand-up', 'content')
+        self.assertIn('title=', url)
+        self.assertIn('%5BDuff%5D', url)
+
+    def test_space_id_included_when_set(self):
+        """spaceId param present when space_id provided, absent when None."""
+        url_with = build_createdocument_url('T', 'c', space_id='abc-123')
+        url_without = build_createdocument_url('T', 'c', space_id=None)
+        self.assertIn('spaceId=abc-123', url_with)
+        self.assertNotIn('spaceId', url_without)
+
+    def test_em_dash_and_percent_combined(self):
+        """Em dash (multi-byte UTF-8) and % together both survive the double-decode chain."""
+        content = 'Carlos said—without hesitation—that 80% is the target.'
+        url = build_createdocument_url('Title', content)
+        after_open = self._decode_once(url)
+        content_encoded = after_open.split('content=')[1].split('&')[0]
+        after_craft = urllib.parse.unquote(content_encoded)
+        self.assertIn('80%', after_craft)
+        self.assertIn('—', after_craft)
+
+
+class TestStripYamlFrontmatter(unittest.TestCase):
+    """strip_yaml_frontmatter — backup files include YAML; Craft must receive clean body."""
+
+    def test_strips_standard_frontmatter(self):
+        content = '---\ndate: 2026-06-03\ntitle: "Meeting"\n---\n## Summary\n\nNotes here.'
+        self.assertEqual(strip_yaml_frontmatter(content), '## Summary\n\nNotes here.')
+
+    def test_strips_leading_blank_lines_after_frontmatter(self):
+        content = '---\ndate: 2026-06-03\n---\n\n\n## Summary\n\nBody.'
+        result = strip_yaml_frontmatter(content)
+        self.assertFalse(result.startswith('\n'), "leading blank lines should be stripped")
+        self.assertIn('## Summary', result)
+
+    def test_no_frontmatter_returned_unchanged(self):
+        content = '## Summary\n\nNo frontmatter here.'
+        self.assertEqual(strip_yaml_frontmatter(content), content)
+
+    def test_empty_string_returned_unchanged(self):
+        self.assertEqual(strip_yaml_frontmatter(''), '')
+
+    def test_unclosed_frontmatter_returned_unchanged(self):
+        """If there is no closing ---, return the content as-is rather than eating the whole file."""
+        content = '---\ndate: 2026-06-03\n## Summary\n\nBody.'
+        self.assertEqual(strip_yaml_frontmatter(content), content)
+
+    def test_real_backup_file_format(self):
+        """Mirrors the exact frontmatter format written by build_yaml_frontmatter()."""
+        content = (
+            '---\n'
+            'date: 2026-06-03\n'
+            'title: "[Duff] Daily stand-up"\n'
+            'source: google-meet\n'
+            'duration_min: 26\n'
+            'tags: [meeting, 2026/06]\n'
+            '---\n'
+            '## Attendees\n\nAlice, Bob\n\n## Summary\n\nMeeting notes.'
+        )
+        result = strip_yaml_frontmatter(content)
+        self.assertNotIn('date:', result)
+        self.assertNotIn('source:', result)
+        self.assertIn('## Attendees', result)
 
 
 class TestBuildImportUrl(unittest.TestCase):

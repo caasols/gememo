@@ -87,9 +87,10 @@ Open the extension popup → **Settings tab**:
 2. **Red `!` badge** — click the icon; the Main tab shows the error. If it says "Native host not found", run `bash native_host/install.sh` with the correct extension ID.
 3. **"Open the Gemini panel to enable capture"** — hover over the ✦ icon in the Meet toolbar and click "Start now". The extension will try again automatically.
 4. **"Gemini may be disabled for your account"** — your Google Workspace admin may have blocked Gemini. Check with your admin.
-5. **No note appeared** — check the Logs tab. If a push failed, the Retry widget shows in the Main tab. The backup file path is shown in the error entry so you can recover manually.
-6. **Selectors broken after a Meet update** — run `npm test` to identify which selectors fail, then open an issue with the old and new values.
-7. **Host version mismatch** — re-run `bash native_host/install.sh` to update the native host.
+5. **No note appeared** — check the Logs tab. If a push failed, the Retry widget shows in the Main tab. The backup file path is shown in the error entry so you can recover manually. To push a backup file manually: `python3 scripts/push_to_craft.py --title "TITLE" --content-file ~/Downloads/meeting-notes/YOUR-FILE.md --background`
+6. **Note content contains `%` (percentages) and didn't reach Craft** — upgrade to v0.1.87+. Earlier versions silently failed when note content included `%` characters.
+7. **Selectors broken after a Meet update** — run `npm test` to identify which selectors fail, then open an issue with the old and new values.
+8. **Host version mismatch** — re-run `bash native_host/install.sh` to update the native host.
 
 ## Contributing
 

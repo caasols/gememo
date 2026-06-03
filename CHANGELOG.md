@@ -11,6 +11,22 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.88] – 2026-06-03 · Formatting fixes for recovery and `---Heading` artifacts
+
+### Fixed
+- **Backup file recovery** — `push_to_craft.py` now strips YAML frontmatter (added by `build_yaml_frontmatter`) before pushing to Craft; previously the frontmatter rendered as bold text at the top of every recovered note
+- **`---Attendees` artifact** — `parse_transcript` now strips leading `---` dashes from section headings before the normalisation regex runs; Gemini occasionally copies the `---Heading` delimiter pattern from `EXAMPLE_NOTES` and writes `---Attendees` as a single token — it now becomes `## Attendees` correctly
+- **`Next Steps` heading** — added to the heading normalisation regex so Gemini-produced `Next Steps` lines are promoted to `## Next Steps` (was missing from the regex despite being in the prompt)
+
+---
+
+## [0.1.87] – 2026-06-03 · Craft push `%` bug fix
+
+### Fixed
+- **BUG-1 (partial)** — `%` characters in note content (e.g. "50% of traffic") silently prevented Craft from creating the document. Root cause: macOS `open` decodes `%25` (the URL-encoding of `%`) back to a bare `%` before handing the URL to Craft; Craft's URL parser then sees `%` not followed by valid hex and silently aborts. Fix: pre-escape `%` as `%25` in `push_to_craft.py` before calling `quote()` so the double-decode lands correctly. Any note containing a percentage sign now reaches Craft. Added `BUG-7` to ROADMAP for cross-domain Gemini meeting captures (e.g. joining a Monzo-hosted meeting with a personal Google account).
+
+---
+
 ## [0.1.84] – 2026-06-01 · Log hygiene, install rename, room code labels
 
 ### Added

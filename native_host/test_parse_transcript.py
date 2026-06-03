@@ -84,6 +84,28 @@ class TestParseTranscriptHeadings(unittest.TestCase):
         self.assertIn("## Attendees", body)
         self.assertNotIn("**Attendees**", body)
 
+    def test_dash_prefix_stripped_before_heading(self):
+        """---Attendees (Gemini copying EXAMPLE_NOTES delimiter) is normalised to ## Attendees."""
+        body = self._body("---Attendees\n\nAlice, Bob\n\n## Summary\n\nMeeting notes.")
+        self.assertIn("## Attendees", body)
+        self.assertNotIn("---Attendees", body)
+
+    def test_dash_prefix_on_multiple_sections(self):
+        """--- prefix on multiple headings are all stripped and promoted."""
+        raw = "---Attendees\n\nAlice\n\n---Summary\n\nNotes.\n\n---Key Points\n\nBullets."
+        body = self._body(raw)
+        self.assertIn("## Attendees", body)
+        self.assertIn("## Summary", body)
+        self.assertIn("## Key Points", body)
+        self.assertNotIn("---Attendees", body)
+        self.assertNotIn("---Summary", body)
+
+    def test_standalone_separator_still_stripped(self):
+        """Standalone --- lines (not attached to a heading) are still removed."""
+        body = self._body("## Summary\n\n---\n\nSome text.")
+        self.assertNotIn("\n---\n", body)
+        self.assertIn("Some text.", body)
+
 
 if __name__ == "__main__":
     unittest.main()
