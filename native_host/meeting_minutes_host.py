@@ -124,6 +124,7 @@ def build_yaml_frontmatter(
     duration_min: int | None = None,
     meeting_code: str | None = None,
     meeting_type: str | None = None,
+    recording: bool = False,
 ) -> str:
     """Return a YAML front-matter block for a .md backup file.
 
@@ -147,6 +148,8 @@ def build_yaml_frontmatter(
         lines.append(f"meeting_code: {meeting_code}")
     if meeting_type:
         lines.append(f"meeting_type: {meeting_type}")
+    if recording:
+        lines.append("recording: true")
     if attendees:
         lines.append("attendees:")
         for name in attendees:
@@ -551,6 +554,7 @@ def main() -> None:
             duration_min=int(note_duration) if note_duration is not None else None,
             meeting_code=msg.get("meetingCode") or None,
             meeting_type=msg.get("meetingType") or None,
+            recording=bool(msg.get("recording")),
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
 

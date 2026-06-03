@@ -95,6 +95,16 @@ class TestBuildYamlFrontmatter(unittest.TestCase):
         """meeting_type key absent when empty/None."""
         self.assertNotIn("meeting_type:", build_yaml_frontmatter("Meeting", self._dt()))
 
+    def test_recording_true_in_frontmatter(self):
+        """recording: true renders when the meeting was recorded (P9-A3c)."""
+        result = build_yaml_frontmatter("Meeting", self._dt(), recording=True)
+        self.assertIn("recording: true", result)
+
+    def test_recording_omitted_when_false(self):
+        """recording key absent when not recorded (default)."""
+        self.assertNotIn("recording:", build_yaml_frontmatter("Meeting", self._dt()))
+        self.assertNotIn("recording:", build_yaml_frontmatter("Meeting", self._dt(), recording=False))
+
 
 class TestHandleSnapshotFrontmatter(unittest.TestCase):
 

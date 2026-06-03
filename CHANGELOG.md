@@ -11,6 +11,14 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.97] – 2026-06-04 · Recording-state frontmatter (P9-A3c)
+
+### Added
+- **P9-A3c** — when Meet's "being recorded" indicator is detected, the meeting is marked recorded (sticky `meetingRecording` flag, checked at join and on each snapshot) and `recording: true` is written to the `.md` frontmatter, with a "Meeting is being recorded" log entry. New defensive `isRecording()` helper probes several candidate selectors. 2 new Python tests.
+- **Note:** the recording-indicator selector set still needs verification in a live recorded meeting; a negative result is treated as "unknown" (field omitted), never a false "not recorded".
+
+---
+
 ## [0.1.96] – 2026-06-04 · Capture-outcome dot on log groups (UX-7)
 
 ### Added
