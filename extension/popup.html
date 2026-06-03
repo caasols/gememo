@@ -644,6 +644,45 @@
     }
 
     .hidden { display: none !important; }
+
+    /* Retry cards — one per failed meeting capture */
+    .retry-card {
+      padding: var(--widget-py) var(--widget-px);
+      border: 1px solid var(--danger-border);
+      background: var(--danger-bg);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+    .retry-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .retry-card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--danger-text);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .retry-card-hint {
+      font-size: 11px;
+      color: var(--danger-text);
+      opacity: 0.8;
+    }
+    .retry-card-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .retry-card-actions .btn { flex: 1; justify-content: center; }
+    .retry-dismiss-btn { flex: 0 0 auto !important; }
   </style>
 </head>
 <body>
@@ -671,23 +710,21 @@
   <!-- ── Main panel ─────────────────────────────────────────────── -->
   <div class="panel" id="main-panel">
 
+    <!-- Meeting picker — shown when 2+ Meet tabs open and none is focused -->
+    <div id="meeting-picker" class="hidden">
+      <div class="row" style="gap:6px">
+        <span class="label" style="font-size:12px;color:var(--text-muted)">Viewing:</span>
+        <select id="meeting-tab-select" style="flex:1;max-width:200px"></select>
+      </div>
+    </div>
+
     <!-- Status banner -->
     <div class="status-banner" id="status-banner">
       <span id="status">Not in a meeting.</span>
     </div>
 
-    <!-- Retry widget — shown when mm2c_last_failed is set -->
-    <div class="widget hidden" id="retry-widget" style="border-color:var(--danger-border);background:var(--danger-bg)">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;color:var(--danger-text);font-size:12px;margin-bottom:2px">Notes not sent — Craft push failed</div>
-          <div class="hint" id="retry-title" style="color:var(--danger-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-          <div class="hint">Notes are safe. Click Retry to resend.</div>
-        </div>
-        <button class="btn" id="retry-dismiss" title="Dismiss" style="flex-shrink:0">×</button>
-      </div>
-      <button class="btn" id="retry-btn" style="margin-top:8px;width:100%">Retry →</button>
-    </div>
+    <!-- Retry list — one card per mm2c_failed_list entry; populated by popup.js -->
+    <div id="retry-list"></div>
 
     <!-- Native host status -->
     <div class="widget">
