@@ -674,14 +674,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if ('mm2c_logs' in changes) {
       renderLogs(changes.mm2c_logs.newValue);
     }
-    if ('mm2c_last_snapshot' in changes) {
-      updateSnapshotContent(changes.mm2c_last_snapshot.newValue || null);
+    if ('mm2c_failed_list' in changes) {
+      renderRetryList(changes.mm2c_failed_list.newValue || []);
     }
     if ('mm2c_prompt_rules' in changes) {
       renderRules(changes.mm2c_prompt_rules.newValue || []);
     }
-    if ('mm2c_capture_state' in changes) {
-      const capturing = changes.mm2c_capture_state.newValue === 'capturing';
+
+    // Tab-keyed keys: only react when the changed key belongs to the active tab
+    if (!activeMetTabId) return;
+
+    const snapKey    = tabKey('mm2c_last_snapshot',  activeMetTabId);
+    const captureKey = tabKey('mm2c_capture_state',  activeMetTabId);
+    const statusKey  = tabKey('mm2c_last_status',    activeMetTabId);
+
+    if (snapKey in changes) {
+      updateSnapshotContent(changes[snapKey].newValue || null);
+    }
+
+    if (captureKey in changes) {
+      const capturing = changes[captureKey].newValue === 'capturing';
       const captureBtn = $('capture-now-btn');
       if (captureBtn) {
         captureBtn.disabled    = capturing;
@@ -691,9 +703,12 @@ document.addEventListener('DOMContentLoaded', () => {
         $('status').textContent = 'Capturing notes…';
         $('status-banner').className = 'status-banner ok';
       } else {
-        // Capture ended — re-read all state to show updated mm2c_last_status
         loadAndApplyState(activeMetTabId);
       }
+    }
+
+    if (statusKey in changes) {
+      loadAndApplyState(activeMetTabId);
     }
   });
 
