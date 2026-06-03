@@ -4,6 +4,11 @@
 
 const NATIVE_HOST = 'io.gememo.host';
 
+// One-liner copy of tabKey from constants.js — service workers cannot import constants.js.
+const _tabKey = (base, tabId) => `${base}_${tabId}`;
+const addFailure    = (list, entry) => [...(Array.isArray(list) ? list : []), entry];
+const removeFailure = (list, tabId) => (Array.isArray(list) ? list : []).filter(f => f.tabId !== tabId);
+
 // ── Logging ────────────────────────────────────────────────────────────────
 // Stores up to 50 log entries in chrome.storage.local under mm2c_logs.
 // Each entry: { ts, status: 'ok'|'warn'|'err', title, message }
@@ -246,17 +251,42 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ ok: true });
       break;
     }
+
+    case 'MM2C_SET_CAPTURE_STATE': {
+      const tabId = _sender.tab?.id;
+      if (!tabId) break;
+      const newState = msg.state || 'idle';
+      chrome.storage.local.set({ [_tabKey('mm2c_capture_state', tabId)]: newState }, () => {
+        if (newState === 'capturing') {
+          chrome.action.setBadgeText({ text: 'REC' });
+          chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+        } else {
+          // Only clear badge if no other tab is still capturing
+          chrome.storage.local.get(null, (all) => {
+            const anyCapturing = Object.entries(all).some(
+              ([k, v]) => k.startsWith('mm2c_capture_state_') && v === 'capturing'
+            );
+            if (!anyCapturing) chrome.action.setBadgeText({ text: '' });
+          });
+        }
+      });
+      break;
+    }
+
+    case 'MM2C_SET_SNAPSHOT': {
+      const tabId = _sender.tab?.id;
+      if (!tabId) break;
+      const key = _tabKey('mm2c_last_snapshot', tabId);
+      if (msg.snapshot === null) {
+        chrome.storage.local.remove(key);
+      } else {
+        chrome.storage.local.set({ [key]: msg.snapshot });
+      }
+      break;
+    }
   }
 });
 
-// Badge: show 'REC' (green) when a Gemini capture flow starts.
-// 'OK' and '!' badges are handled inside the MM2C_RESPONSE / MM2C_ERROR handlers above.
-chrome.storage.local.onChanged.addListener((changes) => {
-  if (changes.mm2c_capture_state?.newValue === 'capturing') {
-    chrome.action.setBadgeText({ text: 'REC' });
-    chrome.action.setBadgeBackgroundColor({ color: '#137333' });
-  }
-});
 
 // ── Tab monitoring ─────────────────────────────────────────────────────────
 // Log whenever the user switches to a Google Meet tab — shows meeting and
