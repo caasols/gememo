@@ -114,6 +114,17 @@ function inferMeetingType(title) {
   return 'calendar';
 }
 
+// Pure helper — best-outcome status for a log group's entries (UX-7), shown as
+// a dot on the collapsed group header. Precedence by severity-of-interest:
+// a successful send (ok) wins; else any error; else any warning; else info.
+function groupOutcome(entries) {
+  const has = s => Array.isArray(entries) && entries.some(e => e.status === s);
+  if (has('ok'))   return 'ok';
+  if (has('err'))  return 'err';
+  if (has('warn')) return 'warn';
+  return 'info';
+}
+
 // Pure helper — format a prompt-performance log line (P6-C). Captures the
 // Gemini flow duration alongside prompt + response sizes so correlation between
 // prompt length and latency becomes visible in the Logs tab over many captures.

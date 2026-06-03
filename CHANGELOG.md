@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.96] – 2026-06-04 · Capture-outcome dot on log groups (UX-7)
+
+### Added
+- **UX-7** — each collapsed log group now shows a status dot reflecting the best outcome across its entries (green = sent ok, red = error, amber = warning, grey = info only) via the new pure `groupOutcome()`, so past meetings' capture results are visible at a glance without expanding. 5 new JS tests.
+
+---
+
 ## [0.1.95] – 2026-06-04 · Prompt performance monitor (P6-C)
 
 ### Added
