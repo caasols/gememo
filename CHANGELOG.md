@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.95] – 2026-06-04 · Prompt performance monitor (P6-C)
+
+### Added
+- **P6-C** — each Gemini capture now logs a `perf:` line with the inject→response-complete duration alongside prompt and response character counts (new pure `formatPerfLog()`), so the correlation between prompt length and latency becomes visible in the Logs tab over many captures. No new UI. 2 new JS tests.
+
+---
+
 ## [0.1.94] – 2026-06-04 · Retry works for untitled meetings (BUG-6)
 
 ### Fixed

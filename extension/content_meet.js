@@ -721,6 +721,7 @@
     // deadline expires before injection succeeds.
     sendLog('Injecting summary prompt into Gemini...');
     const flowDeadline = Date.now() + timeoutMs;
+    const perfStart = Date.now(); // P6-C: measure inject → response-complete
     await injectPromptWithVerification(input, prompt, flowDeadline);
 
     // 5. Submit
@@ -761,6 +762,7 @@
     // 7. Read response from DOM
     const response = extractLastResponse();
     sendLog(`Gemini response received (${response?.length ?? 0} chars)`);
+    sendLog(formatPerfLog(Date.now() - perfStart, prompt.length, response?.length ?? 0));
     if (!response || response.length < 20) {
       throw new Error('Response extracted but appears empty');
     }
