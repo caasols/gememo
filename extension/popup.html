@@ -676,6 +676,23 @@
     }
     #add-rule-btn:hover { background: var(--hover-primary); }
 
+    /* Usage stats (UX-8) */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat-cell {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: var(--surface-subtle);
+    }
+    .stat-value { font-size: 18px; font-weight: 700; color: var(--text-strong); }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .stats-savings a { color: var(--primary); }
+
     /* Action items checklist (P6-B) */
     #action-items-list { display: flex; flex-direction: column; gap: 4px; }
     .action-item {
@@ -1041,6 +1058,13 @@
       <p class="hint" style="margin:0">Bot-free meeting notes from Google Meet's built-in Gemini AI.</p>
     </div>
 
+    <!-- Usage stats (UX-8) -->
+    <div class="widget">
+      <div class="widget-title">Your impact</div>
+      <div class="stats-grid" id="stats-grid"></div>
+      <p class="hint stats-savings" id="stats-savings" style="margin:10px 0 0"></p>
+    </div>
+
     <!-- Links -->
     <div class="widget">
       <div class="row">
@@ -1061,8 +1085,8 @@
     <!-- Support development -->
     <div class="widget">
       <div class="widget-title">Support development</div>
-      <!-- Replace href="#" with your Buy Me a Coffee or Ko-fi URL when ready -->
-      <a href="#" class="btn" style="pointer-events:none;opacity:0.45;cursor:not-allowed;margin-top:4px">☕ Coming soon</a>
+      <!-- TODO: confirm the Ko-fi handle below matches your account -->
+      <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener" class="btn kofi-btn" style="margin-top:4px">☕ Support on Ko-fi</a>
     </div>
 
   </div><!-- /about-panel -->

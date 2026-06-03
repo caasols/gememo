@@ -2151,6 +2151,33 @@ window.MM2C_TESTS = (() => {
     filterLogsByLevel(_logs, true).length === 3);
   assert('filterLogsByLevel: tolerates non-array',
     Array.isArray(filterLogsByLevel(null, false)) && filterLogsByLevel(null, false).length === 0);
+
+  // Usage stats (UX-8) — donation-driver panel
+  assert('countWords: counts whitespace-separated tokens',
+    countWords('hello there  world') === 3);
+  assert('countWords: empty / blank → 0',
+    countWords('') === 0 && countWords('   ') === 0);
+
+  const s0 = updateStats(undefined, { durationMin: 30, words: 100 });
+  assert('updateStats: from empty increments note/words/minutes',
+    s0.notesSaved === 1 && s0.wordsCaptured === 100 && s0.totalMeetingMinutes === 30 && s0.meetingsAttended === 0);
+  const s1 = updateStats(s0, { durationMin: 20, words: 80 });
+  assert('updateStats: accumulates',
+    s1.notesSaved === 2 && s1.wordsCaptured === 180 && s1.totalMeetingMinutes === 50);
+  const s2 = updateStats(s1, { durationMin: null, words: 10 });
+  assert('updateStats: null duration leaves minutes unchanged',
+    s2.totalMeetingMinutes === 50 && s2.wordsCaptured === 190);
+
+  assert('computeTimeSavedMin: words / 25 wpm',
+    computeTimeSavedMin({ wordsCaptured: 500 }) === 20);
+  assert('formatStatDuration: hours + minutes',
+    formatStatDuration(75) === '1h 15m');
+  assert('formatStatDuration: whole hours',
+    formatStatDuration(120) === '2h');
+  assert('formatStatDuration: minutes only / zero',
+    formatStatDuration(45) === '45m' && formatStatDuration(0) === '0m');
+  assert('formatStatNumber: thousands separator',
+    formatStatNumber(1234567) === '1,234,567');
 }
 
   async function run() {
