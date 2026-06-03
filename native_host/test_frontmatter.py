@@ -76,6 +76,25 @@ class TestBuildYamlFrontmatter(unittest.TestCase):
         result = build_yaml_frontmatter("Meeting", self._dt())
         self.assertNotIn("duration_min:", result)
 
+    def test_meeting_code_in_frontmatter(self):
+        """meeting_code renders when provided (P9-A3a)."""
+        result = build_yaml_frontmatter("Meeting", self._dt(), meeting_code="abc-defg-hij")
+        self.assertIn("meeting_code: abc-defg-hij", result)
+
+    def test_meeting_code_omitted_when_empty(self):
+        """meeting_code key absent when empty/None."""
+        self.assertNotIn("meeting_code:", build_yaml_frontmatter("Meeting", self._dt()))
+        self.assertNotIn("meeting_code:", build_yaml_frontmatter("Meeting", self._dt(), meeting_code=""))
+
+    def test_meeting_type_in_frontmatter(self):
+        """meeting_type renders when provided (P9-A3b)."""
+        result = build_yaml_frontmatter("Meeting", self._dt(), meeting_type="calendar")
+        self.assertIn("meeting_type: calendar", result)
+
+    def test_meeting_type_omitted_when_empty(self):
+        """meeting_type key absent when empty/None."""
+        self.assertNotIn("meeting_type:", build_yaml_frontmatter("Meeting", self._dt()))
+
 
 class TestHandleSnapshotFrontmatter(unittest.TestCase):
 

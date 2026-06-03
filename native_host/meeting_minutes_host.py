@@ -122,6 +122,8 @@ def build_yaml_frontmatter(
     snapshot: bool = False,
     attendees: list | None = None,
     duration_min: int | None = None,
+    meeting_code: str | None = None,
+    meeting_type: str | None = None,
 ) -> str:
     """Return a YAML front-matter block for a .md backup file.
 
@@ -129,6 +131,8 @@ def build_yaml_frontmatter(
     The snapshot flag is set to true for intermediate snapshots so they
     are distinguishable from the final capture in Obsidian / Bear / Notion.
     Attendees and duration_min are optional; omitted when empty/None.
+    meeting_code (the Meet room code) and meeting_type ('calendar'|'ad-hoc')
+    are optional metadata from the Meet DOM; omitted when empty/None.
     """
     safe_title = title.replace('\\', '\\\\').replace('"', '\\"')
     lines = [
@@ -139,6 +143,10 @@ def build_yaml_frontmatter(
     ]
     if snapshot:
         lines.append("snapshot: true")
+    if meeting_code:
+        lines.append(f"meeting_code: {meeting_code}")
+    if meeting_type:
+        lines.append(f"meeting_type: {meeting_type}")
     if attendees:
         lines.append("attendees:")
         for name in attendees:
@@ -518,6 +526,8 @@ def main() -> None:
             label, dt,
             attendees=note_attendees,
             duration_min=int(note_duration) if note_duration is not None else None,
+            meeting_code=msg.get("meetingCode") or None,
+            meeting_type=msg.get("meetingType") or None,
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
 

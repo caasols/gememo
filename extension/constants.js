@@ -96,6 +96,24 @@ function removeFailureByPath(list, backupPath) {
   return (Array.isArray(list) ? list : []).filter(f => f.backupPath !== backupPath);
 }
 
+// Pure helper — extract the Meet room code from a URL pathname (P9-A3a).
+// '/abc-defg-hij?authuser=0' → 'abc-defg-hij'. Returns '' for the root path
+// or a missing pathname. The code is the stable per-space identifier.
+function extractMeetingCode(pathname) {
+  return String(pathname || '').replace(/^\//, '').split(/[?#/]/)[0] || '';
+}
+
+// Pure helper — classify a meeting as 'calendar' or 'ad-hoc' from its title
+// (P9-A3b). A calendar event supplies a human title; personal/ad-hoc rooms have
+// no title (getMeetingTitle returns '' or a 'Personal meeting (code)' label, and
+// a bare room code can leak through). All of those are ad-hoc.
+const _MEET_CODE_RE = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/i;
+function inferMeetingType(title) {
+  const t = String(title || '').trim();
+  if (!t || _MEET_CODE_RE.test(t) || /^Personal meeting \(/.test(t)) return 'ad-hoc';
+  return 'calendar';
+}
+
 // Pure helper — the single source of truth for the popup status-banner text and
 // CSS class. Centralising this removes the dual-writer race where onTabSelected
 // and applyState both wrote #status from independent async callbacks (BUG-C).
