@@ -8,6 +8,9 @@ const NATIVE_HOST = 'io.gememo.host';
 const _tabKey = (base, tabId) => `${base}_${tabId}`;
 const addFailure    = (list, entry) => [...(Array.isArray(list) ? list : []), entry];
 const removeFailure = (list, tabId) => (Array.isArray(list) ? list : []).filter(f => f.tabId !== tabId);
+// Copy of removeFailureByPath from constants.js — service workers can't import it.
+// Identity for user-initiated retry/dismiss (log-retry carries no tabId).
+const removeFailureByPath = (list, p) => (Array.isArray(list) ? list : []).filter(f => f.backupPath !== p);
 
 // ── Logging ────────────────────────────────────────────────────────────────
 // Stores up to 50 log entries in chrome.storage.local under mm2c_logs.
@@ -130,12 +133,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           return;
         }
         if (response?.status === 'ok') {
-          // Remove this entry from mm2c_failed_list
-          chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
-            chrome.storage.local.set({
-              mm2c_failed_list: removeFailure(mm2c_failed_list, tabId),
+          // Remove this entry from mm2c_failed_list by backupPath — the only
+          // identity both retry paths carry (the log-retry path has no tabId).
+          if (backupPath) {
+            chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
+              chrome.storage.local.set({
+                mm2c_failed_list: removeFailureByPath(mm2c_failed_list, backupPath),
+              });
             });
-          });
+          }
           const statusLabel = `Retry succeeded: ${response.title}`;
           if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: statusLabel });
           else        chrome.storage.local.set({ mm2c_last_status: statusLabel });
@@ -357,8 +363,10 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         console.error('[MM2C] Native messaging error:', err);
         chrome.action.setBadgeText({ text: '!' });
         chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
-        chrome.storage.local.set({ mm2c_last_status: `Native host error: ${err}` });
-        appendLog('err', meetingTitle, `Native host error: ${err}`);
+        const errStatus = `Native host error: ${err}`;
+        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: errStatus });
+        else        chrome.storage.local.set({ mm2c_last_status: errStatus });
+        appendLog('err', meetingTitle, errStatus);
         if (callback) callback({ ok: false, error: err });
         return;
       }

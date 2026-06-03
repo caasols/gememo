@@ -1971,24 +1971,38 @@ window.MM2C_TESTS = (() => {
 
   function testTabState() {
   // tabKey — tests the actual function from constants.js
-  console.assert(tabKey('mm2c_capture_state', 42) === 'mm2c_capture_state_42', 'tabKey: basic');
-  console.assert(tabKey('mm2c_last_snapshot', 0)  === 'mm2c_last_snapshot_0',  'tabKey: zero tabId');
+  assert('tabKey: basic', tabKey('mm2c_capture_state', 42) === 'mm2c_capture_state_42');
+  assert('tabKey: zero tabId', tabKey('mm2c_last_snapshot', 0) === 'mm2c_last_snapshot_0');
 
   // addFailure / removeFailure — inline definitions matching background.js
   const addFailure    = (list, entry) => [...(Array.isArray(list) ? list : []), entry];
   const removeFailure = (list, tid)   => (Array.isArray(list) ? list : []).filter(f => f.tabId !== tid);
 
   const f1 = addFailure([], { tabId: 1, title: 'A', backupPath: '/a' });
-  console.assert(f1.length === 1, 'addFailure: first entry');
+  assert('addFailure: first entry', f1.length === 1);
 
   const f2 = addFailure(f1, { tabId: 2, title: 'B', backupPath: '/b' });
-  console.assert(f2.length === 2, 'addFailure: second entry');
+  assert('addFailure: second entry', f2.length === 2);
 
   const r1 = removeFailure(f2, 1);
-  console.assert(r1.length === 1 && r1[0].tabId === 2, 'removeFailure: removes correct entry');
+  assert('removeFailure: removes correct entry', r1.length === 1 && r1[0].tabId === 2);
 
   const r2 = removeFailure(f2, 99);
-  console.assert(r2.length === 2, 'removeFailure: no-op on missing tabId');
+  assert('removeFailure: no-op on missing tabId', r2.length === 2);
+
+  // removeFailureByPath — real function from constants.js. Identity used by
+  // user-initiated retry/dismiss, since the log-retry path carries no tabId (BUG-D).
+  const fl = [
+    { tabId: null, title: 'A', backupPath: '/a' },
+    { tabId: 42,   title: 'B', backupPath: '/b' },
+  ];
+  const byPath = removeFailureByPath(fl, '/a');
+  assert('removeFailureByPath: removes entry by backupPath regardless of tabId',
+    byPath.length === 1 && byPath[0].backupPath === '/b');
+  assert('removeFailureByPath: no-op when path absent',
+    removeFailureByPath(fl, '/zzz').length === 2);
+  assert('removeFailureByPath: tolerates non-array',
+    Array.isArray(removeFailureByPath(undefined, '/a')) && removeFailureByPath(undefined, '/a').length === 0);
 
   // resolveMeetTab — inline definition matching popup.js
   const resolveMeetTab = (meetTabs, activeTab) => {
@@ -2001,20 +2015,51 @@ window.MM2C_TESTS = (() => {
   };
 
   const res1 = resolveMeetTab([], { id: 5, url: 'https://meet.google.com/abc-def-ghi' });
-  console.assert(res1.tabId === 5 && !res1.needsPicker, 'resolveMeetTab: active is Meet');
+  assert('resolveMeetTab: active is Meet', res1.tabId === 5 && !res1.needsPicker);
 
   const res2 = resolveMeetTab([], { id: 1, url: 'https://google.com' });
-  console.assert(res2.tabId === null && !res2.needsPicker, 'resolveMeetTab: no Meet tabs');
+  assert('resolveMeetTab: no Meet tabs', res2.tabId === null && !res2.needsPicker);
 
   const res3 = resolveMeetTab([{ id: 7, url: 'https://meet.google.com/x', lastAccessed: 100 }], { id: 1, url: 'https://google.com' });
-  console.assert(res3.tabId === 7 && !res3.needsPicker, 'resolveMeetTab: 1 Meet tab auto-selected');
+  assert('resolveMeetTab: 1 Meet tab auto-selected', res3.tabId === 7 && !res3.needsPicker);
 
   const res4 = resolveMeetTab(
     [{ id: 8, url: 'https://meet.google.com/x', lastAccessed: 200 },
      { id: 9, url: 'https://meet.google.com/y', lastAccessed: 100 }],
     { id: 1, url: 'https://google.com' }
   );
-  console.assert(res4.tabId === 8 && res4.needsPicker, 'resolveMeetTab: most recent of 2 wins, picker shown');
+  assert('resolveMeetTab: most recent of 2 wins, picker shown', res4.tabId === 8 && res4.needsPicker);
+
+  // resolveBanner — real function from constants.js. Single source of truth for
+  // the status-banner text + class, removing the dual-writer race (BUG-C).
+  // Precedence: capturing > in-meeting > last status > idle default.
+  const b1 = resolveBanner({ capturing: true, inMeeting: true, geminiActive: false, lastStatus: 'Error: x' });
+  assert('resolveBanner: capturing wins over everything',
+    b1.text === 'Capturing notes…' && b1.cls === 'ok');
+
+  const b2 = resolveBanner({ capturing: false, inMeeting: true, geminiActive: true, lastStatus: 'Saved to Craft: X' });
+  assert('resolveBanner: in-meeting + gemini active',
+    b2.text === 'In meeting — notes captured when you leave' && b2.cls === 'ok');
+
+  const b3 = resolveBanner({ capturing: false, inMeeting: true, geminiActive: false, lastStatus: '' });
+  assert('resolveBanner: in-meeting without gemini → warn',
+    b3.text === 'In meeting — open the Gemini panel to enable capture' && b3.cls === 'warn');
+
+  assert('resolveBanner: error last status → err',
+    resolveBanner({ lastStatus: 'Error: boom' }).cls === 'err');
+  assert('resolveBanner: native host last status → err',
+    resolveBanner({ lastStatus: 'Native host error: x' }).cls === 'err');
+  assert('resolveBanner: host error last status → err',
+    resolveBanner({ lastStatus: 'Host error: x' }).cls === 'err');
+  assert('resolveBanner: warning last status → warn',
+    resolveBanner({ lastStatus: 'Warning: heads up' }).cls === 'warn');
+  const b4 = resolveBanner({ lastStatus: 'Saved to Craft: Daily' });
+  assert('resolveBanner: ok last status → ok with its text',
+    b4.cls === 'ok' && b4.text === 'Saved to Craft: Daily');
+
+  const b5 = resolveBanner({});
+  assert('resolveBanner: idle default',
+    b5.text === 'Not in a meeting.' && b5.cls === '');
 }
 
   async function run() {

@@ -87,6 +87,25 @@ def strip_yaml_frontmatter(content: str) -> str:
     return content  # no closing --- found — return as-is
 
 
+_RECOVERY_HEADINGS = r'(Attendees|Summary|Key Points|Decisions Made|Action Items|Next Steps|Open Questions)'
+
+
+def normalize_headings(content: str) -> str:
+    """Strip ---Heading dash artifacts and promote bare section names to ## headings.
+
+    Mirrors the heading normalisation in meeting_minutes_host.parse_transcript so
+    manual recovery from old backup files (written before that logic existed)
+    produces the same clean Craft document.
+    """
+    # Strip leading dashes only when glued to a real heading character (non-space,
+    # non-dash). Restricting the lookahead to [^\s-] prevents a 4+ dash separator
+    # line from being half-consumed into an orphan '-'.
+    content = re.sub(r'^-{3,}(?=[^\s-])', '', content, flags=re.MULTILINE)
+    content = re.sub(rf'^{_RECOVERY_HEADINGS}\s*$', r'## \1', content,
+                     flags=re.MULTILINE | re.IGNORECASE)
+    return content
+
+
 def build_createdocument_url(
     title: str,
     content: str,
@@ -243,13 +262,10 @@ def main() -> int:
     # that broke craftdocs://x-callback-url/importDocument in macOS 26.5+.
     raw = args.content_file.read_text(encoding="utf-8")
     content = strip_yaml_frontmatter(raw)
-    # Fix ---Heading artifacts written by old parse_transcript versions
-    # (Gemini copied the --- delimiter from EXAMPLE_NOTES into section headings).
-    content = re.sub(r'^-{3,}(?=\S)', '', content, flags=re.MULTILINE)
-    # Promote bare section names to ## headings (handles cases where old
-    # parse_transcript missed them because the --- prefix blocked the regex).
-    _HEADINGS = r'(Attendees|Summary|Key Points|Decisions Made|Action Items|Next Steps|Open Questions)'
-    content = re.sub(rf'^{_HEADINGS}\s*$', r'## \1', content, flags=re.MULTILINE | re.IGNORECASE)
+    # Fix ---Heading artifacts written by old parse_transcript versions (Gemini
+    # copied the --- delimiter from EXAMPLE_NOTES into section headings) and
+    # promote bare section names to ## headings.
+    content = normalize_headings(content)
     url = build_createdocument_url(args.title, content, args.space_id, args.folder_id or '')
     open_url(url, background=args.background)
     print(f"Craft document created: {args.title}")

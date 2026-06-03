@@ -105,9 +105,10 @@
   chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app']).then((data) => {
     enabled = data.mm2c_enabled !== false;
     currentOutputApp = data.mm2c_output_app || 'craft';
-    // Clear any status from a previous meeting so the popup starts fresh
+    // Reset capture state for a fresh meeting. (The popup reads the tab-keyed
+    // mm2c_last_status_<tabId>, written by background.js — there is no global
+    // status key to clear here.)
     if (enabled) {
-      chrome.storage.local.set({ mm2c_last_status: '' });
       try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' }); } catch {}
     }
     // ── Meeting lifecycle variables ──────────────────────────────────────────

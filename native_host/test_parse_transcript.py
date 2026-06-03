@@ -106,6 +106,26 @@ class TestParseTranscriptHeadings(unittest.TestCase):
         self.assertNotIn("\n---\n", body)
         self.assertIn("Some text.", body)
 
+    def test_four_dash_line_leaves_no_orphan_dash(self):
+        """A 4+ dash separator line is removed cleanly, not mangled into a stray '-'.
+
+        Regression for the greedy-backtrack bug: ^-{3,}(?=\\S) consumed 3 of the 4
+        dashes and left the 4th as an orphan '-' line that the standalone cleanup
+        no longer matched.
+        """
+        body = self._body("## Summary\n\nDecision made.\n\n----\n\n## Action Items\n\n- task")
+        orphan_lines = [ln for ln in body.splitlines() if ln.strip() == '-']
+        self.assertEqual(orphan_lines, [], f"4-dash line left an orphan dash: {body!r}")
+        self.assertIn("## Summary", body)
+        self.assertIn("## Action Items", body)
+
+    def test_five_dash_line_leaves_no_orphan_dash(self):
+        """A 5-dash separator line is also removed cleanly."""
+        body = self._body("## Summary\n\n-----\n\nSome text.")
+        orphan_lines = [ln for ln in body.splitlines() if ln.strip() == '-']
+        self.assertEqual(orphan_lines, [], f"5-dash line left an orphan dash: {body!r}")
+        self.assertIn("Some text.", body)
+
 
 if __name__ == "__main__":
     unittest.main()

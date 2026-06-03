@@ -87,3 +87,31 @@ function extractLastResponseFromEl(el) {
 function tabKey(base, tabId) {
   return `${base}_${tabId}`;
 }
+
+// Pure helper — removes a failed-send entry by its backupPath. This is the
+// identity used by user-initiated retry/dismiss, because the log-retry path
+// carries no tabId (tabId is only reliable for per-tab dedup and tab-close
+// cleanup). background.js keeps a one-liner copy.
+function removeFailureByPath(list, backupPath) {
+  return (Array.isArray(list) ? list : []).filter(f => f.backupPath !== backupPath);
+}
+
+// Pure helper — the single source of truth for the popup status-banner text and
+// CSS class. Centralising this removes the dual-writer race where onTabSelected
+// and applyState both wrote #status from independent async callbacks (BUG-C).
+// Precedence: capturing > in-meeting message > last status > idle default.
+function resolveBanner({ capturing = false, inMeeting = false, geminiActive = false, lastStatus = '' } = {}) {
+  if (capturing) return { text: 'Capturing notes…', cls: 'ok' };
+  if (inMeeting) {
+    return geminiActive
+      ? { text: 'In meeting — notes captured when you leave', cls: 'ok' }
+      : { text: 'In meeting — open the Gemini panel to enable capture', cls: 'warn' };
+  }
+  if (lastStatus) {
+    const cls = (lastStatus.startsWith('Error') || lastStatus.startsWith('Native host') || lastStatus.startsWith('Host'))
+      ? 'err'
+      : lastStatus.startsWith('Warning') ? 'warn' : 'ok';
+    return { text: lastStatus, cls };
+  }
+  return { text: 'Not in a meeting.', cls: '' };
+}

@@ -14,7 +14,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-from push_to_craft import wait_for_craft_callback, build_import_url, build_createdocument_url, strip_yaml_frontmatter
+from push_to_craft import (
+    wait_for_craft_callback,
+    build_import_url,
+    build_createdocument_url,
+    strip_yaml_frontmatter,
+    normalize_headings,
+)
 
 
 def _port_from_url(url: str) -> int | None:
@@ -156,6 +162,37 @@ class TestStripYamlFrontmatter(unittest.TestCase):
         self.assertNotIn('date:', result)
         self.assertNotIn('source:', result)
         self.assertIn('## Attendees', result)
+
+
+class TestNormalizeHeadings(unittest.TestCase):
+    """normalize_headings — retroactive cleanup of old backup files for manual recovery."""
+
+    def test_dash_glued_heading_promoted(self):
+        """---Attendees (Gemini delimiter glued to heading) is promoted to ## Attendees."""
+        result = normalize_headings("---Attendees\n\nAlice, Bob")
+        self.assertIn("## Attendees", result)
+        self.assertNotIn("---Attendees", result)
+
+    def test_four_dash_line_leaves_no_orphan_dash(self):
+        """A 4-dash separator line is not half-consumed into an orphan '-' line.
+
+        Regression for the greedy-backtrack bug: ^-{3,}(?=\\S) consumed 3 of 4
+        dashes and left a stray '-'.
+        """
+        result = normalize_headings("## Summary\n\nDecision.\n\n----\n\n## Action Items")
+        orphan_lines = [ln for ln in result.splitlines() if ln.strip() == '-']
+        self.assertEqual(orphan_lines, [], f"4-dash line left an orphan dash: {result!r}")
+
+    def test_five_dash_line_leaves_no_orphan_dash(self):
+        """A 5-dash separator line is also not mangled into a stray '-'."""
+        result = normalize_headings("## Summary\n\n-----\n\nText.")
+        orphan_lines = [ln for ln in result.splitlines() if ln.strip() == '-']
+        self.assertEqual(orphan_lines, [], f"5-dash line left an orphan dash: {result!r}")
+
+    def test_bare_section_name_promoted(self):
+        """A bare section name on its own line is promoted to a ## heading."""
+        result = normalize_headings("Summary\n\nWe shipped it.")
+        self.assertRegex(result, r'^## Summary', re.MULTILINE)
 
 
 class TestBuildImportUrl(unittest.TestCase):
