@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.94] – 2026-06-04 · Retry works for untitled meetings (BUG-6)
+
+### Fixed
+- **BUG-6** — `handle_retry` rejected any retry with an empty title ("No title provided for retry"), so a failed send from an untitled/ad-hoc meeting could never be retried even though a valid backup file existed. Now it only rejects when both title and backup path are missing, and derives a readable note title from the backup filename via the new pure `retry_title_fallback()` (strips date/time prefix and `-snap` suffix). 4 new Python tests.
+
+---
+
 ## [0.1.93] – 2026-06-04 · Skip redundant Leave-time Gemini run (BUG-3)
 
 ### Fixed

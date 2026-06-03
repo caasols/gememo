@@ -316,6 +316,23 @@ def choose_retry_file(
     return None, ''
 
 
+def retry_title_fallback(title: str, file_path: Path) -> str:
+    """Return the title, or a readable fallback derived from the backup filename.
+
+    A failed send from an untitled meeting (ad-hoc / personal room with no
+    calendar name) carries an empty title. Rather than reject the retry, derive
+    a name from the backup filename: strip the date/time prefix and the `-snap`
+    suffix, turn dashes into spaces (BUG-6).
+    """
+    if title and title.strip():
+        return title.strip()
+    stem = Path(file_path).stem
+    stem = re.sub(r'-snap$', '', stem)
+    stem = re.sub(r'^\d{8}(-\d{6})?-', '', stem)
+    cleaned = stem.replace('-', ' ').strip()
+    return cleaned or 'Recovered meeting note'
+
+
 def handle_retry(msg: dict) -> None:
     """Re-push a previously failed note to Craft.
 
@@ -330,8 +347,11 @@ def handle_retry(msg: dict) -> None:
     title           = msg.get("title", "").strip()
     backup_path_str = msg.get("backupPath", "").strip()
 
-    if not title:
-        send_message({"status": "error", "error": "No title provided for retry"})
+    # A valid backup path is enough to recover — the title is only used to label
+    # the Craft note and (as a fallback) to locate the cache file by slug. Only
+    # reject when we have neither a title nor a backup path (BUG-6).
+    if not title and not backup_path_str:
+        send_message({"status": "error", "error": "No title or backup path provided for retry"})
         return
 
     use_file, source = choose_retry_file(title, backup_path_str)
@@ -342,6 +362,9 @@ def handle_retry(msg: dict) -> None:
             "error": "No recoverable file found — cache expired and backup unavailable",
         })
         return
+
+    # Derive a readable title from the backup filename when the meeting had none.
+    title = retry_title_fallback(title, use_file)
 
     try:
         folder_id = msg.get("craftFolderId", "").strip()
