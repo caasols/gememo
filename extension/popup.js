@@ -118,6 +118,38 @@ function renderRules(rules) {
   });
 }
 
+function renderRetryList(list) {
+  const container = $('retry-list');
+  if (!container) return;
+  if (!Array.isArray(list) || !list.length) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = list.map(entry => {
+    const shortTitle = entry.title
+      ? (entry.title.length > 45 ? entry.title.slice(0, 45) + '…' : entry.title)
+      : 'Unknown meeting';
+    return `
+      <div class="retry-card">
+        <div class="retry-card-header">
+          <div>
+            <div class="retry-card-title">${escapeHtml(shortTitle)}</div>
+            <div class="retry-card-hint">Notes are safe. Click Retry to resend.</div>
+          </div>
+          <button class="btn retry-dismiss-btn"
+            data-tabid="${entry.tabId ?? ''}"
+            title="Dismiss">×</button>
+        </div>
+        <div class="retry-card-actions">
+          <button class="btn retry-btn"
+            data-tabid="${entry.tabId ?? ''}"
+            data-title="${escapeHtml(entry.title || '')}"
+            data-backup="${escapeHtml(entry.backupPath || '')}">Retry →</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
 function applyState(s, tabId) {
   // Tab-scoped live state — falls back to defaults when key absent
   const captureStateVal = tabId ? (s[tabKey('mm2c_capture_state', tabId)] || 'idle') : 'idle';
@@ -329,30 +361,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  $('retry-btn').addEventListener('click', () => {
-    chrome.storage.local.get(['mm2c_last_failed'], ({ mm2c_last_failed }) => {
-      if (!mm2c_last_failed) return;
-      const btn = $('retry-btn');
-      btn.textContent = 'Retrying…';
-      btn.disabled = true;
+  $('retry-list').addEventListener('click', (e) => {
+    const retryBtn   = e.target.closest('.retry-btn');
+    const dismissBtn = e.target.closest('.retry-dismiss-btn');
+
+    if (retryBtn) {
+      retryBtn.textContent = 'Retrying…';
+      retryBtn.disabled = true;
+      const tabId = retryBtn.dataset.tabid ? parseInt(retryBtn.dataset.tabid, 10) : null;
       chrome.runtime.sendMessage({
         type:       'MM2C_RETRY',
-        title:      mm2c_last_failed.title,
-        backupPath: mm2c_last_failed.backupPath,
+        title:      retryBtn.dataset.title,
+        backupPath: retryBtn.dataset.backup,
+        tabId,
       }, (response) => {
-        btn.textContent = 'Retry →';
-        btn.disabled = false;
         if (response?.ok) {
-          $('retry-widget').classList.add('hidden');
-          loadAndApplyState(activeMetTabId);
+          chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
+            renderRetryList(Array.isArray(mm2c_failed_list) ? mm2c_failed_list : []);
+          });
+        } else {
+          retryBtn.textContent = 'Failed ✗';
+          retryBtn.disabled = false;
         }
       });
-    });
-  });
+    }
 
-  $('retry-dismiss').addEventListener('click', () => {
-    chrome.storage.local.remove('mm2c_last_failed');
-    $('retry-widget').classList.add('hidden');
+    if (dismissBtn) {
+      const tabId = dismissBtn.dataset.tabid ? parseInt(dismissBtn.dataset.tabid, 10) : null;
+      chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
+        const updated = (Array.isArray(mm2c_failed_list) ? mm2c_failed_list : [])
+          .filter(f => f.tabId !== tabId);
+        chrome.storage.local.set({ mm2c_failed_list: updated }, () => renderRetryList(updated));
+      });
+    }
   });
 
   // Query the active Meet tab for live meeting state — also called every 10 s to auto-refresh.
