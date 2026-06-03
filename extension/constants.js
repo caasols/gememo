@@ -114,6 +114,13 @@ function inferMeetingType(title) {
   return 'calendar';
 }
 
+// Pure helper — format a prompt-performance log line (P6-C). Captures the
+// Gemini flow duration alongside prompt + response sizes so correlation between
+// prompt length and latency becomes visible in the Logs tab over many captures.
+function formatPerfLog(elapsedMs, promptChars, responseChars) {
+  return `perf: Gemini flow ${(elapsedMs / 1000).toFixed(1)}s · prompt ${promptChars} chars · response ${responseChars} chars`;
+}
+
 // Pure helper — is the cached snapshot recent enough to use at Leave time
 // without a fresh Gemini run (BUG-3)? True when a snapshot exists and completed
 // within the last half snapshot-interval, so re-running Gemini would add 20–60 s

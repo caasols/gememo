@@ -2092,6 +2092,12 @@ window.MM2C_TESTS = (() => {
     snapshotFreshEnough(1_000_000, INT, 1_000_000 + INT / 2) === false);
   assert('snapshotFreshEnough: 5 min old, 8 min interval → false',
     snapshotFreshEnough(1_000_000, INT, 1_000_000 + 5 * 60_000) === false);
+
+  // formatPerfLog — prompt-performance log line (P6-C)
+  assert('formatPerfLog: formats seconds + char counts',
+    formatPerfLog(12340, 1840, 920) === 'perf: Gemini flow 12.3s · prompt 1840 chars · response 920 chars');
+  assert('formatPerfLog: rounds to one decimal',
+    formatPerfLog(5000, 100, 50) === 'perf: Gemini flow 5.0s · prompt 100 chars · response 50 chars');
 }
 
   async function run() {
