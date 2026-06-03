@@ -381,6 +381,36 @@
       align-items: center;
       justify-content: space-between;
     }
+    .note-search {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+    }
+    #search-results:not(:empty) { margin-bottom: 8px; }
+    .search-result {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin-bottom: 6px;
+      background: var(--surface-subtle);
+    }
+    .search-result-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .search-title { font-weight: 600; }
+    .search-date  { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+    .search-snippet { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .search-empty { font-size: 11px; color: var(--text-muted); padding: 4px 2px; }
+
     .logs-count {
       font-size: 11px;
       color: var(--text-muted);
@@ -968,6 +998,9 @@
 
   <!-- ── Logs panel ─────────────────────────────────────────────── -->
   <div class="panel hidden" id="logs-panel">
+
+    <input type="text" id="note-search" class="note-search" placeholder="Search past meetings…">
+    <div id="search-results"></div>
 
     <div class="logs-toolbar">
       <span class="logs-count" id="logs-count"></span>
