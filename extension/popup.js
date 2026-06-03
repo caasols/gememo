@@ -19,6 +19,7 @@ const GLOBAL_KEYS = [
   'mm2c_obsidian_vault_path',
   'mm2c_failed_list',
   'mm2c_last_note',
+  'mm2c_webhook_url',
 ];
 
 function tabScopedKeys(tabId) {
@@ -230,6 +231,7 @@ function applyState(s, tabId, live = null) {
   $('obsidian-vault-path').value = s.mm2c_obsidian_vault_path || '';
 
   $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
+  $('webhook-url').value = s.mm2c_webhook_url || '';
 
   const fileBackupOn = s.mm2c_file_backup_enabled === true;
   $('file-backup-enabled').checked = fileBackupOn;
@@ -660,6 +662,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('craft-folder-id').addEventListener('change', e => {
     save({ mm2c_craft_folder_id: e.target.value.trim() });
+  });
+
+  $('webhook-url').addEventListener('change', e => {
+    save({ mm2c_webhook_url: e.target.value.trim() });
   });
 
   $('reset-prompt').addEventListener('click', () => {

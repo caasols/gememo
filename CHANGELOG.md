@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.102] – 2026-06-04 · Generic webhook output (P9-D)
+
+### Added
+- **P9-D** — an optional **Webhook URL** in Settings. On each capture the host POSTs the note as structured JSON (`title, date, attendees, duration_min, summary, key_points, decisions, action_items, next_steps, open_questions`) to the URL — covering Zapier / n8n / Make and custom endpoints with no per-app connector. New host helpers `parse_note_sections()`, `build_webhook_payload()`, `post_webhook()` (urllib, no deps, no CORS/host-permissions); best-effort and never affects the capture result. 5 new Python tests.
+
+---
+
 ## [0.1.101] – 2026-06-04 · Local full-text search across notes (P9-E)
 
 ### Added
