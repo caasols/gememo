@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.100] – 2026-06-04 · Two-tier logging (UX-6)
+
+### Added
+- **UX-6** — log entries now carry a `level` (`user` | `debug`). The Logs tab shows user-facing entries by default and hides diagnostics (tab-switch events, host version-mismatch, prompt `perf:` lines) behind a new "Diagnostics" toggle. New pure `filterLogsByLevel()`; `appendLog`/`sendLog`/`MM2C_LOG` gained a level param (default `user`); legacy entries without a level are treated as user-facing. 4 new JS tests.
+
+---
+
 ## [0.1.99] – 2026-06-04 · Action-item checklist in popup (P6-B)
 
 ### Added

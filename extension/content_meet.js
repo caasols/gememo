@@ -762,7 +762,7 @@
     // 7. Read response from DOM
     const response = extractLastResponse();
     sendLog(`Gemini response received (${response?.length ?? 0} chars)`);
-    sendLog(formatPerfLog(Date.now() - perfStart, prompt.length, response?.length ?? 0));
+    sendLog(formatPerfLog(Date.now() - perfStart, prompt.length, response?.length ?? 0), 'debug');
     if (!response || response.length < 20) {
       throw new Error('Response extracted but appears empty');
     }
@@ -1205,13 +1205,14 @@
   // Sends a log entry to background.js which stores it in mm2c_logs.
   // Silently ignored if the runtime context is dead.
 
-  function sendLog(message) {
+  function sendLog(message, level = 'user') {
     if (!isContextValid()) return;
     try {
       chrome.runtime.sendMessage({
         type: 'MM2C_LOG',
         message,
         meetingTitle: getMeetingTitle() || '',
+        level,
       });
     } catch {}
   }

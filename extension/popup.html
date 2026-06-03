@@ -385,6 +385,16 @@
       font-size: 11px;
       color: var(--text-muted);
     }
+    .logs-debug-toggle {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: auto;
+      cursor: pointer;
+      user-select: none;
+    }
 
     .log-list-wrap {
       border: 1px solid var(--border);
@@ -961,6 +971,7 @@
 
     <div class="logs-toolbar">
       <span class="logs-count" id="logs-count"></span>
+      <label class="logs-debug-toggle"><input type="checkbox" id="show-debug-logs"> Diagnostics</label>
       <button class="btn" id="download-logs">Download</button>
       <button class="btn danger" id="clear-logs">Clear</button>
     </div>
