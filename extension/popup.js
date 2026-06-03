@@ -146,6 +146,24 @@ function renderActionItems(noteBody) {
   }).join('');
 }
 
+// Render local note-search results (P9-E).
+function renderSearchResults(results) {
+  const c = $('search-results');
+  if (!c) return;
+  if (!Array.isArray(results) || !results.length) {
+    c.innerHTML = '<div class="search-empty">No matching past meetings.</div>';
+    return;
+  }
+  c.innerHTML = results.map(r => `
+    <div class="search-result">
+      <div class="search-result-head">
+        <span class="search-title">${escapeHtml(r.title || 'Untitled meeting')}</span>
+        <span class="search-date">${escapeHtml(r.date || '')}</span>
+      </div>
+      <div class="search-snippet">${escapeHtml(r.snippet || '')}</div>
+    </div>`).join('');
+}
+
 // Read-only display of the non-deletable built-in prompt templates (P5-K).
 function renderBuiltInRules() {
   const container = $('builtin-rules-list');
@@ -832,5 +850,19 @@ document.addEventListener('DOMContentLoaded', () => {
   $('show-debug-logs').addEventListener('change', (e) => {
     showDebugLogs = e.target.checked;
     chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => renderLogs(mm2c_logs));
+  });
+
+  // Local full-text search across past meeting notes (P9-E), debounced.
+  let searchDebounce = null;
+  $('note-search').addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    clearTimeout(searchDebounce);
+    if (!q) { $('search-results').innerHTML = ''; return; }
+    searchDebounce = setTimeout(() => {
+      chrome.runtime.sendMessage({ type: 'MM2C_SEARCH', query: q }, (resp) => {
+        if (chrome.runtime.lastError) return;
+        renderSearchResults(resp?.ok ? resp.results : []);
+      });
+    }, 300);
   });
 });

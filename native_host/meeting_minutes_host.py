@@ -319,6 +319,75 @@ def choose_retry_file(
     return None, ''
 
 
+def _note_title_from(text: str, path: Path) -> str:
+    """Best note title: YAML `title:` if present, else a readable filename slug."""
+    m = re.search(r'^title:\s*"?(.*?)"?\s*$', text, re.MULTILINE)
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+    stem = re.sub(r'-snap$', '', path.stem)
+    stem = re.sub(r'^\d{8}(-\d{6})?-', '', stem)
+    return stem.replace('-', ' ').strip() or path.stem
+
+
+def _note_date_from(text: str, path: Path) -> str:
+    """Best note date: YAML `date:` if present, else the filename YYYYMMDD prefix."""
+    m = re.search(r'^date:\s*(\d{4}-\d{2}-\d{2})', text, re.MULTILINE)
+    if m:
+        return m.group(1)
+    fm = re.match(r'(\d{8})', path.stem)
+    if fm:
+        d = fm.group(1)
+        return f"{d[0:4]}-{d[4:6]}-{d[6:8]}"
+    return ''
+
+
+def _snippet_around(text: str, q_lower: str, width: int = 80) -> str:
+    """A single-line snippet of context around the first match of q_lower."""
+    idx = text.lower().find(q_lower)
+    if idx < 0:
+        return ''
+    start = max(0, idx - width // 2)
+    end   = min(len(text), idx + len(q_lower) + width // 2)
+    snippet = ' '.join(text[start:end].split())
+    return ('…' if start > 0 else '') + snippet + ('…' if end < len(text) else '')
+
+
+def search_notes(query: str, backup_dir, limit: int = 20) -> list:
+    """Full-text search over final-note .md files in backup_dir (P9-E).
+
+    Case-insensitive substring match. Snapshot files (`*-snap.md`) are excluded
+    so each meeting appears once. Results are newest-first, each with
+    {file, title, date, snippet}. Returns [] for an empty query or missing dir.
+    """
+    if not query or not query.strip():
+        return []
+    base = Path(backup_dir).expanduser()
+    if not base.exists():
+        return []
+    q = query.strip().lower()
+    files = sorted(
+        (p for p in base.glob('*.md') if p.is_file() and not p.name.endswith('-snap.md')),
+        key=lambda p: p.stat().st_mtime, reverse=True,
+    )
+    results = []
+    for f in files:
+        try:
+            text = f.read_text(encoding='utf-8', errors='ignore')
+        except OSError:
+            continue
+        if q not in text.lower():
+            continue
+        results.append({
+            'file': str(f),
+            'title': _note_title_from(text, f),
+            'date': _note_date_from(text, f),
+            'snippet': _snippet_around(text, q),
+        })
+        if len(results) >= limit:
+            break
+    return results
+
+
 def retry_title_fallback(title: str, file_path: Path) -> str:
     """Return the title, or a readable fallback derived from the backup filename.
 
@@ -510,6 +579,14 @@ def main() -> None:
     if msg.get("type") == "snapshot":
         handle_snapshot(msg)
         send_message({"status": "ok"})
+        return
+
+    if msg.get("type") == "search":
+        results = search_notes(
+            msg.get("query", ""),
+            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
+        )
+        send_message({"status": "ok", "results": results})
         return
 
     transcript = msg.get("transcript", "").strip()

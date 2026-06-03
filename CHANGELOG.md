@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.101] – 2026-06-04 · Local full-text search across notes (P9-E)
+
+### Added
+- **P9-E** — a "Search past meetings" box in the Logs tab searches your backup `.md` notes locally (no API). New host `search_notes()` does a case-insensitive scan of final notes (snapshots excluded), returning newest-first matches with title, date, and a context snippet, via a new `search` native-message type and `MM2C_SEARCH` background handler. 7 new Python tests.
+
+---
+
 ## [0.1.100] – 2026-06-04 · Two-tier logging (UX-6)
 
 ### Added
