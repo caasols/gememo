@@ -1,18 +1,48 @@
 const DEFAULT_FILE_PATH = '~/Downloads/meeting-notes';
 
-const KEYS = [
+// Tab ID of the Meet tab currently displayed in the popup.
+// null = no Meet tab active; set by queryMeetingState().
+let activeMetTabId = null;
+
+const GLOBAL_KEYS = [
   'mm2c_enabled', 'mm2c_prompt',
   'mm2c_output_app',
   'mm2c_craft_folder_id',
   'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
-  'mm2c_last_status', 'mm2c_logs', 'mm2c_capture_state',
-  'mm2c_last_snapshot',
+  'mm2c_logs',
   'mm2c_note_language',
   'mm2c_prompt_rules',
   'mm2c_snapshot_interval_min',
   'mm2c_obsidian_vault_path',
-  'mm2c_last_failed',
+  'mm2c_failed_list',
 ];
+
+function tabScopedKeys(tabId) {
+  if (!tabId) return [];
+  return [
+    tabKey('mm2c_capture_state', tabId),
+    tabKey('mm2c_last_snapshot',  tabId),
+    tabKey('mm2c_last_status',    tabId),
+  ];
+}
+
+// Given a list of open Meet tabs and the currently active tab, returns
+// {tabId, needsPicker}. needsPicker is true when 2+ Meet tabs are open
+// and none is focused — the popup should show a tab selector.
+function resolveMeetTab(meetTabs, activeTab) {
+  const isMeet = url => url?.startsWith('https://meet.google.com/');
+  if (isMeet(activeTab?.url)) return { tabId: activeTab.id, needsPicker: false };
+  if (!meetTabs.length) return { tabId: null, needsPicker: false };
+  if (meetTabs.length === 1) return { tabId: meetTabs[0].id, needsPicker: false };
+  const sorted = [...meetTabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  return { tabId: sorted[0].id, needsPicker: true };
+}
+
+// Loads both global and tab-scoped storage keys, then calls applyState.
+function loadAndApplyState(tabId) {
+  const keys = [...GLOBAL_KEYS, ...tabScopedKeys(tabId)];
+  chrome.storage.local.get(keys, s => applyState(s, tabId));
+}
 
 const $ = id => document.getElementById(id);
 
@@ -293,7 +323,8 @@ function switchTab(tabName) {
 // ── Init ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.local.get(KEYS, applyState);
+  const keys = [...GLOBAL_KEYS, ...tabScopedKeys(activeMetTabId)];
+  chrome.storage.local.get(keys, s => applyState(s, activeMetTabId));
 
   // About tab — populate from Chrome runtime
   $('about-version').textContent = `v${chrome.runtime.getManifest().version}`;
@@ -323,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = false;
         if (response?.ok) {
           $('retry-widget').classList.add('hidden');
-          chrome.storage.local.get(KEYS, applyState);
+          loadAndApplyState(activeMetTabId);
         }
       });
     });
@@ -586,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
         $('status-banner').className = 'status-banner ok';
       } else {
         // Capture ended — re-read all state to show updated mm2c_last_status
-        chrome.storage.local.get(KEYS, applyState);
+        loadAndApplyState(activeMetTabId);
       }
     }
   });
