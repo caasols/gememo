@@ -399,51 +399,95 @@ document.addEventListener('DOMContentLoaded', () => {
   // Query the active Meet tab for live meeting state — also called every 10 s to auto-refresh.
   function queryMeetingState() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs[0]?.id;
-      if (!tabId) return;
-      chrome.tabs.sendMessage(tabId, { type: 'MM2C_STATUS_QUERY' }, (response) => {
-        if (chrome.runtime.lastError) return; // not a Meet tab or content script not ready
-        const inMeeting = !!response?.inMeeting;
-        $('capture-footer').classList.toggle('hidden', !inMeeting);
-        $('capture-footer-spacer').classList.toggle('hidden', !inMeeting);
-        if (!inMeeting) {
+      const activeTab = tabs[0];
+      chrome.tabs.query({ url: 'https://meet.google.com/*' }, (meetTabs) => {
+        const { tabId, needsPicker } = resolveMeetTab(meetTabs, activeTab);
+        activeMetTabId = tabId;
+
+        // Show/hide meeting picker
+        const picker = $('meeting-picker');
+        const select = $('meeting-tab-select');
+        if (picker && select) {
+          if (needsPicker && meetTabs.length >= 2) {
+            picker.classList.remove('hidden');
+            select.innerHTML = meetTabs.map(tab => {
+              const title = (tab.title || '').replace(/^Meet\s*[-–]\s*/i, '').trim() || 'Google Meet';
+              return `<option value="${tab.id}" ${tab.id === tabId ? 'selected' : ''}>${escapeHtml(title)}</option>`;
+            }).join('');
+            select.onchange = () => {
+              activeMetTabId = parseInt(select.value, 10);
+              onTabSelected(activeMetTabId);
+            };
+          } else {
+            picker.classList.add('hidden');
+          }
+        }
+
+        if (!tabId) {
+          $('capture-footer').classList.add('hidden');
+          $('capture-footer-spacer').classList.add('hidden');
           $('snapshot-widget').classList.add('hidden');
+          loadAndApplyState(null);
           return;
         }
-        // Show snapshot widget if a snapshot exists
-        chrome.storage.local.get(['mm2c_last_snapshot'], ({ mm2c_last_snapshot }) => {
-          renderSnapshotWidget(mm2c_last_snapshot || null);
-          const nextEl = $('snapshot-next');
-          if (nextEl) {
-            const countdown = formatCountdown(response.nextSnapshotAt || 0);
-            const firstEta  = formatCountdown(response.firstSnapshotAt || 0);
-            if (countdown) {
-              nextEl.textContent = `Next in: ${countdown}`;
-              nextEl.classList.remove('hidden');
-            } else if (firstEta) {
-              nextEl.textContent = `First snapshot in: ${firstEta}`;
-              nextEl.classList.remove('hidden');
-            } else {
-              nextEl.classList.add('hidden');
-            }
-          }
-        });
-        // Don't overwrite "Capturing notes…" with a stale "In meeting…" message
-        chrome.storage.local.get(['mm2c_capture_state'], ({ mm2c_capture_state }) => {
-          if (mm2c_capture_state === 'capturing') return; // button already shows "Capturing…"
-          const captureBtn = $('capture-now-btn');
-          if (captureBtn) {
-            captureBtn.disabled    = !response.geminiActive;
-            captureBtn.textContent = response.geminiActive ? 'Capture now' : 'Open Gemini to capture';
-          }
-          const msg = response.geminiActive
-            ? 'In meeting — notes captured when you leave'
-            : 'In meeting — open the Gemini panel to enable capture';
-          const cls = response.geminiActive ? 'ok' : 'warn';
-          $('status').textContent = msg;
-          $('status-banner').className = `status-banner ${cls}`;
-        });
+
+        onTabSelected(tabId);
       });
+    });
+  }
+
+  function onTabSelected(tabId) {
+    chrome.tabs.sendMessage(tabId, { type: 'MM2C_STATUS_QUERY' }, (response) => {
+      if (chrome.runtime.lastError) {
+        $('capture-footer').classList.add('hidden');
+        $('capture-footer-spacer').classList.add('hidden');
+        $('snapshot-widget').classList.add('hidden');
+        loadAndApplyState(tabId);
+        return;
+      }
+      const inMeeting = !!response?.inMeeting;
+      $('capture-footer').classList.toggle('hidden', !inMeeting);
+      $('capture-footer-spacer').classList.toggle('hidden', !inMeeting);
+      if (!inMeeting) {
+        $('snapshot-widget').classList.add('hidden');
+        loadAndApplyState(tabId);
+        return;
+      }
+      // Show snapshot widget if snapshot exists
+      chrome.storage.local.get([tabKey('mm2c_last_snapshot', tabId)], (data) => {
+        const snap = data[tabKey('mm2c_last_snapshot', tabId)] || null;
+        renderSnapshotWidget(snap);
+        const nextEl = $('snapshot-next');
+        if (nextEl) {
+          const countdown = formatCountdown(response.nextSnapshotAt || 0);
+          const firstEta  = formatCountdown(response.firstSnapshotAt || 0);
+          if (countdown) {
+            nextEl.textContent = `Next in: ${countdown}`;
+            nextEl.classList.remove('hidden');
+          } else if (firstEta) {
+            nextEl.textContent = `First snapshot in: ${firstEta}`;
+            nextEl.classList.remove('hidden');
+          } else {
+            nextEl.classList.add('hidden');
+          }
+        }
+      });
+      // Status banner
+      chrome.storage.local.get([tabKey('mm2c_capture_state', tabId)], (data) => {
+        const capturing = data[tabKey('mm2c_capture_state', tabId)] === 'capturing';
+        if (capturing) return;
+        const captureBtn = $('capture-now-btn');
+        if (captureBtn) {
+          captureBtn.disabled    = !response.geminiActive;
+          captureBtn.textContent = response.geminiActive ? 'Capture now' : 'Open Gemini to capture';
+        }
+        const msg = response.geminiActive
+          ? 'In meeting — notes captured when you leave'
+          : 'In meeting — open the Gemini panel to enable capture';
+        $('status').textContent = msg;
+        $('status-banner').className = `status-banner ${response.geminiActive ? 'ok' : 'warn'}`;
+      });
+      loadAndApplyState(tabId);
     });
   }
   queryMeetingState();
@@ -685,11 +729,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Capture now — sends MM2C_CAPTURE_NOW directly to content script via tabs API
   $('capture-now-btn').addEventListener('click', () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs[0]?.id;
-      if (!tabId) return;
-      chrome.tabs.sendMessage(tabId, { type: 'MM2C_CAPTURE_NOW' });
-    });
+    if (!activeMetTabId) return;
+    chrome.tabs.sendMessage(activeMetTabId, { type: 'MM2C_CAPTURE_NOW' });
   });
 
   // Download logs as JSON
