@@ -98,17 +98,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         doForward(sendResponse);
         return true;
       }
-      chrome.storage.session.get(['mm2c_last_fingerprint'], (fpData) => {
-        const stored = fpData.mm2c_last_fingerprint;
+      // Tab-keyed dedup: each tab gets its own fingerprint so two concurrent
+      // meetings with the same title don't block each other.
+      const fpKey = tabId ? _tabKey('mm2c_last_fingerprint', tabId) : 'mm2c_last_fingerprint';
+      chrome.storage.session.get([fpKey], (fpData) => {
+        const stored = fpData[fpKey];
         const now = Date.now();
         if (stored && stored.title === title && (now - stored.sentAt) < DEDUP_WINDOW_MS) {
           appendLog('warn', title, 'Duplicate send skipped — notes already sent for this meeting within the last 40 minutes');
           sendResponse({ ok: true });
           return;
         }
-        // Write record first, then forward — chained to avoid a narrow race
-        // where a second rapid message passes the check before the write flushes.
-        chrome.storage.session.set({ mm2c_last_fingerprint: { title, sentAt: now } }, () => {
+        chrome.storage.session.set({ [fpKey]: { title, sentAt: now } }, () => {
           doForward(sendResponse);
         });
       });
@@ -116,7 +117,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
 
     case 'MM2C_RETRY': {
-      const { title, backupPath } = msg;
+      const { title, backupPath, tabId } = msg;
       chrome.runtime.sendNativeMessage(NATIVE_HOST, {
         type:       'retry',
         title:      title      || '',
@@ -129,8 +130,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           return;
         }
         if (response?.status === 'ok') {
-          chrome.storage.local.remove('mm2c_last_failed');
-          chrome.storage.local.set({ mm2c_last_status: `Retry succeeded: ${response.title}` });
+          // Remove this entry from mm2c_failed_list
+          chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
+            chrome.storage.local.set({
+              mm2c_failed_list: removeFailure(mm2c_failed_list, tabId),
+            });
+          });
+          const statusLabel = `Retry succeeded: ${response.title}`;
+          if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: statusLabel });
+          else        chrome.storage.local.set({ mm2c_last_status: statusLabel });
           appendLog('ok', title, `Retry succeeded — sent to Craft (from ${response.source || 'file'})`);
           chrome.action.setBadgeText({ text: 'OK' });
           chrome.action.setBadgeBackgroundColor({ color: '#137333' });
