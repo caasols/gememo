@@ -80,3 +80,10 @@ function extractLastResponseFromEl(el) {
     .replace(/(?<=[a-zA-Z"'])([1-9])(?=[\s\n]|$)/gm, '')
     .trim();
 }
+
+// Pure helper — produces the tab-scoped storage key name.
+// Used by popup.js and background.js (background.js defines its own
+// one-liner copy since it cannot import constants.js as a service worker).
+function tabKey(base, tabId) {
+  return `${base}_${tabId}`;
+}

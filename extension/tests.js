@@ -1969,6 +1969,54 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testTabState() {
+  // tabKey — tests the actual function from constants.js
+  console.assert(tabKey('mm2c_capture_state', 42) === 'mm2c_capture_state_42', 'tabKey: basic');
+  console.assert(tabKey('mm2c_last_snapshot', 0)  === 'mm2c_last_snapshot_0',  'tabKey: zero tabId');
+
+  // addFailure / removeFailure — inline definitions matching background.js
+  const addFailure    = (list, entry) => [...(Array.isArray(list) ? list : []), entry];
+  const removeFailure = (list, tid)   => (Array.isArray(list) ? list : []).filter(f => f.tabId !== tid);
+
+  const f1 = addFailure([], { tabId: 1, title: 'A', backupPath: '/a' });
+  console.assert(f1.length === 1, 'addFailure: first entry');
+
+  const f2 = addFailure(f1, { tabId: 2, title: 'B', backupPath: '/b' });
+  console.assert(f2.length === 2, 'addFailure: second entry');
+
+  const r1 = removeFailure(f2, 1);
+  console.assert(r1.length === 1 && r1[0].tabId === 2, 'removeFailure: removes correct entry');
+
+  const r2 = removeFailure(f2, 99);
+  console.assert(r2.length === 2, 'removeFailure: no-op on missing tabId');
+
+  // resolveMeetTab — inline definition matching popup.js
+  const resolveMeetTab = (meetTabs, activeTab) => {
+    const isMeet = url => url?.startsWith('https://meet.google.com/');
+    if (isMeet(activeTab?.url)) return { tabId: activeTab.id, needsPicker: false };
+    if (!meetTabs.length) return { tabId: null, needsPicker: false };
+    if (meetTabs.length === 1) return { tabId: meetTabs[0].id, needsPicker: false };
+    const sorted = [...meetTabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+    return { tabId: sorted[0].id, needsPicker: true };
+  };
+
+  const res1 = resolveMeetTab([], { id: 5, url: 'https://meet.google.com/abc-def-ghi' });
+  console.assert(res1.tabId === 5 && !res1.needsPicker, 'resolveMeetTab: active is Meet');
+
+  const res2 = resolveMeetTab([], { id: 1, url: 'https://google.com' });
+  console.assert(res2.tabId === null && !res2.needsPicker, 'resolveMeetTab: no Meet tabs');
+
+  const res3 = resolveMeetTab([{ id: 7, url: 'https://meet.google.com/x', lastAccessed: 100 }], { id: 1, url: 'https://google.com' });
+  console.assert(res3.tabId === 7 && !res3.needsPicker, 'resolveMeetTab: 1 Meet tab auto-selected');
+
+  const res4 = resolveMeetTab(
+    [{ id: 8, url: 'https://meet.google.com/x', lastAccessed: 200 },
+     { id: 9, url: 'https://meet.google.com/y', lastAccessed: 100 }],
+    { id: 1, url: 'https://google.com' }
+  );
+  console.assert(res4.tabId === 8 && res4.needsPicker, 'resolveMeetTab: most recent of 2 wins, picker shown');
+}
+
   async function run() {
     results.length = 0;
     console.group('%cMM2C Extension Tests', 'font-weight:bold;font-size:14px;color:#1a73e8');
@@ -2006,6 +2054,7 @@ window.MM2C_TESTS = (() => {
     await testLeaveClickFreshFirst();
     testGeminiTriggerStates();
     await testWaitForActiveGeminiButton();
+    testTabState();
 
     const passed = results.filter(r => r.ok).length;
     const total = results.length;
