@@ -71,6 +71,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case 'MM2C_RESPONSE': {
       const title = msg.meetingTitle || '';
+      const tabId = _sender.tab?.id;   // ← ADD THIS LINE
       const doForward = (sr) => {
         chrome.storage.local.get([
           'mm2c_output_app',
@@ -88,6 +89,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             fileBackupEnabled:   data.mm2c_file_backup_enabled === true,
             fileBackupType:      data.mm2c_file_backup_type      || 'markdown',
             fileBackupPath:      data.mm2c_file_backup_path      || '~/Downloads/meeting-notes',
+            tabId,
           }, sr);
         });
       };
@@ -172,7 +174,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case 'MM2C_WARNING':
       chrome.action.setBadgeText({ text: '!' });
       chrome.action.setBadgeBackgroundColor({ color: '#e37400' });
-      chrome.storage.local.set({ mm2c_last_status: `Warning: ${msg.message}` });
+      { const wTabId = _sender.tab?.id;
+        const wStatus = `Warning: ${msg.message}`;
+        if (wTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', wTabId)]: wStatus });
+        else         chrome.storage.local.set({ mm2c_last_status: wStatus }); }
       appendLog('warn', msg.meetingTitle || '', msg.message || '');
       setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
       break;
@@ -181,7 +186,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       console.error('[MM2C] Error from content script:', msg.error);
       chrome.action.setBadgeText({ text: '!' });
       chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
-      chrome.storage.local.set({ mm2c_last_status: `Error: ${msg.error}` });
+      { const eTabId = _sender.tab?.id;
+        const eStatus = `Error: ${msg.error}`;
+        if (eTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', eTabId)]: eStatus });
+        else         chrome.storage.local.set({ mm2c_last_status: eStatus }); }
       appendLog('err', msg.meetingTitle || '', msg.error || '');
       break;
 
@@ -331,7 +339,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, fileBackupEnabled, fileBackupType, fileBackupPath }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
     { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, fileBackupEnabled, fileBackupType, fileBackupPath },
@@ -357,7 +365,8 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
           : `Saved to ${dest}.${filePart}${retryNote}`;
         chrome.action.setBadgeText({ text: 'OK' });
         chrome.action.setBadgeBackgroundColor({ color: '#137333' });
-        chrome.storage.local.set({ mm2c_last_status: label });
+        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
+        else        chrome.storage.local.set({ mm2c_last_status: label });
         appendLog('ok', meetingTitle, label);
         setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
         if (callback) callback({ ok: true });
@@ -367,16 +376,17 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         const label  = `Host error: ${detail}${backup}`;
         chrome.action.setBadgeText({ text: '!' });
         chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
-        chrome.storage.local.set({ mm2c_last_status: label });
+        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
+        else        chrome.storage.local.set({ mm2c_last_status: label });
         appendLog('err', meetingTitle, label);
         // Store for retry widget — only when a backup path exists to retry from
         if (response?.backupPath) {
-          chrome.storage.local.set({
-            mm2c_last_failed: {
-              title:      meetingTitle,
-              backupPath: response.backupPath,
-              failedAt:   Date.now(),
-            },
+          chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
+            const updated = addFailure(
+              removeFailure(mm2c_failed_list, tabId),
+              { tabId: tabId || null, title: meetingTitle, backupPath: response.backupPath, failedAt: Date.now() }
+            );
+            chrome.storage.local.set({ mm2c_failed_list: updated });
           });
         }
         if (callback) callback({ ok: false, error: detail, backupPath: response?.backupPath || null });
