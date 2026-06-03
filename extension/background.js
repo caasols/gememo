@@ -12,6 +12,15 @@ const removeFailure = (list, tabId) => (Array.isArray(list) ? list : []).filter(
 // Identity for user-initiated retry/dismiss (log-retry carries no tabId).
 const removeFailureByPath = (list, p) => (Array.isArray(list) ? list : []).filter(f => f.backupPath !== p);
 
+// Copies of countWords/updateStats from constants.js (UX-8 usage stats).
+const countWords = (text) => { const t = String(text || '').trim(); return t ? t.split(/\s+/).length : 0; };
+const updateStats = (prev, { durationMin = null, words = 0 } = {}) => {
+  const s = { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0,
+              ...(prev && typeof prev === 'object' ? prev : {}) };
+  return { ...s, notesSaved: s.notesSaved + 1, wordsCaptured: s.wordsCaptured + (words || 0),
+           totalMeetingMinutes: s.totalMeetingMinutes + (Number.isFinite(durationMin) ? durationMin : 0) };
+};
+
 // ── Logging ────────────────────────────────────────────────────────────────
 // Stores up to 50 log entries in chrome.storage.local under mm2c_logs.
 // Each entry: { ts, status: 'ok'|'warn'|'err', title, message }
@@ -52,6 +61,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse(err ? { path: null, error: err } : { path: response?.path || null });
       });
       return true;
+
+    case 'MM2C_STAT_JOINED':
+      // Count a meeting attended in the background (UX-8), once per meeting.
+      chrome.storage.local.get(['mm2c_stats'], ({ mm2c_stats }) => {
+        const s = { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0,
+                    ...(mm2c_stats && typeof mm2c_stats === 'object' ? mm2c_stats : {}) };
+        s.meetingsAttended += 1;
+        chrome.storage.local.set({ mm2c_stats: s });
+      });
+      break;
 
     case 'MM2C_PRIOR_CONTEXT':
       chrome.storage.local.get(['mm2c_file_backup_path'], (data) => {
@@ -414,6 +433,12 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         chrome.action.setBadgeBackgroundColor({ color: '#137333' });
         // Store the note so the popup can surface its action items (P6-B).
         chrome.storage.local.set({ mm2c_last_note: transcript || '' });
+        // Update lifetime usage stats (UX-8).
+        chrome.storage.local.get(['mm2c_stats'], ({ mm2c_stats }) => {
+          chrome.storage.local.set({
+            mm2c_stats: updateStats(mm2c_stats, { durationMin, words: countWords(transcript) }),
+          });
+        });
         if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
         else        chrome.storage.local.set({ mm2c_last_status: label });
         appendLog('ok', meetingTitle, label);

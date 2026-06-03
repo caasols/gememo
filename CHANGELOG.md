@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.104] – 2026-06-04 · Usage stats in the About tab (UX-8)
+
+### Added
+- **UX-8** — the About tab now shows a "Your impact" panel with lifetime stats: meetings attended, notes saved, words captured, and total meeting time, plus a derived "these notes saved you ~Xh of writing time" line that links to Ko-fi. Stats accumulate in `chrome.storage.local` under `mm2c_stats` — incremented on each successful capture (notes/words/minutes) and once per meeting at join (`MM2C_STAT_JOINED`). New pure helpers `countWords()`, `updateStats()`, `computeTimeSavedMin()`, `formatStatDuration()`, `formatStatNumber()`. The Support link is now a live Ko-fi button. 10 new JS tests.
+
+---
+
 ## [0.1.103] – 2026-06-04 · Recurring-meeting context injection (P9-C)
 
 ### Added

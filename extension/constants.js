@@ -60,6 +60,53 @@ const EXAMPLE_NOTES =
   'Risk: the Q4 migration window may conflict with the holiday freeze. ' +
   'Carlos to confirm dates with the infrastructure team.';
 
+// ── Usage stats (UX-8) ───────────────────────────────────────────────────────
+// Lifetime cumulative stats shown in the About tab as a donation driver.
+// Shape: { meetingsAttended, notesSaved, wordsCaptured, totalMeetingMinutes }.
+
+// Pure helper — word count of a note body.
+function countWords(text) {
+  const t = String(text || '').trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+// Pure helper — fold one capture into the cumulative stats (notes/words/minutes).
+// meetingsAttended is incremented separately (at meeting join), so it is preserved.
+function updateStats(prev, { durationMin = null, words = 0 } = {}) {
+  const s = {
+    meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0,
+    ...(prev && typeof prev === 'object' ? prev : {}),
+  };
+  return {
+    ...s,
+    notesSaved: s.notesSaved + 1,
+    wordsCaptured: s.wordsCaptured + (words || 0),
+    totalMeetingMinutes: s.totalMeetingMinutes + (Number.isFinite(durationMin) ? durationMin : 0),
+  };
+}
+
+// Pure helper — estimated manual note-taking time avoided (minutes). Composing
+// structured meeting notes by hand runs ~25 effective words/min (thinking +
+// organising + typing); this is the headline "time saved" donation number.
+function computeTimeSavedMin(stats) {
+  return Math.round(((stats && stats.wordsCaptured) || 0) / 25);
+}
+
+// Pure helper — minutes → "Xh Ym" / "Xh" / "Ym".
+function formatStatDuration(min) {
+  const m = Math.max(0, Math.round(min || 0));
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h && rem) return `${h}h ${rem}m`;
+  if (h) return `${h}h`;
+  return `${rem}m`;
+}
+
+// Pure helper — integer with thousands separators.
+function formatStatNumber(n) {
+  return Number(n || 0).toLocaleString('en-US');
+}
+
 // Pure helper — two-tier logging (UX-6). Returns the log entries visible at the
 // current tier: when showDebug is false, entries explicitly marked level:'debug'
 // are hidden. Legacy entries with no level are treated as user-facing.

@@ -1464,6 +1464,7 @@
       currentMeetingCode  = extractMeetingCode(window.location.pathname);
       currentMeetingType  = inferMeetingType(currentMeetingTitle);
       refreshRecordingState();
+      try { chrome.runtime.sendMessage({ type: 'MM2C_STAT_JOINED' }); } catch {} // UX-8 stats
       // Fetch prior-session context for recurring meetings (P9-C) — fire-and-forget.
       if (currentMeetingTitle) {
         try {

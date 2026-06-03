@@ -20,6 +20,7 @@ const GLOBAL_KEYS = [
   'mm2c_failed_list',
   'mm2c_last_note',
   'mm2c_webhook_url',
+  'mm2c_stats',
 ];
 
 function tabScopedKeys(tabId) {
@@ -123,6 +124,34 @@ function renderRules(rules) {
     `;
     list.appendChild(item);
   });
+}
+
+// Render the lifetime usage-stats panel in the About tab (UX-8).
+function renderStats(stats) {
+  const grid = $('stats-grid');
+  if (!grid) return;
+  const s = { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0,
+              ...(stats && typeof stats === 'object' ? stats : {}) };
+  const cells = [
+    ['Meetings attended', formatStatNumber(s.meetingsAttended)],
+    ['Notes saved',       formatStatNumber(s.notesSaved)],
+    ['Words captured',    formatStatNumber(s.wordsCaptured)],
+    ['Meeting time',      formatStatDuration(s.totalMeetingMinutes)],
+  ];
+  grid.innerHTML = cells.map(([label, val]) => `
+    <div class="stat-cell">
+      <div class="stat-value">${escapeHtml(val)}</div>
+      <div class="stat-label">${escapeHtml(label)}</div>
+    </div>`).join('');
+
+  const savingsEl = $('stats-savings');
+  if (savingsEl) {
+    const saved = computeTimeSavedMin(s);
+    savingsEl.innerHTML = saved > 0
+      ? `These notes saved you roughly <strong>${escapeHtml(formatStatDuration(saved))}</strong> of writing time. ` +
+        `If Gememo helps you, please consider <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener">supporting it ☕</a>.`
+      : 'Capture your first meeting to start tracking your impact.';
+  }
 }
 
 // Render the action-item checklist from the last captured note (P6-B).
@@ -288,6 +317,7 @@ function applyState(s, tabId, live = null) {
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
   renderActionItems(s.mm2c_last_note);
+  renderStats(s.mm2c_stats);
 }
 
 function setHostStatus(ok, error, hostVersion, versionMismatch) {
@@ -749,6 +779,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if ('mm2c_last_note' in changes) {
       renderActionItems(changes.mm2c_last_note.newValue || '');
+    }
+    if ('mm2c_stats' in changes) {
+      renderStats(changes.mm2c_stats.newValue || {});
     }
 
     // Tab-keyed keys: only react when the changed key belongs to the active tab
