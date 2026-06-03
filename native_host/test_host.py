@@ -18,7 +18,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from meeting_minutes_host import read_message, send_message, choose_retry_file
+from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback
 
 
 class _BytesStream:
@@ -157,6 +157,34 @@ class TestChooseRetryFile(unittest.TestCase):
             )
             self.assertIsNone(result)
             self.assertEqual(source, "")
+
+
+class TestRetryTitleFallback(unittest.TestCase):
+    """retry_title_fallback — readable title for retries from untitled meetings (BUG-6)."""
+
+    def test_returns_title_when_present(self):
+        self.assertEqual(
+            retry_title_fallback("Sprint Planning", Path("/b/x-snap.md")),
+            "Sprint Planning",
+        )
+
+    def test_derives_from_snapshot_filename(self):
+        self.assertEqual(
+            retry_title_fallback("", Path("/b/20260604-143000-team-sync-snap.md")),
+            "team sync",
+        )
+
+    def test_derives_from_final_filename(self):
+        self.assertEqual(
+            retry_title_fallback("", Path("/b/20260604-weekly-review.md")),
+            "weekly review",
+        )
+
+    def test_unparseable_gives_default(self):
+        self.assertEqual(
+            retry_title_fallback("", Path("/b/20260604-.md")),
+            "Recovered meeting note",
+        )
 
 
 if __name__ == '__main__':
