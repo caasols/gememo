@@ -157,8 +157,9 @@ def body_to_html(text: str) -> str:
     - Lines matching ^-{3,}$ (separator artifacts from Gemini) → skipped
     - '## Heading' → <h2>Heading</h2> (with <br> prefix for all but the first)
     - Lines starting with '- ' or '• ' → grouped into <ul><li>…</li></ul>
-    - Blank lines → skipped (paragraph separator)
-    - Everything else → consecutive lines joined into <p>…</p>
+    - Blank lines → paragraph break (each blank-separated prose block → own <p>)
+    - Empty blocks (blank lines between heading and next heading) → no output
+    - Everything else → each blank-line-delimited block → <p>…</p>
     """
     import re as _re
     if not text.strip():
@@ -183,17 +184,12 @@ def body_to_html(text: str) -> str:
                 i += 1
             parts.append('<ul>' + ''.join(items) + '</ul>')
         elif not line.strip():
-            i += 1
+            i += 1  # blank line — prose blocks are collected one at a time below
         else:
-            prose: list[str] = []
-            while i < len(lines) and lines[i].strip() \
-                    and not _re.match(r'^-{3,}$', lines[i].strip()) \
-                    and not lines[i].startswith('## ') \
-                    and not lines[i].startswith('- ') \
-                    and not lines[i].startswith('• '):
-                prose.append(lines[i].strip())
-                i += 1
-            parts.append('<p>' + ' '.join(prose) + '</p>')
+            # Each non-blank prose line → its own <p> for clear visual separation.
+            # Blank lines are already skipped above, so each pass here handles one line.
+            parts.append('<p>' + line.strip() + '</p>')
+            i += 1
     return ''.join(parts)
 
 

@@ -11,6 +11,16 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.89] – 2026-06-03 · Apple Notes formatting + Meet DOM audit
+
+### Fixed
+- **UX-1 Apple Notes formatting** — `body_to_html()` now emits one `<p>` per prose line instead of concatenating consecutive lines into one paragraph; attendee names, action item owners, and Key Points entries each render as distinct paragraphs with proper visual separation; no empty `<p>` or `<ul>` emitted for missing sections. 5 new tests added.
+
+### Added
+- **P9-A3 Meet DOM audit** — investigated all candidate metadata fields; confirmed feasible: meeting code (`window.location.pathname`), meeting type inference (room-code pattern), recording state (DOM indicator); not feasible from DOM: agenda/description (requires Calendar OAuth), Gemini language (model-internal), host identity (not exposed). Three new ROADMAP implementation items: P9-A3a (meeting code), P9-A3b (meeting type), P9-A3c (recording state).
+
+---
+
 ## [0.1.88] – 2026-06-03 · Formatting fixes for recovery and `---Heading` artifacts
 
 ### Fixed
