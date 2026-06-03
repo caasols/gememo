@@ -1078,22 +1078,12 @@ window.MM2C_TESTS = (() => {
 
   // Re-implementation of the prompt rule matching logic from _runGeminiFlowInner (content_meet.js).
   // KEEP IN SYNC with: rules.find(r => { try { return new RegExp(r.regex, 'i').test(title) } catch { return false } })
-  function matchPromptRule_test(rules, meetingTitle) {
-    if (!Array.isArray(rules)) return null;
-    const matched = rules.find(r => {
-      if (!r?.regex) return false;
-      try { return new RegExp(r.regex, 'i').test(meetingTitle || ''); }
-      catch { return false; }
-    });
-    return matched?.prompt?.trim() || null;
-  }
-
   function testMatchPromptRule() {
     console.group('matchPromptRule');
 
-    // Case 1: empty rules → null
+    // Case 1: empty rules → null (real function from constants.js)
     assert('Case 1: empty rules returns null',
-      matchPromptRule_test([], 'Daily Standup') === null);
+      matchPromptRule([], 'Daily Standup') === null);
 
     // Case 2: first matching rule wins
     const rules = [
@@ -1101,17 +1091,27 @@ window.MM2C_TESTS = (() => {
       { regex: 'Planning', prompt: 'Planning prompt' },
     ];
     assertEq('Case 2: first matching rule wins',
-      matchPromptRule_test(rules, 'Daily Standup'),
+      matchPromptRule(rules, 'Daily Standup'),
       'Standup prompt');
 
     // Case 3: case-insensitive match
     assertEq('Case 3: match is case-insensitive',
-      matchPromptRule_test([{ regex: 'daily', prompt: 'ok' }], 'DAILY STANDUP'),
+      matchPromptRule([{ regex: 'daily', prompt: 'ok' }], 'DAILY STANDUP'),
       'ok');
 
     // Case 4: no match → null
     assert('Case 4: no match returns null',
-      matchPromptRule_test(rules, 'Retrospective') === null);
+      matchPromptRule(rules, 'Retrospective') === null);
+
+    // Case 5: built-in templates match their meeting types (P5-K)
+    assert('Case 5a: standup title matches a built-in',
+      typeof matchPromptRule(BUILT_IN_RULES, 'Daily Standup') === 'string');
+    assert('Case 5b: 1:1 title matches a built-in',
+      typeof matchPromptRule(BUILT_IN_RULES, 'Carlos / Alice 1:1') === 'string');
+    assert('Case 5c: retro title matches a built-in',
+      typeof matchPromptRule(BUILT_IN_RULES, 'Sprint Retrospective') === 'string');
+    assert('Case 5d: generic title matches no built-in',
+      matchPromptRule(BUILT_IN_RULES, 'Q3 Budget Review') === null);
 
     console.groupEnd();
   }

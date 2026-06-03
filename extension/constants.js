@@ -60,6 +60,69 @@ const EXAMPLE_NOTES =
   'Risk: the Q4 migration window may conflict with the holiday freeze. ' +
   'Carlos to confirm dates with the infrastructure team.';
 
+// Built-in prompt templates for the most common meeting types (P5-K). These are
+// matched AFTER the user's own rules (so users can override) and BEFORE the
+// DEFAULT_PROMPT fallback. They are non-deletable; the Rules tab shows them as a
+// read-only "Built-in templates" group so the routing engine isn't a blank slate.
+const BUILT_IN_RULES = [
+  {
+    name: 'Standup',
+    regex: 'standup|stand-up|daily|scrum',
+    prompt:
+      'This is a short daily standup. Keep the notes brief.\n\n' +
+      'Under a heading "Attendees", list who spoke.\n\n' +
+      'Under a heading "Updates", add one bullet per person: start with their name, then ' +
+      'what they completed, what they are working on next, and any blockers. ' +
+      'Use the speaker\'s name as it appears in the transcript — never "I" or "they".\n\n' +
+      'Under a heading "Blockers", list anything explicitly called out as blocking, with the owner. ' +
+      'Omit this heading if there were none.\n\n' +
+      'Only include what was explicitly said. Omit empty headings. ' +
+      'Format everything as plain text — no asterisks, underscores, backticks, or markdown.',
+  },
+  {
+    name: '1:1',
+    regex: '1:1|1-1|one.?on.?one|1 on 1',
+    prompt:
+      'This is a 1:1 meeting.\n\n' +
+      'Under a heading "Summary", write 1–3 sentences on what this 1:1 covered.\n\n' +
+      'Under a heading "Discussion", summarise the topics raised as detailed bullet points, ' +
+      'each starting with a topic label and a colon.\n\n' +
+      'Under a heading "Decisions", list any agreements reached. Omit if none.\n\n' +
+      'Under a heading "Action Items", list follow-ups grouped by owner, with a deadline if stated ' +
+      'or "no deadline set". Use real names — never "I" or "they".\n\n' +
+      'Under a heading "Follow-up", note any next 1:1 or check-in that was scheduled. Omit if none.\n\n' +
+      'Only include what was explicitly discussed. Omit empty headings. ' +
+      'Format everything as plain text — no asterisks, underscores, backticks, or markdown.',
+  },
+  {
+    name: 'Retro',
+    regex: 'retro|retrospective|post.?mortem|postmortem',
+    prompt:
+      'This is a team retrospective.\n\n' +
+      'Under a heading "What Went Well", list the positives raised, as bullet points.\n\n' +
+      'Under a heading "What To Improve", list the problems and pain points raised, as bullet points.\n\n' +
+      'Under a heading "Action Items", list the agreed improvements grouped by owner, ' +
+      'with a deadline if stated or "no deadline set". Use real names — never "I" or "they".\n\n' +
+      'Be concrete and specific; do not use vague filler. Only include what was explicitly said. ' +
+      'Omit empty headings. Format everything as plain text — no asterisks, underscores, backticks, or markdown.',
+  },
+];
+
+// Pure helper — return the prompt of the first rule whose regex matches the
+// meeting title, or null when none match. Shared by content_meet.js (live
+// matching) and tests.js. Invalid regexes are skipped silently.
+function matchPromptRule(rules, meetingTitle) {
+  if (!Array.isArray(rules)) return null;
+  const title = meetingTitle || '';
+  for (const r of rules) {
+    if (!r?.regex) continue;
+    try {
+      if (new RegExp(r.regex, 'i').test(title)) return r.prompt?.trim() || null;
+    } catch { /* invalid regex — skip */ }
+  }
+  return null;
+}
+
 // Pure response-extraction logic shared between content_meet.js and tests.js.
 // Takes an element (the Gemini side-panel aside) and returns the last model
 // reply with UI chrome stripped, or null if no response is present.

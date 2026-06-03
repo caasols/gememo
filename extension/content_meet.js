@@ -654,14 +654,12 @@
       ? `Write all notes in ${mm2c_note_language}. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n`
       : '';
 
-    // Rule matching: first rule whose regex matches currentMeetingTitle wins
+    // Rule matching: user rules win first, then built-in templates, then default.
     const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
-    const matched = rules.find(r => {
-      if (!r?.regex) return false;
-      try { return new RegExp(r.regex, 'i').test(currentMeetingTitle || ''); }
-      catch { return false; } // invalid regex — skip silently
-    });
-    const effectiveBase = matched?.prompt?.trim() || promptBase;
+    const matchedPrompt =
+      matchPromptRule(rules, currentMeetingTitle) ||
+      matchPromptRule(BUILT_IN_RULES, currentMeetingTitle);
+    const effectiveBase = matchedPrompt || promptBase;
     const titlePrefix = currentMeetingTitle
       ? `Meeting title: ${currentMeetingTitle}. Use this context to interpret references to projects, teams, or products in the transcript.\n\n`
       : '';

@@ -636,6 +636,42 @@
     }
     #add-rule-btn:hover { background: var(--hover-primary); }
 
+    /* Built-in templates (read-only) */
+    .rules-subhead {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 10px 0 4px;
+    }
+    .builtin-rule {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin-bottom: 6px;
+      background: var(--surface-subtle);
+    }
+    .builtin-rule summary {
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+    }
+    .builtin-rule summary .bi-name { font-weight: 600; }
+    .builtin-rule summary .bi-regex {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .builtin-rule .bi-prompt {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+    }
+
     /* Disabled state — dim everything below the title row */
     body.ext-disabled .tab-bar,
     body.ext-disabled .panel {
@@ -782,6 +818,9 @@
       </div>
       <p class="hint">Match meeting titles with a regex to apply a custom prompt instead of the default.</p>
       <div id="rules-body" class="sub-options hidden">
+        <div class="rules-subhead">Built-in templates</div>
+        <div id="builtin-rules-list"></div>
+        <div class="rules-subhead">Your rules</div>
         <div id="rules-list"></div>
         <button id="add-rule-btn">Add rule</button>
       </div>
