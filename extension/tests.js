@@ -2080,6 +2080,18 @@ window.MM2C_TESTS = (() => {
     inferMeetingType('ecj-jduu-oez') === 'ad-hoc');
   assert('inferMeetingType: personal-meeting label → ad-hoc',
     inferMeetingType('Personal meeting (ecj-jduu-oez)') === 'ad-hoc');
+
+  // snapshotFreshEnough — skip the redundant Leave-time Gemini run when a
+  // periodic snapshot completed within the last half-interval (BUG-3).
+  const INT = 8 * 60_000; // 8 min interval
+  assert('snapshotFreshEnough: no snapshot → false',
+    snapshotFreshEnough(null, INT, 1_000_000) === false);
+  assert('snapshotFreshEnough: 1 min old, 8 min interval → true',
+    snapshotFreshEnough(1_000_000, INT, 1_000_000 + 60_000) === true);
+  assert('snapshotFreshEnough: exactly half interval → false (stale)',
+    snapshotFreshEnough(1_000_000, INT, 1_000_000 + INT / 2) === false);
+  assert('snapshotFreshEnough: 5 min old, 8 min interval → false',
+    snapshotFreshEnough(1_000_000, INT, 1_000_000 + 5 * 60_000) === false);
 }
 
   async function run() {
