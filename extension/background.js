@@ -384,6 +384,8 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
           : `Saved to ${dest}.${filePart}${retryNote}`;
         chrome.action.setBadgeText({ text: 'OK' });
         chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+        // Store the note so the popup can surface its action items (P6-B).
+        chrome.storage.local.set({ mm2c_last_note: transcript || '' });
         if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
         else        chrome.storage.local.set({ mm2c_last_status: label });
         appendLog('ok', meetingTitle, label);

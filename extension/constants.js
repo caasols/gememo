@@ -60,6 +60,46 @@ const EXAMPLE_NOTES =
   'Risk: the Q4 migration window may conflict with the holiday freeze. ' +
   'Carlos to confirm dates with the infrastructure team.';
 
+// Section headings the note pipeline produces — used to bound the Action Items
+// block when extracting tasks (P6-B).
+const _NOTE_HEADING_RE = /^#{0,3}\s*\*{0,2}\s*(attendees|summary|key points|decisions made|action items|next steps|open questions|updates|blockers|discussion|decisions|follow-up|what went well|what to improve)\s*\*{0,2}\s*:?\s*$/i;
+
+// Pure helper — extract action items from a note body as {owner, task, deadline}
+// (P6-B). Reads the lines under the "Action Items" heading until the next
+// section heading. Owner is the text before the first colon; deadline is a
+// best-effort "by <when>" suffix ("no deadline set" → null).
+function parseActionItems(body) {
+  const lines = String(body || '').split('\n');
+  const items = [];
+  let inSection = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    const hm = line.match(_NOTE_HEADING_RE);
+    if (hm) { inSection = /action items/i.test(hm[1]); continue; }
+    if (!inSection || !line) continue;
+    const text = line.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim();
+    if (!text) continue;
+    const colon = text.indexOf(':');
+    let owner = '', task = text;
+    if (colon > 0 && colon <= 40) { owner = text.slice(0, colon).trim(); task = text.slice(colon + 1).trim(); }
+    let deadline = null;
+    if (!/no deadline set/i.test(task)) {
+      const m = task.match(/\bby ([^.]+?)\.?$/i);
+      if (m) deadline = m[1].trim();
+    }
+    items.push({ owner, task, deadline });
+  }
+  return items;
+}
+
+// Pure helper — render action items as Markdown task list lines (P6-B).
+function formatActionItemsMarkdown(items) {
+  return (Array.isArray(items) ? items : []).map(it => {
+    const meta = [it.owner, it.deadline].filter(Boolean).join(', ');
+    return `- [ ] ${it.task}${meta ? ` (${meta})` : ''}`;
+  }).join('\n');
+}
+
 // Built-in prompt templates for the most common meeting types (P5-K). These are
 // matched AFTER the user's own rules (so users can override) and BEFORE the
 // DEFAULT_PROMPT fallback. They are non-deletable; the Rules tab shows them as a

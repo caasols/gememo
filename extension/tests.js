@@ -2111,6 +2111,31 @@ window.MM2C_TESTS = (() => {
     groupOutcome([{ status: 'info' }, { status: 'info' }]) === 'info');
   assert('groupOutcome: empty → info',
     groupOutcome([]) === 'info');
+
+  // parseActionItems — extract {owner, task, deadline} from a note body (P6-B)
+  const _note = 'Summary\nWe shipped it.\n\n' +
+    'Action Items\n' +
+    'Alice Chen: Draft the spec by June 6.\n' +
+    'Bob: Review the PR. No deadline set.\n\n' +
+    'Open Questions\nWhat about Z?';
+  const _items = parseActionItems(_note);
+  assert('parseActionItems: count is 2 (stops at next heading)', _items.length === 2);
+  assert('parseActionItems: owner + deadline parsed',
+    _items[0].owner === 'Alice Chen' && _items[0].deadline === 'June 6');
+  assert('parseActionItems: no-deadline → null deadline',
+    _items[1].owner === 'Bob' && _items[1].deadline === null);
+  assert('parseActionItems: strips ## and ** around the heading',
+    parseActionItems('## Action Items\n**Carlos:** ship it.').length === 1);
+  assert('parseActionItems: no section → empty',
+    parseActionItems('Summary\nNothing here.').length === 0);
+
+  // formatActionItemsMarkdown — copy-as-tasks output
+  assert('formatActionItemsMarkdown: owner + deadline in parens',
+    formatActionItemsMarkdown([{ owner: 'Alice', task: 'Draft spec', deadline: 'June 6' }])
+      === '- [ ] Draft spec (Alice, June 6)');
+  assert('formatActionItemsMarkdown: no meta → bare task',
+    formatActionItemsMarkdown([{ owner: '', task: 'Do thing', deadline: null }])
+      === '- [ ] Do thing');
 }
 
   async function run() {

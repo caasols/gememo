@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.99] – 2026-06-04 · Action-item checklist in popup (P6-B)
+
+### Added
+- **P6-B** — after each capture, the Main tab surfaces the meeting's action items as a checkbox list (owner · deadline shown as metadata), with a "Copy as tasks" button that copies them as Markdown (`- [ ] Task (Owner, deadline)`). New pure `parseActionItems()` (reads the Action Items section, tolerant of `##`/`**` heading variants and bullet markers) and `formatActionItemsMarkdown()` in `constants.js`; `background.js` stores the captured note as `mm2c_last_note` on success and the popup parses it. 7 new JS tests.
+
+---
+
 ## [0.1.98] – 2026-06-04 · Built-in prompt templates (P5-K / UX-2)
 
 ### Added
