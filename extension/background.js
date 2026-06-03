@@ -89,6 +89,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             obsidianVaultPath:   data.mm2c_obsidian_vault_path   || '',
             attendees:           Array.isArray(msg.attendees) ? msg.attendees : [],
             durationMin:         msg.durationMin ?? null,
+            meetingCode:         msg.meetingCode || '',
+            meetingType:         msg.meetingType || '',
             fileBackupEnabled:   data.mm2c_file_backup_enabled === true,
             fileBackupType:      data.mm2c_file_backup_type      || 'markdown',
             fileBackupPath:      data.mm2c_file_backup_path      || '~/Downloads/meeting-notes',
@@ -353,10 +355,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, fileBackupEnabled, fileBackupType, fileBackupPath },
+    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, fileBackupEnabled, fileBackupType, fileBackupPath },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;

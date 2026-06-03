@@ -37,6 +37,8 @@
   let cachedTranscript   = null;   // most recent periodic snapshot (in memory, not yet in Craft)
   let cachedTranscriptAt = null;   // Date.now() timestamp of the last cachedTranscript save
   let currentMeetingTitle = '';    // cached at join time — getMeetingTitle() returns '' after call ends
+  let currentMeetingCode  = '';    // Meet room code from the URL path, cached at join (P9-A3a)
+  let currentMeetingType  = '';    // 'calendar' | 'ad-hoc', inferred from the title at join (P9-A3b)
   let panelAutoOpened  = false;    // Gemini panel opened in this meeting; cleared by resetMeetingState()
   let geminiActivating = false;    // true while autoActivateGemini() async call is in-flight
   let meetingJoinedAt      = 0;          // Date.now() when Leave button first appeared; used by snapshot age log
@@ -74,6 +76,8 @@
     cachedTranscript    = null;
     cachedTranscriptAt  = null;
     currentMeetingTitle         = '';
+    currentMeetingCode          = '';
+    currentMeetingType          = '';
     captureProactivelyAttempted = false;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
     try { chrome.runtime.sendMessage({ type: 'MM2C_SET_SNAPSHOT', snapshot: null }); } catch {}
@@ -1141,6 +1145,8 @@
       meetingTitle,
       attendees: getAttendeeNames(),
       durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
+      meetingCode: currentMeetingCode,
+      meetingType: currentMeetingType,
     }, (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
         const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
@@ -1310,6 +1316,8 @@
             meetingTitle,
             attendees: getAttendeeNames(),
             durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
+            meetingCode: currentMeetingCode,
+            meetingType: currentMeetingType,
           }, (response) => {
             clearTimeout(giveUp);
             if (chrome.runtime.lastError || !response?.ok) {
@@ -1414,6 +1422,8 @@
       })();
       geminiWasActive = isGeminiAvailable(); // seed baseline so change tracker is accurate
       currentMeetingTitle = getMeetingTitle(); // cache now — DOM title disappears after call ends
+      currentMeetingCode  = extractMeetingCode(window.location.pathname);
+      currentMeetingType  = inferMeetingType(currentMeetingTitle);
       const geminiNote = geminiWasActive ? ', Gemini active' : ', Gemini not yet detected';
       sendLog(`Meeting joined — ready to capture notes${geminiNote}`);
       // Auto-open the Gemini panel so note-taking starts immediately.

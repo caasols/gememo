@@ -2060,6 +2060,26 @@ window.MM2C_TESTS = (() => {
   const b5 = resolveBanner({});
   assert('resolveBanner: idle default',
     b5.text === 'Not in a meeting.' && b5.cls === '');
+
+  // extractMeetingCode — Meet room code from the URL path (P9-A3a)
+  assert('extractMeetingCode: standard path',
+    extractMeetingCode('/abc-defg-hij') === 'abc-defg-hij');
+  assert('extractMeetingCode: strips query + hash',
+    extractMeetingCode('/abc-defg-hij?authuser=0#x') === 'abc-defg-hij');
+  assert('extractMeetingCode: root path → empty',
+    extractMeetingCode('/') === '');
+  assert('extractMeetingCode: missing → empty',
+    extractMeetingCode(undefined) === '' && extractMeetingCode('') === '');
+
+  // inferMeetingType — calendar vs ad-hoc from the meeting title (P9-A3b)
+  assert('inferMeetingType: real title → calendar',
+    inferMeetingType('Q3 Planning — Platform') === 'calendar');
+  assert('inferMeetingType: empty title → ad-hoc',
+    inferMeetingType('') === 'ad-hoc');
+  assert('inferMeetingType: raw room code → ad-hoc',
+    inferMeetingType('ecj-jduu-oez') === 'ad-hoc');
+  assert('inferMeetingType: personal-meeting label → ad-hoc',
+    inferMeetingType('Personal meeting (ecj-jduu-oez)') === 'ad-hoc');
 }
 
   async function run() {

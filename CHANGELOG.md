@@ -11,6 +11,15 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.92] – 2026-06-04 · Meet metadata frontmatter (P9-A3a/b)
+
+### Added
+- **Meeting code in frontmatter (P9-A3a)** — the Meet room code (e.g. `abc-defg-hij`) is extracted from the URL path at join via the new pure `extractMeetingCode()` and written as `meeting_code:` in every `.md` backup. Useful for dedup and recurring-meeting correlation.
+- **Meeting type inference (P9-A3b)** — each meeting is classified `calendar` vs `ad-hoc` via the new pure `inferMeetingType()` (calendar = has a human title; ad-hoc = empty title / room code / personal-meeting label) and written as `meeting_type:` frontmatter.
+- Both values are cached at meeting join in `content_meet.js`, passed through `background.js` to the native host, and added to `build_yaml_frontmatter()` (omitted when empty). 8 new JS tests + 4 new Python tests.
+
+---
+
 ## [0.1.91] – 2026-06-04 · Code-review bugfix bundle + test hardening
 
 ### Fixed
