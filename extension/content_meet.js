@@ -76,7 +76,7 @@
     currentMeetingTitle         = '';
     captureProactivelyAttempted = false;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
-    chrome.storage.local.remove('mm2c_last_snapshot');
+    try { chrome.runtime.sendMessage({ type: 'MM2C_SET_SNAPSHOT', snapshot: null }); } catch {}
     sendLog('Meeting state reset for new meeting');
   }
 
@@ -106,7 +106,10 @@
     enabled = data.mm2c_enabled !== false;
     currentOutputApp = data.mm2c_output_app || 'craft';
     // Clear any status from a previous meeting so the popup starts fresh
-    if (enabled) chrome.storage.local.set({ mm2c_last_status: '', mm2c_capture_state: 'idle' });
+    if (enabled) {
+      chrome.storage.local.set({ mm2c_last_status: '' });
+      try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' }); } catch {}
+    }
     // ── Meeting lifecycle variables ──────────────────────────────────────────
     // Closure-scoped (not module-level) because they only need to survive across
     // observer firings, not across the entire page lifetime.
@@ -625,13 +628,13 @@
     if (geminiFlowPromise) throw new Error('Another Gemini capture is already running');
     let releaseLock;
     geminiFlowPromise = new Promise(resolve => { releaseLock = resolve; });
-    chrome.storage.local.set({ mm2c_capture_state: 'capturing' });
+    try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' }); } catch {}
     try {
       return await _runGeminiFlowInner(timeoutMs);
     } finally {
       releaseLock();            // unblocks any onLeaveClick awaiting this promise
       geminiFlowPromise = null; // null so guard check passes for the next caller
-      chrome.storage.local.set({ mm2c_capture_state: 'idle' });
+      try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' }); } catch {}
     }
   }
 
@@ -1003,9 +1006,12 @@
       sendLog(`Periodic snapshot saved (${transcript.length} chars)`);
       showStatus('✓ Notes snapshot saved', 'ok'); // auto-dismisses in 5 s
       // Store a short preview so the popup can show "Last snapshot: N min ago ▸"
-      chrome.storage.local.set({
-        mm2c_last_snapshot: { ts: Date.now(), preview: transcript.slice(0, 300) },
-      });
+      try {
+        chrome.runtime.sendMessage({
+          type: 'MM2C_SET_SNAPSHOT',
+          snapshot: { ts: Date.now(), preview: transcript.slice(0, 300) },
+        });
+      } catch {}
       // Back up this snapshot to disk (fire-and-forget — no callback needed).
       // background.js checks mm2c_file_backup_enabled before writing.
       if (isContextValid()) {
