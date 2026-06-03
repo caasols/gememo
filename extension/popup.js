@@ -15,6 +15,7 @@ const GLOBAL_KEYS = [
   'mm2c_snapshot_interval_min',
   'mm2c_obsidian_vault_path',
   'mm2c_failed_list',
+  'mm2c_last_note',
 ];
 
 function tabScopedKeys(tabId) {
@@ -118,6 +119,28 @@ function renderRules(rules) {
     `;
     list.appendChild(item);
   });
+}
+
+// Render the action-item checklist from the last captured note (P6-B).
+function renderActionItems(noteBody) {
+  const widget = $('action-items-widget');
+  const list   = $('action-items-list');
+  if (!widget || !list) return;
+  const items = parseActionItems(noteBody || '');
+  if (!items.length) {
+    widget.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+  widget.classList.remove('hidden');
+  list.innerHTML = items.map(it => {
+    const meta = [it.owner, it.deadline].filter(Boolean).join(' · ');
+    return `
+      <label class="action-item">
+        <input type="checkbox">
+        <span class="action-task">${escapeHtml(it.task)}${meta ? ` <span class="action-meta">${escapeHtml(meta)}</span>` : ''}</span>
+      </label>`;
+  }).join('');
 }
 
 // Read-only display of the non-deletable built-in prompt templates (P5-K).
@@ -241,6 +264,7 @@ function applyState(s, tabId, live = null) {
   renderLogs(s.mm2c_logs);
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
+  renderActionItems(s.mm2c_last_note);
 }
 
 function setHostStatus(ok, error, hostVersion, versionMismatch) {
@@ -694,6 +718,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if ('mm2c_prompt_rules' in changes) {
       renderRules(changes.mm2c_prompt_rules.newValue || []);
     }
+    if ('mm2c_last_note' in changes) {
+      renderActionItems(changes.mm2c_last_note.newValue || '');
+    }
 
     // Tab-keyed keys: only react when the changed key belongs to the active tab
     if (!activeMetTabId) return;
@@ -760,6 +787,19 @@ document.addEventListener('DOMContentLoaded', () => {
   $('capture-now-btn').addEventListener('click', () => {
     if (!activeMetTabId) return;
     chrome.tabs.sendMessage(activeMetTabId, { type: 'MM2C_CAPTURE_NOW' });
+  });
+
+  // Copy action items as Markdown task list (P6-B)
+  $('copy-action-items').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => {
+      const md = formatActionItemsMarkdown(parseActionItems(mm2c_last_note || ''));
+      if (!md) return;
+      navigator.clipboard.writeText(md).then(() => {
+        const btn = $('copy-action-items');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy as tasks'; }, 2000);
+      });
+    });
   });
 
   // Download logs as JSON

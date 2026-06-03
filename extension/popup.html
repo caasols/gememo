@@ -636,6 +636,19 @@
     }
     #add-rule-btn:hover { background: var(--hover-primary); }
 
+    /* Action items checklist (P6-B) */
+    #action-items-list { display: flex; flex-direction: column; gap: 4px; }
+    .action-item {
+      display: flex;
+      gap: 7px;
+      align-items: flex-start;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .action-item input { margin-top: 2px; flex-shrink: 0; }
+    .action-item .action-meta { color: var(--text-muted); font-size: 11px; }
+    .action-item input:checked + .action-task { text-decoration: line-through; color: var(--text-muted); }
+
     /* Built-in templates (read-only) */
     .rules-subhead {
       font-size: 11px;
@@ -791,6 +804,15 @@
         <span class="snapshot-chevron" id="snapshot-chevron">▶</span>
       </div>
       <div class="snapshot-preview hidden" id="snapshot-preview"></div>
+    </div>
+
+    <!-- Action items from the most recent capture (P6-B) -->
+    <div class="widget hidden" id="action-items-widget">
+      <div class="widget-header">
+        <div class="widget-title">Action items</div>
+        <button class="btn" id="copy-action-items">Copy as tasks</button>
+      </div>
+      <div id="action-items-list"></div>
     </div>
 
   </div><!-- /main-panel -->
