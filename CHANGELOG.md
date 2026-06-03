@@ -11,6 +11,22 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.91] – 2026-06-04 · Code-review bugfix bundle + test hardening
+
+### Fixed
+- **Native-host error status was invisible in the popup** — `forwardToNativeHost`'s `chrome.runtime.lastError` branch wrote the global `mm2c_last_status` key, but the popup reads the tab-keyed `mm2c_last_status_<tabId>`. Native-messaging failures now write the tab-keyed key (with global fallback) so the error shows in the popup banner.
+- **Dash-strip regex mangled 4+ dash lines** — `^-{3,}(?=\S)` greedily back-tracked on `----`/`-----` separator lines, leaving an orphan `-`. Tightened to `^-{3,}(?=[^\s-])` in `meeting_minutes_host.py` and the new extracted `normalize_headings()` in `push_to_craft.py`.
+- **Status-banner race in the popup** — `onTabSelected` and `applyState` both wrote `#status` from independent async callbacks. Centralised into a pure `resolveBanner()` in `constants.js`; `applyState` is now the sole writer.
+- **Log-tab retry never cleared its card** — failed-send retry/dismiss keyed on `tabId`, but the log-retry path carries no tabId. Switched user-action identity to `backupPath` via `removeFailureByPath()`; `tabId` retained for per-tab dedup and tab-close cleanup.
+- **Apple Notes integration tests launched the app on every run** — `TestPushToAppleNotesIntegration` was gated by `skipUnless(HAS_OSASCRIPT)`, which never skips on macOS, so every `npm run test:all` fired `osascript` at Notes. Now opt-in behind `GEMEMO_NOTES_INTEGRATION=1`.
+
+### Changed
+- Removed a dead global `mm2c_last_status: ''` write in `content_meet.js` (nothing reads that key).
+- Converted legacy `console.assert` checks in `testTabState` to the enforced `assert()` helper so the U7 tab-state regression tests are actually counted by the runner.
+- Tests: +4 Python (dash regex), +12 JS (`resolveBanner`, `removeFailureByPath`), +10 JS (now-enforced tab-state checks).
+
+---
+
 ## [0.1.90] – 2026-06-03 · U7 Multiple simultaneous meetings
 
 ### Added
