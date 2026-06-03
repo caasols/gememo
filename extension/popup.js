@@ -118,7 +118,11 @@ function renderRules(rules) {
   });
 }
 
-function applyState(s) {
+function applyState(s, tabId) {
+  // Tab-scoped live state — falls back to defaults when key absent
+  const captureStateVal = tabId ? (s[tabKey('mm2c_capture_state', tabId)] || 'idle') : 'idle';
+  const lastSnapshotVal = tabId ? (s[tabKey('mm2c_last_snapshot',  tabId)] || null)   : null;
+  const lastStatusVal   = tabId ? (s[tabKey('mm2c_last_status',    tabId)] || '')      : '';
   const enabled = s.mm2c_enabled !== false;
   $('enabled').checked = enabled;
   document.body.classList.toggle('ext-disabled', !enabled);
@@ -140,20 +144,20 @@ function applyState(s) {
   $('file-type').value = s.mm2c_file_backup_type || 'markdown';
   $('file-path').value = s.mm2c_file_backup_path || DEFAULT_FILE_PATH;
 
-  const last = s.mm2c_last_status || '';
+  const last = lastStatusVal;
   $('status').textContent = last || 'Not in a meeting.';
   const cls = (last.startsWith('Error') || last.startsWith('Native host') || last.startsWith('Host'))
     ? 'err' : last.startsWith('Warning') ? 'warn' : last ? 'ok' : '';
   $('status-banner').className = 'status-banner' + (cls ? ' ' + cls : '');
 
   // Override with live capture state — takes precedence over mm2c_last_status
-  if (s.mm2c_capture_state === 'capturing') {
+  if (captureStateVal === 'capturing') {
     $('status').textContent = 'Capturing notes…';
     $('status-banner').className = 'status-banner ok';
   }
 
   // Update snapshot preview content (visibility is controlled by MM2C_STATUS_QUERY callback)
-  updateSnapshotContent(s.mm2c_last_snapshot || null);
+  updateSnapshotContent(lastSnapshotVal);
 
   // Render note language selection
   const lang = s.mm2c_note_language || '';
@@ -171,7 +175,7 @@ function applyState(s) {
   $('snapshot-interval').value = s.mm2c_snapshot_interval_min || 8;
 
   // Keep capture-now button in sync with capture state
-  const capturing = s.mm2c_capture_state === 'capturing';
+  const capturing = captureStateVal === 'capturing';
   const captureBtn = $('capture-now-btn');
   if (captureBtn) {
     captureBtn.disabled    = capturing;
@@ -180,20 +184,7 @@ function applyState(s) {
 
   renderLogs(s.mm2c_logs);
 
-  // Retry widget — shown when last send failed with a recoverable backup
-  const failed = s.mm2c_last_failed;
-  const retryWidget = $('retry-widget');
-  if (retryWidget) {
-    if (failed?.title) {
-      retryWidget.classList.remove('hidden');
-      const el = $('retry-title');
-      if (el) el.textContent = failed.title.length > 45
-        ? failed.title.slice(0, 45) + '…'
-        : failed.title;
-    } else {
-      retryWidget.classList.add('hidden');
-    }
-  }
+  renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
 }
 
 function setHostStatus(ok, error, hostVersion, versionMismatch) {
@@ -323,8 +314,7 @@ function switchTab(tabName) {
 // ── Init ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  const keys = [...GLOBAL_KEYS, ...tabScopedKeys(activeMetTabId)];
-  chrome.storage.local.get(keys, s => applyState(s, activeMetTabId));
+  loadAndApplyState(activeMetTabId);
 
   // About tab — populate from Chrome runtime
   $('about-version').textContent = `v${chrome.runtime.getManifest().version}`;
