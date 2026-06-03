@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.90] – 2026-06-03 · U7 Multiple simultaneous meetings
+
+### Added
+- **U7 multi-meeting support** — two concurrent Google Meet tabs now capture independently. All live-state storage keys (`mm2c_capture_state`, `mm2c_last_snapshot`, `mm2c_last_status`, `mm2c_last_fingerprint`) are now tab-scoped (`_<tabId>` suffix). Content scripts send `MM2C_SET_CAPTURE_STATE` / `MM2C_SET_SNAPSHOT` messages instead of writing storage directly. `mm2c_last_failed` replaced by `mm2c_failed_list` array — popup shows one retry card per failed meeting. Popup resolves the active Meet tab on open; shows a meeting picker when 2+ Meet tabs are open and none is focused. `chrome.tabs.onRemoved` cleans up orphaned keys automatically.
+
+---
+
 ## [0.1.89] – 2026-06-03 · Apple Notes formatting + Meet DOM audit
 
 ### Fixed
