@@ -11,6 +11,16 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.98] – 2026-06-04 · Built-in prompt templates (P5-K / UX-2)
+
+### Added
+- **P5-K / UX-2** — three non-deletable built-in prompt templates (Standup, 1:1, Retro) now ship in `constants.js` as `BUILT_IN_RULES`. The rule matcher was centralised into a pure `matchPromptRule()`; `_runGeminiFlowInner` resolves prompts as user rules → built-in templates → DEFAULT_PROMPT, so a standup/1:1/retro meeting gets a tailored format with zero configuration (and a user rule still overrides). The Rules tab shows them as a read-only "Built-in templates" group with expandable prompts. 7 JS tests (updated `testMatchPromptRule` now uses the real function + built-in coverage).
+
+### Note
+- `DEFAULT_PROMPT` was left unchanged: it is fully generic (Attendees/Summary/Key Points/Decisions/Action Items/Next Steps/Open Questions) with no standup/retro-specific text to remove, so trimming it would only weaken the fallback.
+
+---
+
 ## [0.1.97] – 2026-06-04 · Recording-state frontmatter (P9-A3c)
 
 ### Added

@@ -120,6 +120,20 @@ function renderRules(rules) {
   });
 }
 
+// Read-only display of the non-deletable built-in prompt templates (P5-K).
+function renderBuiltInRules() {
+  const container = $('builtin-rules-list');
+  if (!container || typeof BUILT_IN_RULES === 'undefined') return;
+  container.innerHTML = BUILT_IN_RULES.map(rule => `
+    <details class="builtin-rule">
+      <summary>
+        <span class="bi-name">${escapeHtml(rule.name)}</span>
+        <span class="bi-regex">${escapeHtml(rule.regex)}</span>
+      </summary>
+      <div class="bi-prompt">${escapeHtml(rule.prompt)}</div>
+    </details>`).join('');
+}
+
 function renderRetryList(list) {
   const container = $('retry-list');
   if (!container) return;
@@ -359,6 +373,7 @@ function switchTab(tabName) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadAndApplyState(activeMetTabId);
+  renderBuiltInRules();
 
   // About tab — populate from Chrome runtime
   $('about-version').textContent = `v${chrome.runtime.getManifest().version}`;
