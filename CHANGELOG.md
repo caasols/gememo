@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.93] – 2026-06-04 · Skip redundant Leave-time Gemini run (BUG-3)
+
+### Fixed
+- **BUG-3** — when Leave was clicked shortly after a periodic snapshot completed (but no snapshot was actively in progress), `onLeaveClick` still kicked off a fresh 20–60 s `runGeminiFlow`, making the user wait on the post-meeting page for a result that was already current. New pure `snapshotFreshEnough(cachedTranscriptAt, intervalMs)` helper; when the cached snapshot is younger than half the snapshot interval, the fresh run is skipped and the cache is used directly. 4 new JS tests.
+
+---
+
 ## [0.1.92] – 2026-06-04 · Meet metadata frontmatter (P9-A3a/b)
 
 ### Added

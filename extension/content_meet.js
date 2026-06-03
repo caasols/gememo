@@ -1226,6 +1226,12 @@
         sendLog('Snapshot in progress when Leave clicked — waiting for it to complete...');
         await geminiFlowPromise;
         sendLog('Snapshot complete — using result directly, skipping redundant Gemini run');
+      } else if (snapshotFreshEnough(cachedTranscriptAt, snapshotIntervalMs)) {
+        // A periodic snapshot finished very recently (within half an interval) —
+        // it already covers the final minutes. Skip the 20–60 s fresh Gemini run
+        // and use the cached result directly (BUG-3).
+        const ageSec = Math.round((Date.now() - cachedTranscriptAt) / 1000);
+        sendLog(`Recent snapshot is fresh (${ageSec}s old) — using it, skipping redundant Gemini run`);
       } else {
         sendLog('Leave clicked — attempting fresh Gemini capture for final notes...');
         try {

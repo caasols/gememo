@@ -114,6 +114,15 @@ function inferMeetingType(title) {
   return 'calendar';
 }
 
+// Pure helper — is the cached snapshot recent enough to use at Leave time
+// without a fresh Gemini run (BUG-3)? True when a snapshot exists and completed
+// within the last half snapshot-interval, so re-running Gemini would add 20–60 s
+// for a result that is already current.
+function snapshotFreshEnough(cachedTranscriptAt, intervalMs, now = Date.now()) {
+  if (!cachedTranscriptAt) return false;
+  return (now - cachedTranscriptAt) < intervalMs / 2;
+}
+
 // Pure helper — the single source of truth for the popup status-banner text and
 // CSS class. Centralising this removes the dual-writer race where onTabSelected
 // and applyState both wrote #status from independent async callbacks (BUG-C).
