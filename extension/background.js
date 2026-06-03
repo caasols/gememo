@@ -53,6 +53,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
       return true;
 
+    case 'MM2C_PRIOR_CONTEXT':
+      chrome.storage.local.get(['mm2c_file_backup_path'], (data) => {
+        chrome.runtime.sendNativeMessage(NATIVE_HOST, {
+          type: 'prior_context',
+          meetingTitle: msg.meetingTitle || '',
+          fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
+        }, (response) => {
+          const err = chrome.runtime.lastError?.message || null;
+          sendResponse(err ? { ok: false, context: '' } : { ok: true, context: response?.context || '' });
+        });
+      });
+      return true; // async
+
     case 'MM2C_SEARCH':
       chrome.storage.local.get(['mm2c_file_backup_path'], (data) => {
         chrome.runtime.sendNativeMessage(NATIVE_HOST, {

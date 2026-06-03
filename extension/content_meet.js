@@ -40,6 +40,7 @@
   let currentMeetingCode  = '';    // Meet room code from the URL path, cached at join (P9-A3a)
   let currentMeetingType  = '';    // 'calendar' | 'ad-hoc', inferred from the title at join (P9-A3b)
   let meetingRecording    = false; // sticky: true if a recording indicator was ever seen (P9-A3c)
+  let priorContext        = '';    // prior-session context for recurring meetings, fetched at join (P9-C)
   let panelAutoOpened  = false;    // Gemini panel opened in this meeting; cleared by resetMeetingState()
   let geminiActivating = false;    // true while autoActivateGemini() async call is in-flight
   let meetingJoinedAt      = 0;          // Date.now() when Leave button first appeared; used by snapshot age log
@@ -80,6 +81,7 @@
     currentMeetingCode          = '';
     currentMeetingType          = '';
     meetingRecording            = false;
+    priorContext                = '';
     captureProactivelyAttempted = false;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
     try { chrome.runtime.sendMessage({ type: 'MM2C_SET_SNAPSHOT', snapshot: null }); } catch {}
@@ -668,7 +670,8 @@
       ? `Meeting attendees: ${attendees.map((n, i) => `${i + 1}. ${n}`).join(', ')}. Use these exact names when assigning action items.\n\n`
       : '';
     const examplePrefix = `Here is an example of the exact note format to produce:\n\n---\n${EXAMPLE_NOTES}\n---\n\nNow produce notes for the current meeting following this exact format:\n\n`;
-    const prompt = titlePrefix + languagePrefix + attendeesPrefix + examplePrefix + effectiveBase;
+    const priorPrefix = priorContext ? `${priorContext}\n\n` : ''; // recurring-meeting context (P9-C)
+    const prompt = titlePrefix + priorPrefix + languagePrefix + attendeesPrefix + examplePrefix + effectiveBase;
 
     // Helper: returns true only when an element is rendered inside the viewport.
     // 1. Find the Gemini toolbar button first — if it's gone, Gemini isn't active.
@@ -1461,6 +1464,19 @@
       currentMeetingCode  = extractMeetingCode(window.location.pathname);
       currentMeetingType  = inferMeetingType(currentMeetingTitle);
       refreshRecordingState();
+      // Fetch prior-session context for recurring meetings (P9-C) — fire-and-forget.
+      if (currentMeetingTitle) {
+        try {
+          chrome.runtime.sendMessage(
+            { type: 'MM2C_PRIOR_CONTEXT', meetingTitle: currentMeetingTitle },
+            (resp) => {
+              if (chrome.runtime.lastError) return;
+              priorContext = resp?.context || '';
+              if (priorContext) sendLog('Loaded context from a previous session of this meeting', 'debug');
+            },
+          );
+        } catch {}
+      }
       const geminiNote = geminiWasActive ? ', Gemini active' : ', Gemini not yet detected';
       sendLog(`Meeting joined — ready to capture notes${geminiNote}`);
       // Auto-open the Gemini panel so note-taking starts immediately.

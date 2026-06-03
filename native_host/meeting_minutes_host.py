@@ -418,6 +418,58 @@ def _snippet_around(text: str, q_lower: str, width: int = 80) -> str:
     return ('…' if start > 0 else '') + snippet + ('…' if end < len(text) else '')
 
 
+def note_slug(label: str) -> str:
+    """Normalise a meeting label to a comparable slug (P9-C series matching)."""
+    return re.sub(r'[^\w]+', '-', (label or '').lower()).strip('-')[:50]
+
+
+def find_prior_note(label: str, backup_dir, today: str | None = None):
+    """Most-recent prior final note for the same meeting series, or None (P9-C).
+
+    Matches on the slug of each note's frontmatter title (the meeting label),
+    excludes snapshot files and any note dated today (the current meeting), and
+    returns the newest remaining match by filename date prefix.
+    """
+    base = Path(backup_dir).expanduser()
+    target = note_slug(label)
+    if not target or not base.exists():
+        return None
+    today = today or datetime.now().strftime('%Y%m%d')
+    candidates = []
+    for p in base.glob('*.md'):
+        if p.name.endswith('-snap.md') or p.stem[:8] == today:
+            continue
+        try:
+            text = p.read_text(encoding='utf-8', errors='ignore')
+        except OSError:
+            continue
+        if note_slug(_note_title_from(text, p)) == target:
+            candidates.append(p)
+    return max(candidates, key=lambda p: p.name) if candidates else None
+
+
+def build_prior_context(note_text: str, date_str: str) -> str:
+    """Build the recurring-context prompt prefix from a prior note (P9-C).
+
+    Pulls the previous Summary and Action Items; returns '' when neither exists.
+    """
+    sections = parse_note_sections(note_text)
+    summary = sections.get('summary', '').strip()
+    actions = sections.get('action_items', '').strip()
+    if not summary and not actions:
+        return ''
+    header = (f"Context from the previous session of this recurring meeting ({date_str}):"
+              if date_str else "Context from the previous session of this recurring meeting:")
+    parts = [header]
+    if summary:
+        parts.append(f"Previous summary: {summary}")
+    if actions:
+        parts.append(f"Previous open action items:\n{actions}")
+    parts.append("Build on this where relevant, but do not repeat it verbatim — "
+                 "focus on what is new or changed in the current meeting.")
+    return '\n'.join(parts)
+
+
 def search_notes(query: str, backup_dir, limit: int = 20) -> list:
     """Full-text search over final-note .md files in backup_dir (P9-E).
 
@@ -653,6 +705,18 @@ def main() -> None:
             msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
         )
         send_message({"status": "ok", "results": results})
+        return
+
+    if msg.get("type") == "prior_context":
+        prior = find_prior_note(
+            msg.get("meetingTitle", "").strip(),
+            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
+        )
+        ctx = ""
+        if prior:
+            text = prior.read_text(encoding="utf-8", errors="ignore")
+            ctx = build_prior_context(text, _note_date_from(text, prior))
+        send_message({"status": "ok", "context": ctx})
         return
 
     transcript = msg.get("transcript", "").strip()

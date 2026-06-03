@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.103] – 2026-06-04 · Recurring-meeting context injection (P9-C)
+
+### Added
+- **P9-C** — for recurring meetings, the previous session's Summary and open Action Items are now prepended to the Gemini prompt ("Build on this… do not repeat verbatim"), so notes carry continuity across a series. At meeting join the content script requests context for the current title (`MM2C_PRIOR_CONTEXT` → host); the host finds the most-recent prior final note for the same series by frontmatter-title slug (snapshots and today's note excluded) and returns a context block. New host helpers `note_slug()`, `find_prior_note()`, `build_prior_context()` + `prior_context` message type. Reuses existing backup files — no new storage. 9 new Python tests.
+
+---
+
 ## [0.1.102] – 2026-06-04 · Generic webhook output (P9-D)
 
 ### Added
