@@ -70,8 +70,14 @@ def parse_transcript(text: str) -> tuple[str, str]:
         date_str = datetime.now().strftime("%Y-%m-%d")
 
     body = "\n".join(body_lines).strip()
+
+    # Gemini sometimes copies the ---Heading pattern from the EXAMPLE_NOTES
+    # delimiter format (e.g. "---Attendees" as one token). Strip the leading
+    # dashes so the heading normalisation regex below can promote it correctly.
+    body = re.sub(r'^-{3,}(?=\S)', '', body, flags=re.MULTILINE)
+
     body = re.sub(
-        r'^#{0,3}\s*\*{0,2}(Action Items|Attendees|Summary|Key Points|Decisions Made|Open Questions)\*{0,2}:?\s*$',
+        r'^#{0,3}\s*\*{0,2}(Action Items|Attendees|Summary|Key Points|Decisions Made|Open Questions|Next Steps)\*{0,2}:?\s*$',
         r'## \1', body, flags=re.MULTILINE | re.IGNORECASE
     )
 

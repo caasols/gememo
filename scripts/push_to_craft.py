@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -67,6 +68,47 @@ def stage_for_craft(source: Path, title: str) -> Path:
     dest = CRAFT_UPLOADS_DIR / f"{slug}.md"
     dest.write_bytes(source.read_bytes())
     return dest
+
+
+def strip_yaml_frontmatter(content: str) -> str:
+    """Remove YAML frontmatter (--- ... ---) from the start of a markdown string.
+
+    Backup files written by meeting_minutes_host.py include YAML frontmatter so
+    they are useful in Obsidian/Bear. When pushing to Craft via createdocument,
+    the frontmatter must be stripped — Craft renders it as bold text rather than
+    treating it as metadata.
+    """
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != '---':
+        return content
+    for i, line in enumerate(lines[1:], 1):
+        if line.strip() == '---':
+            return ''.join(lines[i + 1:]).lstrip('\n')
+    return content  # no closing --- found — return as-is
+
+
+def build_createdocument_url(
+    title: str,
+    content: str,
+    space_id: str | None = None,
+    folder_id: str = '',
+) -> str:
+    """Build a craftdocs://createdocument URL with % double-encoded.
+
+    macOS `open` decodes the URL once before handing it to Craft's URL scheme
+    handler. This turns %25 (the encoding of %) back into a bare %, which Craft's
+    URL parser then sees as the start of an invalid percent-encoded sequence and
+    silently aborts the import. Fix: replace every % with %25 BEFORE calling
+    quote(), so quote() produces %2525. After open's decode: %25. After Craft's
+    decode: %. Content with % reaches Craft intact.
+    """
+    content_safe = content.replace('%', '%25')
+    params = [f"title={quote(title, safe='')}"]
+    if space_id:
+        params.append(f"spaceId={quote(space_id, safe='')}")
+    params.append(f"content={quote(content_safe, safe='')}")
+    params.append(f"folderId={quote(folder_id, safe='')}")
+    return "craftdocs://createdocument?" + "&".join(params)
 
 
 def build_import_url(file_path: str, space_id: str | None, folder_id: str) -> str:
@@ -199,13 +241,16 @@ def main() -> int:
     # Use craftdocs://createdocument — passes content inline in the URL.
     # This requires no file system access from Craft, bypassing sandbox restrictions
     # that broke craftdocs://x-callback-url/importDocument in macOS 26.5+.
-    content = args.content_file.read_text(encoding="utf-8")
-    params = [f"title={quote(args.title, safe='')}"]
-    if args.space_id:
-        params.append(f"spaceId={quote(args.space_id, safe='')}")
-    params.append(f"content={quote(content, safe='')}")
-    params.append(f"folderId={quote(args.folder_id or '', safe='')}")
-    url = "craftdocs://createdocument?" + "&".join(params)
+    raw = args.content_file.read_text(encoding="utf-8")
+    content = strip_yaml_frontmatter(raw)
+    # Fix ---Heading artifacts written by old parse_transcript versions
+    # (Gemini copied the --- delimiter from EXAMPLE_NOTES into section headings).
+    content = re.sub(r'^-{3,}(?=\S)', '', content, flags=re.MULTILINE)
+    # Promote bare section names to ## headings (handles cases where old
+    # parse_transcript missed them because the --- prefix blocked the regex).
+    _HEADINGS = r'(Attendees|Summary|Key Points|Decisions Made|Action Items|Next Steps|Open Questions)'
+    content = re.sub(rf'^{_HEADINGS}\s*$', r'## \1', content, flags=re.MULTILINE | re.IGNORECASE)
+    url = build_createdocument_url(args.title, content, args.space_id, args.folder_id or '')
     open_url(url, background=args.background)
     print(f"Craft document created: {args.title}")
     return 0
