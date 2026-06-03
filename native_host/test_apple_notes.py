@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unit and integration tests for Apple Notes output in meeting_minutes_host.py."""
 
-import shutil
+import os
 import subprocess
 import sys
 import unittest
@@ -10,7 +10,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from meeting_minutes_host import body_to_html, push_to_apple_notes, route_output
 
-HAS_OSASCRIPT = shutil.which('osascript') is not None
+# The integration tests below create real notes via `osascript`, which LAUNCHES
+# Apple Notes on macOS. They are opt-in so the default `npm run test:all` never
+# opens Notes. Run them deliberately with:
+#     GEMEMO_NOTES_INTEGRATION=1 python3 -m pytest native_host/test_apple_notes.py
+RUN_NOTES_INTEGRATION = os.environ.get('GEMEMO_NOTES_INTEGRATION') == '1'
 _TEST_PREFIX = 'GEMEMO_TEST_'
 
 
@@ -268,9 +272,16 @@ class TestRouteOutput(unittest.TestCase):
         self.assertIn('vault path not set', sent[0]['error'])
 
 
-@unittest.skipUnless(HAS_OSASCRIPT, 'requires macOS with osascript')
+@unittest.skipUnless(
+    RUN_NOTES_INTEGRATION,
+    'opt-in: set GEMEMO_NOTES_INTEGRATION=1 (these tests launch Apple Notes)',
+)
 class TestPushToAppleNotesIntegration(unittest.TestCase):
-    """Integration tests — actually create and verify notes in Apple Notes."""
+    """Integration tests — actually create and verify notes in Apple Notes.
+
+    Skipped by default because creating notes via osascript launches the Apple
+    Notes app. Opt in with GEMEMO_NOTES_INTEGRATION=1.
+    """
 
     TEST_TITLE = f'{_TEST_PREFIX}Integration'
 
