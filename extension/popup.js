@@ -39,9 +39,11 @@ function resolveMeetTab(meetTabs, activeTab) {
 }
 
 // Loads both global and tab-scoped storage keys, then calls applyState.
-function loadAndApplyState(tabId) {
+// `live` (optional) carries fresh { inMeeting, geminiActive } from a
+// MM2C_STATUS_QUERY so applyState can own the banner without a second writer.
+function loadAndApplyState(tabId, live = null) {
   const keys = [...GLOBAL_KEYS, ...tabScopedKeys(tabId)];
-  chrome.storage.local.get(keys, s => applyState(s, tabId));
+  chrome.storage.local.get(keys, s => applyState(s, tabId, live));
 }
 
 const $ = id => document.getElementById(id);
@@ -138,6 +140,7 @@ function renderRetryList(list) {
           </div>
           <button class="btn retry-dismiss-btn"
             data-tabid="${entry.tabId ?? ''}"
+            data-backup="${escapeHtml(entry.backupPath || '')}"
             title="Dismiss">×</button>
         </div>
         <div class="retry-card-actions">
@@ -150,7 +153,7 @@ function renderRetryList(list) {
   }).join('');
 }
 
-function applyState(s, tabId) {
+function applyState(s, tabId, live = null) {
   // Tab-scoped live state — falls back to defaults when key absent
   const captureStateVal = tabId ? (s[tabKey('mm2c_capture_state', tabId)] || 'idle') : 'idle';
   const lastSnapshotVal = tabId ? (s[tabKey('mm2c_last_snapshot',  tabId)] || null)   : null;
@@ -176,17 +179,16 @@ function applyState(s, tabId) {
   $('file-type').value = s.mm2c_file_backup_type || 'markdown';
   $('file-path').value = s.mm2c_file_backup_path || DEFAULT_FILE_PATH;
 
-  const last = lastStatusVal;
-  $('status').textContent = last || 'Not in a meeting.';
-  const cls = (last.startsWith('Error') || last.startsWith('Native host') || last.startsWith('Host'))
-    ? 'err' : last.startsWith('Warning') ? 'warn' : last ? 'ok' : '';
-  $('status-banner').className = 'status-banner' + (cls ? ' ' + cls : '');
-
-  // Override with live capture state — takes precedence over mm2c_last_status
-  if (captureStateVal === 'capturing') {
-    $('status').textContent = 'Capturing notes…';
-    $('status-banner').className = 'status-banner ok';
-  }
+  // Single owner of the status banner — resolveBanner applies precedence
+  // (capturing > in-meeting > last status > idle) so there is no second writer.
+  const banner = resolveBanner({
+    capturing:    captureStateVal === 'capturing',
+    inMeeting:    !!(live && live.inMeeting),
+    geminiActive: !!(live && live.geminiActive),
+    lastStatus:   lastStatusVal,
+  });
+  $('status').textContent = banner.text;
+  $('status-banner').className = 'status-banner' + (banner.cls ? ' ' + banner.cls : '');
 
   // Update snapshot preview content (visibility is controlled by MM2C_STATUS_QUERY callback)
   updateSnapshotContent(lastSnapshotVal);
@@ -206,12 +208,20 @@ function applyState(s, tabId) {
   renderRules(s.mm2c_prompt_rules || []);
   $('snapshot-interval').value = s.mm2c_snapshot_interval_min || 8;
 
-  // Keep capture-now button in sync with capture state
+  // Keep capture-now button in sync with capture + live meeting state
   const capturing = captureStateVal === 'capturing';
   const captureBtn = $('capture-now-btn');
   if (captureBtn) {
-    captureBtn.disabled    = capturing;
-    captureBtn.textContent = capturing ? 'Capturing notes…' : 'Capture now';
+    if (capturing) {
+      captureBtn.disabled    = true;
+      captureBtn.textContent = 'Capturing notes…';
+    } else if (live && live.inMeeting) {
+      captureBtn.disabled    = !live.geminiActive;
+      captureBtn.textContent = live.geminiActive ? 'Capture now' : 'Open Gemini to capture';
+    } else {
+      captureBtn.disabled    = false;
+      captureBtn.textContent = 'Capture now';
+    }
   }
 
   renderLogs(s.mm2c_logs);
@@ -387,10 +397,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (dismissBtn) {
-      const tabId = dismissBtn.dataset.tabid ? parseInt(dismissBtn.dataset.tabid, 10) : null;
+      const backupPath = dismissBtn.dataset.backup || '';
       chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
-        const updated = (Array.isArray(mm2c_failed_list) ? mm2c_failed_list : [])
-          .filter(f => f.tabId !== tabId);
+        const updated = removeFailureByPath(mm2c_failed_list, backupPath);
         chrome.storage.local.set({ mm2c_failed_list: updated }, () => renderRetryList(updated));
       });
     }
@@ -445,12 +454,13 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAndApplyState(tabId);
         return;
       }
-      const inMeeting = !!response?.inMeeting;
+      const inMeeting    = !!response?.inMeeting;
+      const geminiActive = !!response?.geminiActive;
       $('capture-footer').classList.toggle('hidden', !inMeeting);
       $('capture-footer-spacer').classList.toggle('hidden', !inMeeting);
       if (!inMeeting) {
         $('snapshot-widget').classList.add('hidden');
-        loadAndApplyState(tabId);
+        loadAndApplyState(tabId, { inMeeting: false, geminiActive });
         return;
       }
       // Show snapshot widget if snapshot exists
@@ -472,22 +482,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       });
-      // Status banner
-      chrome.storage.local.get([tabKey('mm2c_capture_state', tabId)], (data) => {
-        const capturing = data[tabKey('mm2c_capture_state', tabId)] === 'capturing';
-        if (capturing) return;
-        const captureBtn = $('capture-now-btn');
-        if (captureBtn) {
-          captureBtn.disabled    = !response.geminiActive;
-          captureBtn.textContent = response.geminiActive ? 'Capture now' : 'Open Gemini to capture';
-        }
-        const msg = response.geminiActive
-          ? 'In meeting — notes captured when you leave'
-          : 'In meeting — open the Gemini panel to enable capture';
-        $('status').textContent = msg;
-        $('status-banner').className = `status-banner ${response.geminiActive ? 'ok' : 'warn'}`;
-      });
-      loadAndApplyState(tabId);
+      // Banner + capture button are owned solely by applyState (via resolveBanner),
+      // fed the fresh live state — no second writer here (BUG-C).
+      loadAndApplyState(tabId, { inMeeting: true, geminiActive });
     });
   }
   queryMeetingState();

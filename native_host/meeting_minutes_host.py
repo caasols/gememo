@@ -74,7 +74,7 @@ def parse_transcript(text: str) -> tuple[str, str]:
     # Gemini sometimes copies the ---Heading pattern from the EXAMPLE_NOTES
     # delimiter format (e.g. "---Attendees" as one token). Strip the leading
     # dashes so the heading normalisation regex below can promote it correctly.
-    body = re.sub(r'^-{3,}(?=\S)', '', body, flags=re.MULTILINE)
+    body = re.sub(r'^-{3,}(?=[^\s-])', '', body, flags=re.MULTILINE)
 
     body = re.sub(
         r'^#{0,3}\s*\*{0,2}(Action Items|Attendees|Summary|Key Points|Decisions Made|Open Questions|Next Steps)\*{0,2}:?\s*$',
