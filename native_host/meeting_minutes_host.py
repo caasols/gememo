@@ -319,6 +319,72 @@ def choose_retry_file(
     return None, ''
 
 
+_WEBHOOK_SECTIONS = ['Attendees', 'Summary', 'Key Points', 'Decisions Made',
+                     'Action Items', 'Next Steps', 'Open Questions']
+
+
+def parse_note_sections(body: str) -> dict:
+    """Split a note body into {snake_case_heading: text} for the webhook payload.
+
+    Tolerates `##`, `**`, and plain headings. Unknown lines before any heading
+    are ignored; missing sections are simply absent from the dict.
+    """
+    heading_re = re.compile(
+        r'^#{0,3}\s*\*{0,2}\s*(' + '|'.join(re.escape(s) for s in _WEBHOOK_SECTIONS) + r')\s*\*{0,2}\s*:?\s*$',
+        re.IGNORECASE,
+    )
+    sections: dict = {}
+    current = None
+    buf: list = []
+
+    def flush():
+        if current is not None:
+            sections[current] = '\n'.join(buf).strip()
+
+    for line in (body or '').split('\n'):
+        m = heading_re.match(line.strip())
+        if m:
+            flush()
+            current = m.group(1).lower().replace(' ', '_')
+            buf = []
+        elif current is not None:
+            buf.append(line)
+    flush()
+    return sections
+
+
+def build_webhook_payload(title: str, date_str: str, attendees, duration_min, sections: dict) -> dict:
+    """Build the JSON payload POSTed to a generic webhook (P9-D)."""
+    return {
+        'title': title,
+        'date': date_str,
+        'attendees': attendees or [],
+        'duration_min': duration_min,
+        'summary': sections.get('summary', ''),
+        'key_points': sections.get('key_points', ''),
+        'decisions': sections.get('decisions_made', ''),
+        'action_items': sections.get('action_items', ''),
+        'next_steps': sections.get('next_steps', ''),
+        'open_questions': sections.get('open_questions', ''),
+    }
+
+
+def post_webhook(url: str, payload: dict, timeout: float = 8.0) -> tuple[bool, str]:
+    """POST payload as JSON to url. Best-effort; returns (ok, error_message)."""
+    import json as _json
+    import urllib.request
+    try:
+        data = _json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=data, method='POST',
+                                     headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if 200 <= resp.status < 300:
+                return True, ''
+            return False, f'webhook returned HTTP {resp.status}'
+    except Exception as exc:
+        return False, str(exc)
+
+
 def _note_title_from(text: str, path: Path) -> str:
     """Best note title: YAML `title:` if present, else a readable filename slug."""
     m = re.search(r'^title:\s*"?(.*?)"?\s*$', text, re.MULTILINE)
@@ -634,6 +700,21 @@ def main() -> None:
             recording=bool(msg.get("recording")),
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
+
+    # Generic webhook (P9-D) — POST the structured note before the output routing
+    # sends its response (the host process is terminated once the response is read).
+    # Best-effort: webhook failures never affect the capture result.
+    webhook_url = (msg.get("webhookUrl") or "").strip()
+    if webhook_url:
+        post_webhook(
+            webhook_url,
+            build_webhook_payload(
+                title, dt.strftime('%Y-%m-%d'),
+                msg.get("attendees") or [], msg.get("durationMin"),
+                parse_note_sections(craft_md),
+            ),
+            timeout=6.0,
+        )
 
     back_type = msg.get("backupType", "craft")
     if route_output(back_type, craft_md, title, file_path,
