@@ -39,6 +39,7 @@
   let currentMeetingTitle = '';    // cached at join time — getMeetingTitle() returns '' after call ends
   let currentMeetingCode  = '';    // Meet room code from the URL path, cached at join (P9-A3a)
   let currentMeetingType  = '';    // 'calendar' | 'ad-hoc', inferred from the title at join (P9-A3b)
+  let meetingRecording    = false; // sticky: true if a recording indicator was ever seen (P9-A3c)
   let panelAutoOpened  = false;    // Gemini panel opened in this meeting; cleared by resetMeetingState()
   let geminiActivating = false;    // true while autoActivateGemini() async call is in-flight
   let meetingJoinedAt      = 0;          // Date.now() when Leave button first appeared; used by snapshot age log
@@ -78,6 +79,7 @@
     currentMeetingTitle         = '';
     currentMeetingCode          = '';
     currentMeetingType          = '';
+    meetingRecording            = false;
     captureProactivelyAttempted = false;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
     try { chrome.runtime.sendMessage({ type: 'MM2C_SET_SNAPSHOT', snapshot: null }); } catch {}
@@ -1019,6 +1021,7 @@
           snapshot: { ts: Date.now(), preview: transcript.slice(0, 300) },
         });
       } catch {}
+      refreshRecordingState(); // re-check: recording may have started after join (P9-A3c)
       // Back up this snapshot to disk (fire-and-forget — no callback needed).
       // background.js checks mm2c_file_backup_enabled before writing.
       if (isContextValid()) {
@@ -1093,6 +1096,30 @@
     return '';
   }
 
+  // Detect Meet's "this meeting is being recorded" indicator (P9-A3c). The exact
+  // selector varies across Meet builds, so probe several candidates defensively.
+  // NOTE: selector set still needs live verification — treat a false as "unknown".
+  function isRecording() {
+    const selectors = [
+      'div[aria-label*="recording" i]',
+      'span[aria-label*="recording" i]',
+      '[data-tooltip*="recording" i]',
+      '[aria-label*="is being recorded" i]',
+    ];
+    for (const s of selectors) {
+      try { if (document.querySelector(s)) return true; } catch {}
+    }
+    return false;
+  }
+
+  // Sticky: once a recording indicator is seen, the meeting is marked recorded.
+  function refreshRecordingState() {
+    if (!meetingRecording && isRecording()) {
+      meetingRecording = true;
+      sendLog('Meeting is being recorded');
+    }
+  }
+
   // ── Proactive capture ──────────────────────────────────────────────────────
   // When Gemini deactivates mid-meeting (e.g. other person leaves a 1:1),
   // we immediately try to capture notes BEFORE the user clicks Leave.
@@ -1149,6 +1176,7 @@
       durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
       meetingCode: currentMeetingCode,
       meetingType: currentMeetingType,
+      recording: meetingRecording,
     }, (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
         const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
@@ -1326,6 +1354,7 @@
             durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
             meetingCode: currentMeetingCode,
             meetingType: currentMeetingType,
+            recording: meetingRecording,
           }, (response) => {
             clearTimeout(giveUp);
             if (chrome.runtime.lastError || !response?.ok) {
@@ -1432,6 +1461,7 @@
       currentMeetingTitle = getMeetingTitle(); // cache now — DOM title disappears after call ends
       currentMeetingCode  = extractMeetingCode(window.location.pathname);
       currentMeetingType  = inferMeetingType(currentMeetingTitle);
+      refreshRecordingState();
       const geminiNote = geminiWasActive ? ', Gemini active' : ', Gemini not yet detected';
       sendLog(`Meeting joined — ready to capture notes${geminiNote}`);
       // Auto-open the Gemini panel so note-taking starts immediately.
