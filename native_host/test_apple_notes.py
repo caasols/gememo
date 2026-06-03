@@ -107,6 +107,59 @@ class TestBodyToHtml(unittest.TestCase):
         self.assertFalse(result.startswith('---'), repr(result[:30]))
         self.assertIn('<h2>Summary</h2>', result)
 
+    def test_each_prose_line_own_paragraph(self):
+        """Each non-blank prose line becomes its own <p>, not joined with neighbours."""
+        result = body_to_html('Alice: Do X by Friday.\nBob: Do Y. No deadline set.')
+        self.assertEqual(result.count('<p>'), 2,
+                         f'Expected 2 <p> elements, got: {result!r}')
+        self.assertIn('<p>Alice: Do X by Friday.</p>', result)
+        self.assertIn('<p>Bob: Do Y. No deadline set.</p>', result)
+
+    def test_blank_line_separated_prose_each_own_paragraph(self):
+        """Blank-line-separated prose blocks each produce their own <p>."""
+        result = body_to_html('Topic one: explanation.\n\nAnother topic: more detail.')
+        self.assertEqual(result.count('<p>'), 2,
+                         f'Expected 2 <p> elements, got: {result!r}')
+
+    def test_attendees_line_own_paragraph(self):
+        """Attendees list (single prose line after heading) gets its own <p>."""
+        result = body_to_html('## Attendees\nAlice, Bob, Carlos')
+        self.assertIn('<h2>Attendees</h2>', result)
+        self.assertIn('<p>Alice, Bob, Carlos</p>', result)
+
+    def test_no_empty_paragraph_between_headings(self):
+        """No <p></p> or <ul></ul> emitted when a section has no content."""
+        result = body_to_html('## Open Questions\n\n## Action Items\n- task')
+        self.assertNotIn('<p></p>', result)
+        self.assertNotIn('<ul></ul>', result)
+
+    def test_full_real_note_structure(self):
+        """Full realistic note renders all sections with proper element counts."""
+        note = (
+            '## Attendees\n'
+            'Alice, Bob, Carlos\n\n'
+            '## Summary\n'
+            'The team discussed the Q3 plan.\n\n'
+            '## Key Points\n'
+            'Topic one: explanation here.\n\n'
+            'Another topic: more explanation.\n\n'
+            '## Action Items\n'
+            'Alice: Do X by Friday.\n'
+            'Bob: Do Y. No deadline set.\n\n'
+            '## Open Questions\n'
+            'What about Z?'
+        )
+        result = body_to_html(note)
+        # All headings present
+        for heading in ('Attendees', 'Summary', 'Key Points', 'Action Items', 'Open Questions'):
+            self.assertIn(f'<h2>{heading}</h2>', result)
+        # Each action item on its own line → two separate <p> elements in that section
+        self.assertIn('<p>Alice: Do X by Friday.</p>', result)
+        self.assertIn('<p>Bob: Do Y. No deadline set.</p>', result)
+        # Key Points prose paragraphs separated by blank line → two separate <p>
+        self.assertIn('<p>Topic one: explanation here.</p>', result)
+        self.assertIn('<p>Another topic: more explanation.</p>', result)
+
 
 class TestRouteOutput(unittest.TestCase):
     """Unit tests for route_output() — no I/O, all deps injected."""
