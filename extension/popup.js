@@ -959,17 +959,28 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => renderLogs(mm2c_logs));
   });
 
-  // Local full-text search across past meeting notes (P9-E), debounced.
+  // Local full-text search across past meeting notes (P9-E) + filters (RB-6b), debounced.
   let searchDebounce = null;
-  $('note-search').addEventListener('input', (e) => {
-    const q = e.target.value.trim();
+  function runSearch() {
+    const q = $('note-search').value.trim();
     clearTimeout(searchDebounce);
     if (!q) { $('search-results').innerHTML = ''; return; }
     searchDebounce = setTimeout(() => {
-      chrome.runtime.sendMessage({ type: 'MM2C_SEARCH', query: q }, (resp) => {
+      chrome.runtime.sendMessage({
+        type: 'MM2C_SEARCH',
+        query: q,
+        since: $('search-since').value || '',
+        until: $('search-until').value || '',
+        attendee: $('search-attendee').value.trim() || '',
+      }, (resp) => {
         if (chrome.runtime.lastError) return;
         renderSearchResults(resp?.ok ? resp.results : []);
       });
     }, 300);
+  }
+  $('note-search').addEventListener('input', runSearch);
+  ['search-since', 'search-until', 'search-attendee'].forEach(id => {
+    $(id).addEventListener('change', runSearch);
+    $(id).addEventListener('input', runSearch);
   });
 });

@@ -393,6 +393,9 @@
       color: var(--text);
     }
     #search-results:not(:empty) { margin-bottom: 8px; }
+    .search-filters { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .search-filters input { font-size: 11px; padding: 3px 5px; }
+    .search-filters input[type="text"] { flex: 1; min-width: 80px; }
     .search-result {
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -1080,6 +1083,11 @@
   <div class="panel hidden" id="logs-panel">
 
     <input type="text" id="note-search" class="note-search" placeholder="Search past meetings…">
+    <div class="search-filters">
+      <input type="date" id="search-since" title="From date">
+      <input type="date" id="search-until" title="To date">
+      <input type="text" id="search-attendee" placeholder="attendee" title="Filter by attendee">
+    </div>
     <div id="search-results"></div>
 
     <div class="logs-toolbar">

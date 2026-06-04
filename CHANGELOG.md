@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.115] – 2026-06-04 · Search filters (RB-6b)
+
+### Added
+- **RB-6b** — the "Search past meetings" box now has **date-range** (from/to) and **attendee** filters. `search_notes()` gained `since`/`until` (inclusive YYYY-MM-DD bounds on the note date) and `attendee` params, threaded through the `search` message + `MM2C_SEARCH`. Results stay newest-first. 2 new Python tests.
+
+---
+
 ## [0.1.114] – 2026-06-04 · PII redaction (RB-5b)
 
 ### Added

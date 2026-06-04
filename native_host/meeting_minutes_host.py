@@ -509,12 +509,15 @@ def build_prior_context(note_text: str, date_str: str) -> str:
     return '\n'.join(parts)
 
 
-def search_notes(query: str, backup_dir, limit: int = 20) -> list:
-    """Full-text search over final-note .md files in backup_dir (P9-E).
+def search_notes(query: str, backup_dir, limit: int = 20,
+                 since: str = None, until: str = None, attendee: str = None) -> list:
+    """Full-text search over final-note .md files in backup_dir (P9-E, RB-6b).
 
-    Case-insensitive substring match. Snapshot files (`*-snap.md`) are excluded
-    so each meeting appears once. Results are newest-first, each with
-    {file, title, date, snippet}. Returns [] for an empty query or missing dir.
+    Case-insensitive substring match, newest-first. Snapshot files (`*-snap.md`)
+    are excluded so each meeting appears once. Optional filters: `since`/`until`
+    (inclusive YYYY-MM-DD bounds on the note date) and `attendee` (name must
+    appear in the note). Each result is {file, title, date, snippet}. Returns []
+    for an empty query or missing dir.
     """
     if not query or not query.strip():
         return []
@@ -522,6 +525,7 @@ def search_notes(query: str, backup_dir, limit: int = 20) -> list:
     if not base.exists():
         return []
     q = query.strip().lower()
+    att = (attendee or '').strip().lower()
     files = sorted(
         (p for p in base.glob('*.md') if p.is_file() and not p.name.endswith('-snap.md')),
         key=lambda p: p.stat().st_mtime, reverse=True,
@@ -532,12 +536,20 @@ def search_notes(query: str, backup_dir, limit: int = 20) -> list:
             text = f.read_text(encoding='utf-8', errors='ignore')
         except OSError:
             continue
-        if q not in text.lower():
+        low = text.lower()
+        if q not in low:
+            continue
+        if att and att not in low:
+            continue
+        date = _note_date_from(text, f)
+        if since and date and date < since:
+            continue
+        if until and date and date > until:
             continue
         results.append({
             'file': str(f),
             'title': _note_title_from(text, f),
-            'date': _note_date_from(text, f),
+            'date': date,
             'snippet': _snippet_around(text, q),
         })
         if len(results) >= limit:
@@ -782,6 +794,9 @@ def main() -> None:
         results = search_notes(
             msg.get("query", ""),
             msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
+            since=msg.get("since") or None,
+            until=msg.get("until") or None,
+            attendee=msg.get("attendee") or None,
         )
         send_message({"status": "ok", "results": results})
         return
