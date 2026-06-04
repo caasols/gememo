@@ -7,7 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## The story so far
 
-Gememo started as a single-file proof-of-concept that could leave a Google Meet call and save a Craft note. By v0.1.84 it has a full prompt pipeline, three output destinations, offline DOM tests, CI, and a retry system for failed sends. The sections below trace that arc.
+Gememo started as a single-file proof-of-concept that could leave a Google Meet call and save a Craft note. It now has a full prompt pipeline with built-in meeting templates and recurring-meeting context, three output destinations plus a generic webhook, rich note metadata, an action-item checklist, local note search, usage stats, two-tier logging, CI, offline DOM + smoke tests, and 93% native-host coverage. The sections below trace that arc.
 
 ---
 
