@@ -279,6 +279,27 @@ function webhookUrlError(url) {
   return '';
 }
 
+// Pure helper — validate a Craft inbox folder / doc ID (A4). Blank = use the
+// default (Unsorted); otherwise it must be a bare deeplink docId — never a full
+// URL and never containing whitespace. Returns '' when valid, else an error.
+function craftFolderIdError(id) {
+  const v = String(id || '').trim();
+  if (!v) return '';
+  if (/\s/.test(v)) return 'Paste just the Craft doc ID — no spaces';
+  if (/:\/\/|craftdocs:|\//.test(v)) return 'Paste just the Craft doc ID, not a URL';
+  return '';
+}
+
+// Pure helper — validate an Obsidian vault folder path (A4). Blank = not set;
+// otherwise it must be an absolute path (starts with / or ~). Returns '' when
+// valid, else an error string.
+function obsidianVaultPathError(path) {
+  const v = String(path || '').trim();
+  if (!v) return '';
+  if (!/^(\/|~)/.test(v)) return 'Enter an absolute folder path (starting with / or ~)';
+  return '';
+}
+
 // Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
 function buildIssueUrl(report) {
   const enc = s => encodeURIComponent(String(s == null ? '' : s));
