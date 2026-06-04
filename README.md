@@ -110,7 +110,9 @@ Open the extension popup → **Settings tab**:
 5. Push to the branch: `git push origin my-new-feature`
 6. Submit a pull request
 
-Please open a discussion first for larger changes so we can align on the approach. The [ROADMAP.md](ROADMAP.md) has a prioritised work queue if you're looking for where to start.
+Please open a discussion first for larger changes so we can align on the approach.
+
+**Maintainers** — cut a release with `scripts/release.sh` (reads the version from `manifest.json`, uses the matching `CHANGELOG.md` section as the notes, attaches a source zip, then tags and publishes via `gh`). Preview first with `scripts/release.sh --dry-run`.
 
 ## License
 
