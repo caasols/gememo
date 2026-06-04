@@ -313,6 +313,29 @@ function buildMailtoUrl({ title = '', body = '', maxBody = 1500 } = {}) {
   return `mailto:?subject=${subject}&body=${encodeURIComponent(b)}`;
 }
 
+// Pure helper — assemble a shareable plain-text diagnostics report (RB-7b) from
+// already-gathered facts. Keeping the formatting pure makes it unit-testable;
+// popup.js gathers the inputs (host ping, storage, manifest) and renders this.
+function buildDiagnosticsReport(info = {}) {
+  const alsoSend = Array.isArray(info.alsoSend) && info.alsoSend.length ? info.alsoSend.join(', ') : 'none';
+  const perms = Array.isArray(info.permissions) && info.permissions.length ? info.permissions.join(', ') : 'none';
+  const host = info.hostOk
+    ? `ready (v${info.hostVersion || '?'})${info.hostMismatch ? ' — version mismatch' : ''}`
+    : 'not found';
+  return [
+    'Gememo diagnostics',
+    `Version: ${info.version || '?'}`,
+    `Extension ID: ${info.extensionId || '?'}`,
+    `Native host: ${host}`,
+    `Output app: ${info.outputApp || 'craft'}`,
+    `Also send to: ${alsoSend}`,
+    `File backup: ${info.fileBackup ? 'on' : 'off'}`,
+    `Permissions: ${perms}`,
+    `Platform: ${info.platform || '?'}`,
+    `Generated: ${info.generatedAt || new Date().toISOString()}`,
+  ].join('\n');
+}
+
 // Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
 function buildIssueUrl(report) {
   const enc = s => encodeURIComponent(String(s == null ? '' : s));

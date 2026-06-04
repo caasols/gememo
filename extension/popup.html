@@ -920,6 +920,22 @@
     .segmented button.active { background: var(--primary); color: var(--surface); }
     .segmented button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
+    /* Diagnostics report (RB-7b) */
+    .diag-output {
+      font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
     .hidden { display: none !important; }
 
     /* Ko-fi inline tip panel (MON-1) */
@@ -1353,6 +1369,16 @@
         <span class="label">Report an issue</span>
         <a id="report-issue" href="https://github.com/caasols/gememo/issues/new" target="_blank" rel="noopener" class="btn">Report issue</a>
       </div>
+    </div>
+
+    <!-- Diagnostics (RB-7b) -->
+    <div class="widget">
+      <div class="widget-header">
+        <div class="widget-title">Diagnostics</div>
+        <button class="btn" id="run-diagnostics">Run diagnostics</button>
+      </div>
+      <pre id="diag-output" class="diag-output hidden"></pre>
+      <button class="btn hidden" id="copy-diagnostics" style="align-self:flex-start">Copy report</button>
     </div>
 
     <!-- Extension ID -->

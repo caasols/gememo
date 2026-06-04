@@ -1032,6 +1032,47 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Run diagnostics — gather host/settings/permissions into a shareable report (RB-7b)
+  $('run-diagnostics').addEventListener('click', () => {
+    const btn = $('run-diagnostics');
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+    chrome.runtime.sendMessage({ type: 'MM2C_CHECK_HOST' }, (hostResp) => {
+      chrome.storage.local.get(
+        ['mm2c_output_app', 'mm2c_also_send', 'mm2c_file_backup_enabled'],
+        (s) => {
+          const report = buildDiagnosticsReport({
+            version:       chrome.runtime.getManifest().version,
+            extensionId:   chrome.runtime.id,
+            hostOk:        hostResp?.ok === true,
+            hostVersion:   hostResp?.hostVersion,
+            hostMismatch:  hostResp?.versionMismatch === true,
+            outputApp:     s.mm2c_output_app || 'craft',
+            alsoSend:      Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [],
+            fileBackup:    s.mm2c_file_backup_enabled === true,
+            permissions:  (chrome.runtime.getManifest().permissions || []),
+            platform:      navigator.userAgent,
+            generatedAt:   new Date().toISOString(),
+          });
+          const out = $('diag-output');
+          out.textContent = report;
+          out.classList.remove('hidden');
+          $('copy-diagnostics').classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Run diagnostics';
+        }
+      );
+    });
+  });
+  $('copy-diagnostics').addEventListener('click', () => {
+    navigator.clipboard.writeText($('diag-output').textContent || '').then(() => {
+      const btn = $('copy-diagnostics');
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy report'; btn.classList.remove('copied'); }, 2000);
+    });
+  });
+
   // Email the most recent note via the OS mail client (RB-3c, beta)
   $('email-note-btn').addEventListener('click', () => {
     chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => {
