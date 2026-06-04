@@ -6,7 +6,7 @@
 // removeFailureByPath, countWords, updateStats, …) from the single source of
 // truth. A classic MV3 service worker can importScripts, and constants.js is
 // DOM-free — this replaces the hand-copied helpers that used to drift (ARCH-1).
-importScripts('constants.js');
+importScripts('design_tokens.js', 'constants.js');
 
 const NATIVE_HOST = 'io.gememo.host';
 
