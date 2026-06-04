@@ -147,6 +147,7 @@ function renderRules(rules) {
         <button class="btn-rule-action danger" data-action="delete" data-index="${i}" title="Delete" aria-label="Delete rule">✕</button>
       </div>
       <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
+      <input class="rule-title-template" type="text" placeholder="Title template (optional) — {date} {time} {name} {type} {code}" value="${escapeHtml(rule.titleTemplate || '')}">
       <div class="rule-condition">
         <span class="rule-cond-label">…or when:</span>
         <span class="rule-days">${DAYS.map(([n, lbl]) =>
@@ -176,9 +177,11 @@ function readRuleFromItem(item) {
   const eh = parseInt(item.querySelector('.rule-hour-end').value, 10);
   const condition = buildCondition(days, Number.isNaN(sh) ? NaN : sh, Number.isNaN(eh) ? NaN : eh);
   const depth = item.querySelector('.rule-depth')?.value || '';
+  const titleTemplate = item.querySelector('.rule-title-template')?.value.trim() || '';
   const rule = { regex, prompt };
   if (condition) rule.condition = condition;
   if (depth) rule.depth = depth;
+  if (titleTemplate) rule.titleTemplate = titleTemplate;
   return rule;
 }
 

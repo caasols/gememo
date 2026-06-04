@@ -49,6 +49,7 @@
   let lastSnapshotAt       = 0;          // Date.now() of most recent snapshot; 0 before first snapshot
   let meetingSnapshotTimer = null;       // setTimeout handle for meeting-anchored snapshot schedule
   let currentOutputApp     = 'craft';    // mirrors mm2c_output_app; updated from storage
+  let currentTitleTemplate = '';         // per-rule note-title template, resolved at join (RB-4d)
 
   // ── Meeting state reset ────────────────────────────────────────────────────
   // Zeros all per-meeting flags. Called from the MutationObserver lifecycle block
@@ -81,6 +82,7 @@
     currentMeetingTitle         = '';
     currentMeetingCode          = '';
     currentMeetingType          = '';
+    currentTitleTemplate        = '';
     meetingRecording            = false;
     priorContext                = '';
     meetingBlocked              = false;
@@ -1175,6 +1177,7 @@
       durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
       meetingCode: currentMeetingCode,
       meetingType: currentMeetingType,
+      titleTemplate: currentTitleTemplate,
       recording: meetingRecording,
     }, (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
@@ -1371,6 +1374,7 @@
             durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
             meetingCode: currentMeetingCode,
             meetingType: currentMeetingType,
+            titleTemplate: currentTitleTemplate,
             recording: meetingRecording,
           }, (response) => {
             clearTimeout(giveUp);
@@ -1480,11 +1484,14 @@
       currentMeetingCode  = extractMeetingCode(window.location.pathname);
       currentMeetingType  = inferMeetingType(currentMeetingTitle);
       refreshRecordingState();
-      // Capture blocklist (RB-5a) — exclude sensitive meetings entirely.
+      // Capture blocklist (RB-5a) + per-rule title template (RB-4d) — resolved
+      // once at join against the cached meeting title.
       if (currentMeetingTitle && isContextValid()) {
-        chrome.storage.local.get(['mm2c_blocklist']).then(({ mm2c_blocklist }) => {
+        chrome.storage.local.get(['mm2c_blocklist', 'mm2c_prompt_rules']).then(({ mm2c_blocklist, mm2c_prompt_rules }) => {
           meetingBlocked = titleBlocked(currentMeetingTitle, mm2c_blocklist || '');
           if (meetingBlocked) sendLog('Meeting excluded by blocklist — capture disabled for this meeting', 'user');
+          const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
+          currentTitleTemplate = findPromptRule(rules, currentMeetingTitle)?.titleTemplate?.trim() || '';
         }).catch(() => {});
       }
       safeSend({ type: 'MM2C_STAT_JOINED' }); // UX-8 stats

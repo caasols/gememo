@@ -171,6 +171,32 @@ def parse_transcript(text: str) -> tuple[str, str]:
     return title, body
 
 
+def render_title_template(template: str, dt: datetime, name: str = '',
+                          meeting_type: str = '', code: str = '') -> str:
+    """Render a per-rule note title from a template (RB-4d). Placeholders:
+      {date} → YYYYMMDD · {time} → HH:MM · {name} → meeting label ·
+      {type} → calendar|ad-hoc · {code} → Meet room code.
+    A blank template falls back to the default 'YYYYMMDD HH:MM name' format.
+    Collapses doubled spaces left by empty placeholders.
+    """
+    name = (name or 'Meeting').strip()
+    default = f"{dt.strftime('%Y%m%d %H:%M')} {name}"
+    if not template or not template.strip():
+        return default
+    repl = {
+        '{date}': dt.strftime('%Y%m%d'),
+        '{time}': dt.strftime('%H:%M'),
+        '{name}': name,
+        '{type}': meeting_type or '',
+        '{code}': code or '',
+    }
+    out = template
+    for k, v in repl.items():
+        out = out.replace(k, v)
+    out = re.sub(r'\s{2,}', ' ', out).strip(' -—·|')
+    return out or default
+
+
 def build_provenance_footer(dt: datetime) -> str:
     """Return the provenance footer appended to every captured note (UXC-22).
 
@@ -892,7 +918,10 @@ def main() -> None:
     # Title: always YYYYMMDD HH:MM + meeting name (or "Meeting" fallback)
     tab_title = msg.get("meetingTitle", "").strip()
     label     = tab_title or "Meeting"
-    title     = f"{dt.strftime('%Y%m%d %H:%M')} {label}"
+    title     = render_title_template(
+        msg.get("titleTemplate", ""), dt, label,
+        msg.get("meetingType", ""), msg.get("meetingCode", ""),
+    )
 
     file_backup_enabled = msg.get("fileBackupEnabled", False)
     file_backup_type    = msg.get("fileBackupType", "markdown")
