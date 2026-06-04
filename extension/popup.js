@@ -196,6 +196,11 @@ function renderStats(stats) {
 
 // Render the action-item checklist from the last captured note (P6-B).
 function renderActionItems(noteBody) {
+  // Email-this-note widget (RB-3c, beta) — available whenever a note exists.
+  // .beta keeps it hidden unless beta is on; .hidden tracks note presence.
+  const emailWidget = $('email-note-widget');
+  if (emailWidget) emailWidget.classList.toggle('hidden', !String(noteBody || '').trim());
+
   const widget = $('action-items-widget');
   const list   = $('action-items-list');
   if (!widget || !list) return;
@@ -985,6 +990,15 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = 'Copy as tasks'; btn.classList.remove('copied'); }, 2000);
       });
+    });
+  });
+
+  // Email the most recent note via the OS mail client (RB-3c, beta)
+  $('email-note-btn').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => {
+      const body = String(mm2c_last_note || '').trim();
+      if (!body) return;
+      window.open(buildMailtoUrl({ title: 'Meeting notes', body }), '_blank');
     });
   });
 

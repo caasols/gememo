@@ -300,6 +300,19 @@ function obsidianVaultPathError(path) {
   return '';
 }
 
+// Pure helper — build a mailto: URL for emailing a captured note (RB-3c, beta).
+// Zero-config "just email me the summary" destination. The body is truncated to
+// keep the URL within mail-client length limits; the full note stays in the
+// saved file/output app.
+function buildMailtoUrl({ title = '', body = '', maxBody = 1500 } = {}) {
+  const subject = encodeURIComponent(title ? String(title) : 'Meeting notes');
+  let b = String(body || '');
+  if (b.length > maxBody) {
+    b = b.slice(0, maxBody) + '\n\n…(truncated — open the saved note for the full text)';
+  }
+  return `mailto:?subject=${subject}&body=${encodeURIComponent(b)}`;
+}
+
 // Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
 function buildIssueUrl(report) {
   const enc = s => encodeURIComponent(String(s == null ? '' : s));
