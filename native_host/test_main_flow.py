@@ -133,6 +133,19 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertEqual(sent[-1]["status"], "ok")
             self.assertEqual(sent[-1]["context"], "")
 
+    def test_multi_destination_also_sends_to_apple_notes(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache_tmp:
+            msg = self._capture_msg(tmp, alsoSend=["apple_notes"])  # primary craft + extra apple_notes
+            calls = []
+            with patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                    patch.object(host, 'read_message', return_value=msg), \
+                    patch.object(host, 'send_message'), \
+                    patch.object(host, 'notify'), \
+                    patch.object(host, 'push_to_apple_notes', side_effect=lambda t, h: calls.append(t)), \
+                    patch.object(host.subprocess, 'run', return_value=_proc(0)):
+                host.main()
+            self.assertEqual(len(calls), 1)  # the apple_notes extra fired
+
     def test_retry_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             bp = Path(tmp) / "20260601-standup.md"

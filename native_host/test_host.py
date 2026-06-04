@@ -22,7 +22,7 @@ import types
 from unittest.mock import patch
 
 import meeting_minutes_host as host
-from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback, search_notes
+from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback, search_notes, resolve_extras
 
 
 class _BytesStream:
@@ -291,6 +291,22 @@ class TestHandleRetry(unittest.TestCase):
             bp.write_text("n", encoding="utf-8")
             sent = self._run({"title": "X", "backupPath": str(bp)}, returncode=1)
             self.assertEqual(sent[-1]["status"], "error")
+
+
+class TestResolveExtras(unittest.TestCase):
+    """resolve_extras — secondary output destinations for multi-destination (P9-X)."""
+
+    def test_excludes_primary_and_dedupes(self):
+        self.assertEqual(resolve_extras('craft', ['apple_notes', 'obsidian']), ['apple_notes', 'obsidian'])
+        self.assertEqual(resolve_extras('craft', ['craft', 'apple_notes']), ['apple_notes'])
+        self.assertEqual(resolve_extras('craft', ['apple_notes', 'apple_notes']), ['apple_notes'])
+
+    def test_excludes_none_and_empty(self):
+        self.assertEqual(resolve_extras('craft', ['none', '', 'obsidian']), ['obsidian'])
+
+    def test_empty_inputs(self):
+        self.assertEqual(resolve_extras('craft', None), [])
+        self.assertEqual(resolve_extras('apple_notes', ['apple_notes']), [])
 
 
 if __name__ == '__main__':

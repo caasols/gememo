@@ -651,6 +651,46 @@ def route_output(
     return False  # 'craft' or unrecognised → caller handles
 
 
+def resolve_extras(primary: str, also_send) -> list:
+    """Ordered, de-duplicated secondary destinations, excluding the primary,
+    'none', and blanks (P9-X)."""
+    seen = {primary, 'none', ''}
+    out = []
+    for d in (also_send or []):
+        if d and d not in seen:
+            seen.add(d)
+            out.append(d)
+    return out
+
+
+def send_to_extras(extras, craft_md, title, dt, label,
+                   obsidian_vault_path: str = '', craft_folder_id: str = '') -> None:
+    """Write the note to each secondary destination, best-effort (P9-X).
+    Never raises — a failed extra must not affect the primary capture result."""
+    for dest in extras:
+        try:
+            if dest == 'apple_notes':
+                push_to_apple_notes(title, body_to_html(craft_md))
+                notify("Meeting Notes → Apple Notes", title)
+            elif dest == 'obsidian' and obsidian_vault_path:
+                vault = Path(obsidian_vault_path).expanduser()
+                vault.mkdir(parents=True, exist_ok=True)
+                slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
+                (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
+                    build_yaml_frontmatter(label, dt) + craft_md, encoding='utf-8')
+            elif dest == 'craft':
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                safe = re.sub(r'[^\w\s\-]', '', title)[:80].strip() or dt.strftime('%Y%m%d')
+                cf = CACHE_DIR / f"{safe}.md"
+                cf.write_text(craft_md, encoding='utf-8')
+                cmd = [sys.executable, str(PUSH_PY), "--title", title, "--content-file", str(cf), "--background"]
+                if craft_folder_id:
+                    cmd += ["--folder-id", craft_folder_id]
+                subprocess.run(cmd, capture_output=True, text=True)
+        except Exception:
+            pass  # best-effort secondary output
+
+
 def main() -> None:
     msg = read_message()
     if not msg:
@@ -772,6 +812,15 @@ def main() -> None:
         )
 
     back_type = msg.get("backupType", "craft")
+
+    # Multi-destination (P9-X) — write to any "also send to" extras best-effort
+    # before the primary output drives the response.
+    extras = resolve_extras(back_type, msg.get("alsoSend"))
+    if extras:
+        send_to_extras(extras, craft_md, title, dt, label,
+                       obsidian_vault_path=msg.get("obsidianVaultPath", ""),
+                       craft_folder_id=msg.get("craftFolderId", "").strip())
+
     if route_output(back_type, craft_md, title, file_path,
                     obsidian_vault_path=msg.get("obsidianVaultPath", ""),
                     dt=dt, label=label):

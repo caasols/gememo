@@ -127,6 +127,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           'mm2c_obsidian_vault_path',
           'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
           'mm2c_webhook_url',
+          'mm2c_also_send',
         ], (data) => {
           forwardToNativeHost(msg.text, {
             backupType:          data.mm2c_output_app || 'craft',
@@ -139,6 +140,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             meetingType:         msg.meetingType || '',
             recording:           msg.recording === true,
             webhookUrl:          data.mm2c_webhook_url || '',
+            alsoSend:            Array.isArray(data.mm2c_also_send) ? data.mm2c_also_send : [],
             fileBackupEnabled:   data.mm2c_file_backup_enabled === true,
             fileBackupType:      data.mm2c_file_backup_type      || 'markdown',
             fileBackupPath:      data.mm2c_file_backup_path      || '~/Downloads/meeting-notes',
@@ -403,10 +405,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, fileBackupEnabled, fileBackupType, fileBackupPath },
+    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;

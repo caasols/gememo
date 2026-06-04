@@ -21,6 +21,7 @@ const GLOBAL_KEYS = [
   'mm2c_last_note',
   'mm2c_webhook_url',
   'mm2c_stats',
+  'mm2c_also_send',
 ];
 
 function tabScopedKeys(tabId) {
@@ -294,6 +295,8 @@ function applyState(s, tabId, live = null) {
 
   $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
   $('webhook-url').value = s.mm2c_webhook_url || '';
+  const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
+  document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
 
   const fileBackupOn = s.mm2c_file_backup_enabled === true;
   $('file-backup-enabled').checked = fileBackupOn;
@@ -732,6 +735,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('webhook-url').addEventListener('change', e => {
     save({ mm2c_webhook_url: e.target.value.trim() });
+  });
+
+  document.querySelectorAll('.also-send-opt').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const selected = [...document.querySelectorAll('.also-send-opt:checked')].map(c => c.value);
+      save({ mm2c_also_send: selected });
+    });
   });
 
   $('reset-prompt').addEventListener('click', () => {

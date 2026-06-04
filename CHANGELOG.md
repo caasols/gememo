@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.108] – 2026-06-04 · Multi-destination output (P9-X)
+
+### Added
+- **P9-X** — an "Also send to" multi-select in Settings sends each captured note to additional apps (Craft / Apple Notes / Obsidian) on top of the primary output. New host `resolve_extras()` (dedupes, excludes the primary + `none`) and `send_to_extras()` (best-effort — a failed secondary never affects the primary result). Threaded via `background.js`. 4 new Python tests (incl. a main-flow test asserting the extra fires).
+
+---
+
 ## [0.1.107] – 2026-06-04 · Per-rule summary depth (P5-L)
 
 ### Added
