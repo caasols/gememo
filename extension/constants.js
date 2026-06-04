@@ -500,5 +500,5 @@ function resolveBanner({ capturing = false, inMeeting = false, geminiActive = fa
       : lastStatus.startsWith('Warning') ? 'warn' : 'ok';
     return { text: lastStatus, cls };
   }
-  return { text: 'Not in a meeting.', cls: '' };
+  return { text: 'Not in a meeting', cls: '' };
 }
