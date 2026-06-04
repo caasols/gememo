@@ -1920,6 +1920,17 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testGeminiInactiveMessage() {
+    console.group('GEMINI_INACTIVE_MESSAGE (UXC-2)');
+    assert('canonical message is defined and non-empty',
+      typeof GEMINI_INACTIVE_MESSAGE === 'string' && GEMINI_INACTIVE_MESSAGE.length > 0);
+    assert('no subject-verb grammar error ("was not active" / "notes was")',
+      !/was not active/i.test(GEMINI_INACTIVE_MESSAGE) && !/notes was/i.test(GEMINI_INACTIVE_MESSAGE));
+    assert('conveys that no notes were saved',
+      /no notes were saved/i.test(GEMINI_INACTIVE_MESSAGE));
+    console.groupEnd();
+  }
+
   function testBuildPromptWithExample() {
     console.group('buildPromptWithExample');
 
@@ -2311,6 +2322,7 @@ window.MM2C_TESTS = (() => {
     testExtractBackupPath();
     testFirstSnapshotAt();
     testOutputAppName();
+    testGeminiInactiveMessage();
     testBuildPromptWithExample();
     testBuildPromptWithAttendees();
     testBuildPromptWithTitle();

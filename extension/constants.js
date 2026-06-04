@@ -326,6 +326,14 @@ function assemblePrompt({ title = '', priorContext = '', glossary = '', language
     + effectiveBase;
 }
 
+// Canonical user-facing copy for "Gemini wasn't active in this meeting" (UXC-2).
+// One string routed to every surface — the in-page toast, the popup status
+// banner (via MM2C_WARNING → mm2c_last_status), and the GeminiNotActiveError
+// path — so the wording and grammar stay in sync. Previously three different
+// strings existed, one with a subject-verb agreement error ("Gemini notes was
+// not active").
+const GEMINI_INACTIVE_MESSAGE = "Gemini wasn't active in this meeting — no notes were saved.";
+
 // Pure helper — custom vocabulary/glossary → a prompt prefix (RB-4a). Terms are
 // comma- or newline-separated; the model is told to keep them verbatim.
 function glossaryPrefix(glossary) {
