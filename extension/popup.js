@@ -24,7 +24,7 @@ const GLOBAL_KEYS = [
   'mm2c_slack_webhook_url',
   'mm2c_stats',
   'mm2c_also_send',
-  'mm2c_redact_pii', 'mm2c_redact_keywords',
+  'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_blocklist',
   'mm2c_emit_ics',
   'mm2c_glossary',
 ];
@@ -307,6 +307,7 @@ function applyState(s, tabId, live = null) {
   $('slack-error').textContent = webhookUrlError(s.mm2c_slack_webhook_url || '');
   $('redact-pii').checked = s.mm2c_redact_pii === true;
   $('redact-keywords').value = s.mm2c_redact_keywords || '';
+  $('blocklist').value = s.mm2c_blocklist || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
   document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
@@ -780,6 +781,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('redact-keywords').addEventListener('change', e => {
     save({ mm2c_redact_keywords: e.target.value.trim() });
+  });
+  $('blocklist').addEventListener('change', e => {
+    save({ mm2c_blocklist: e.target.value.trim() });
   });
   $('emit-ics').addEventListener('change', e => {
     save({ mm2c_emit_ics: e.target.checked });

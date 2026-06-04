@@ -41,6 +41,7 @@
   let currentMeetingType  = '';    // 'calendar' | 'ad-hoc', inferred from the title at join (P9-A3b)
   let meetingRecording    = false; // sticky: true if a recording indicator was ever seen (P9-A3c)
   let priorContext        = '';    // prior-session context for recurring meetings, fetched at join (P9-C)
+  let meetingBlocked      = false;  // true when the title matches the capture blocklist (RB-5a)
   let panelAutoOpened  = false;    // Gemini panel opened in this meeting; cleared by resetMeetingState()
   let geminiActivating = false;    // true while autoActivateGemini() async call is in-flight
   let meetingJoinedAt      = 0;          // Date.now() when Leave button first appeared; used by snapshot age log
@@ -82,6 +83,7 @@
     currentMeetingType          = '';
     meetingRecording            = false;
     priorContext                = '';
+    meetingBlocked              = false;
     captureProactivelyAttempted = false;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
     try { chrome.runtime.sendMessage({ type: 'MM2C_SET_SNAPSHOT', snapshot: null }); } catch {}
@@ -1005,6 +1007,7 @@
   // deactivates right before the user clicks Leave.
 
   async function takePeriodicSnapshot() {
+    if (meetingBlocked) return; // RB-5a — sensitive meeting, never capture
     if (!enabled || intercepting || capturedProactively || geminiFlowPromise || !isContextValid()) return;
     if (!getLeaveButton() || !isGeminiAvailable()) return;
 
@@ -1136,6 +1139,7 @@
   // which can fire multiple times on a single Gemini-deactivation event.
 
   async function captureProactively(meetingTitle) {
+    if (meetingBlocked) return; // RB-5a — sensitive meeting, never capture
     if (intercepting || capturedProactively || captureProactivelyAttempted || !isContextValid()) return;
     captureProactivelyAttempted = true;
 
@@ -1225,6 +1229,7 @@
 
   async function onLeaveClick(e) {
     if (!enabled) return;
+    if (meetingBlocked) { sendLog('Leave clicked — meeting on blocklist, not captured', 'user'); return; }
     if (intercepting) {
       // Either the leave flow already ran (and called btn.click() in finally),
       // or proactive capture is in progress / succeeded. Either way let through.
@@ -1467,6 +1472,13 @@
       currentMeetingCode  = extractMeetingCode(window.location.pathname);
       currentMeetingType  = inferMeetingType(currentMeetingTitle);
       refreshRecordingState();
+      // Capture blocklist (RB-5a) — exclude sensitive meetings entirely.
+      if (currentMeetingTitle && isContextValid()) {
+        chrome.storage.local.get(['mm2c_blocklist']).then(({ mm2c_blocklist }) => {
+          meetingBlocked = titleBlocked(currentMeetingTitle, mm2c_blocklist || '');
+          if (meetingBlocked) sendLog('Meeting excluded by blocklist — capture disabled for this meeting', 'user');
+        }).catch(() => {});
+      }
       try { chrome.runtime.sendMessage({ type: 'MM2C_STAT_JOINED' }); } catch {} // UX-8 stats
       // Fetch prior-session context for recurring meetings (P9-C) — fire-and-forget.
       if (currentMeetingTitle) {

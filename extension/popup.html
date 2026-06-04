@@ -1123,6 +1123,11 @@
         <input type="text" id="redact-keywords" placeholder="comma,separated,keywords">
       </div>
       <p class="hint">Strips emails, phone numbers, and card-like numbers (plus your keywords) from notes and webhook payloads before anything is written.</p>
+      <div style="margin-top:4px">
+        <span class="label">Never capture (blocklist)</span>
+        <textarea id="blocklist" rows="2" placeholder="interview, 1:1 with HR, /salary/i"></textarea>
+      </div>
+      <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
     </div>
 
   </div><!-- /settings-panel -->

@@ -1181,6 +1181,14 @@ window.MM2C_TESTS = (() => {
     assert('webhookUrlError: missing scheme → error', webhookUrlError('hooks.slack.com/x') !== '');
     assert('webhookUrlError: wrong scheme → error', webhookUrlError('ftp://x') !== '');
 
+    // RB-5a · titleBlocked — exclude sensitive meetings from capture
+    assert('titleBlocked: regex match (array)', titleBlocked('1:1 with HR', ['1:1 with HR|interview']) === true);
+    assert('titleBlocked: regex match (string list)', titleBlocked('Interview: Bob', 'interview, salary') === true);
+    assert('titleBlocked: no match', titleBlocked('Q3 Planning', ['interview']) === false);
+    assert('titleBlocked: empty title or patterns → false',
+      titleBlocked('', ['x']) === false && titleBlocked('Sync', '') === false);
+    assert('titleBlocked: invalid regex skipped', titleBlocked('Sync', ['(', 'sync']) === true);
+
     console.groupEnd();
   }
 
