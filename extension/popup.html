@@ -417,11 +417,14 @@
     }
     .field-error { display:block; font-size:11px; color: var(--danger-text); min-height:0; }
     .field-error:empty { display:none; }
+    /* Control-height scale (UXC-8): icon/compact S=22 · button M=24–30 · CTA
+       L=36 · text-input baseline=24. Snap orphan controls to it. */
     .note-search {
       width: 100%;
       box-sizing: border-box;
       margin-bottom: 8px;
-      padding: 6px 8px;
+      height: 24px;            /* input baseline — aligns with sibling inputs/selects */
+      padding: 0 8px;
       font-size: 12px;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -481,8 +484,9 @@
     }
     .log-entry:last-child { border-bottom: none; }
     .log-retry-btn {
+      height: 22px;            /* S tier — compact inline action (UXC-8) */
       font-size: 11px;
-      padding: 1px 6px;
+      padding: 0 6px;
       margin-left: auto;
       flex-shrink: 0;
     }
