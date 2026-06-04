@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.114] – 2026-06-04 · PII redaction (RB-5b)
+
+### Added
+- **RB-5b** — an opt-in **"Redact PII"** privacy setting strips emails, phone numbers, and card-like numbers (plus your own comma-separated keywords) from the note **before anything is written or sent** — file backup, output app, and webhook payloads alike. New pure `redact_pii()` in the host (precise phone patterns so dates and "Name 1" attendee suffixes survive). 9 new Python tests.
+
+---
+
 ## [0.1.113] – 2026-06-04 · REC badge without a full-storage scan (ARCH-4)
 
 ### Changed

@@ -121,6 +121,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           'mm2c_webhook_url',
           'mm2c_slack_webhook_url',
           'mm2c_also_send',
+          'mm2c_redact_pii', 'mm2c_redact_keywords',
         ], (data) => {
           forwardToNativeHost(msg.text, {
             backupType:          data.mm2c_output_app || 'craft',
@@ -136,6 +137,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             webhookUrl:          data.mm2c_webhook_url || '',
             slackWebhookUrl:     data.mm2c_slack_webhook_url || '',
             alsoSend:            Array.isArray(data.mm2c_also_send) ? data.mm2c_also_send : [],
+            redactPii:           data.mm2c_redact_pii === true,
+            redactKeywords:      data.mm2c_redact_keywords || '',
             fileBackupEnabled:   data.mm2c_file_backup_enabled === true,
             fileBackupType:      data.mm2c_file_backup_type      || 'markdown',
             fileBackupPath:      data.mm2c_file_backup_path      || '~/Downloads/meeting-notes',
@@ -409,10 +412,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath },
+    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, fileBackupEnabled, fileBackupType, fileBackupPath },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;

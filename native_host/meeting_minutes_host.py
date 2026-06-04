@@ -49,6 +49,36 @@ def send_message(data: dict) -> None:
     sys.stdout.buffer.flush()
 
 
+_PII_EMAIL = re.compile(r'\b[\w.+-]+@[\w-]+\.[\w.-]+\b')
+# Credit-card-like: 13–19 digits in groups of 1+ separated by spaces/dashes.
+_PII_CARD = re.compile(r'\b(?:\d[ -]?){13,19}\b')
+# Phones, high-precision to avoid eating dates/IDs: international (+…),
+# dashed/dotted groups, or a 10+ digit run.
+_PII_PHONE = (
+    re.compile(r'\+\d[\d\s().-]{7,}\d'),
+    re.compile(r'\b\d{3}[-.]\d{3}[-.]\d{4}\b'),
+    re.compile(r'\b\d{10,}\b'),
+)
+
+
+def redact_pii(text, keywords=None):
+    """Strip emails, phone numbers, card-like numbers, and user keywords from a
+    note before it is written/sent (RB-5b). Best-effort, order matters: emails
+    and cards first so the broad phone patterns can't mangle them.
+    """
+    if not text:
+        return text
+    text = _PII_EMAIL.sub('[redacted-email]', text)
+    text = _PII_CARD.sub('[redacted-number]', text)
+    for pat in _PII_PHONE:
+        text = pat.sub('[redacted-phone]', text)
+    for kw in (keywords or []):
+        kw = (kw or '').strip()
+        if kw:
+            text = re.sub(re.escape(kw), '[redacted]', text, flags=re.IGNORECASE)
+    return text
+
+
 def parse_transcript(text: str) -> tuple[str, str]:
     lines = text.strip().splitlines()
     title = ""
@@ -776,6 +806,11 @@ def main() -> None:
     # parse_transcript strips the TITLE: line from the body (we ignore the
     # extracted title — the tab name is the source of truth now)
     _, craft_md = parse_transcript(transcript)
+
+    # PII redaction (RB-5b) — applied to the note body before ANY write or send.
+    if msg.get("redactPii"):
+        kws = [k for k in (msg.get("redactKeywords") or "").split(",") if k.strip()]
+        craft_md = redact_pii(craft_md, kws)
 
     # Resolve the timestamp — convert to local timezone so the Craft note title
     # shows wall-clock time rather than UTC (e.g. 09:12 CEST not 07:12 UTC).
