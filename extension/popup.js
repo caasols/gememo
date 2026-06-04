@@ -220,7 +220,7 @@ function renderSearchResults(results) {
   const c = $('search-results');
   if (!c) return;
   if (!Array.isArray(results) || !results.length) {
-    c.innerHTML = '<div class="search-empty">No matching past meetings.</div>';
+    c.innerHTML = '<div class="search-empty">No matching past meetings. Try a different term or widen the date range.</div>';
     return;
   }
   c.innerHTML = results.map(r => `
@@ -257,7 +257,7 @@ function renderRetryList(list) {
   container.innerHTML = list.map(entry => {
     const shortTitle = entry.title
       ? (entry.title.length > 45 ? entry.title.slice(0, 45) + '…' : entry.title)
-      : 'Unknown meeting';
+      : 'Untitled meeting';  // one prose-null term, matching search results (UXC-21)
     return `
       <div class="retry-card">
         <div class="retry-card-header">
