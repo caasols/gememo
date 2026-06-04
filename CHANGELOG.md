@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.119] – 2026-06-04 · Accessibility pass (RB-7c)
+
+### Added
+- **RB-7c** — popup accessibility: the tab bar is a `role="tablist"` with `role="tab"`/`aria-selected` buttons (kept in sync on switch) wired to `role="tabpanel"` panels; icon-only rule buttons (↑ ↓ ✕) gained `aria-label`s; the native-host status dot is an `aria-label`led `role="img"` so its colour-only state is announced.
+
+---
+
 ## [0.1.118] – 2026-06-04 · Dark mode (RB-7f)
 
 ### Added
