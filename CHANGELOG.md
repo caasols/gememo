@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.124] – 2026-06-04 · Capture blocklist (RB-5a)
+
+### Added
+- **RB-5a** — a **"Never capture"** blocklist (Privacy settings): meetings whose title matches any of your regex patterns (comma/newline separated) are excluded from capture entirely — no snapshots, no proactive capture, no capture on Leave. Evaluated once at meeting join via the new pure `titleBlocked()`; an empty blocklist is a no-op, so there's zero impact unless you set one. 5 new JS tests.
+
+---
+
 ## [0.1.123] – 2026-06-04 · Webhook URL validation (ARCH-6)
 
 ### Added

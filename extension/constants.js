@@ -258,6 +258,18 @@ function matchPromptRule(rules, meetingTitle, now = new Date()) {
   return findPromptRule(rules, meetingTitle, now)?.prompt?.trim() || null;
 }
 
+// Pure helper — is this meeting title on the capture blocklist (RB-5a)?
+// patterns may be an array or a comma/newline-separated string of regexes.
+function titleBlocked(title, patterns) {
+  const t = String(title || '');
+  if (!t) return false;
+  const pats = (Array.isArray(patterns) ? patterns : String(patterns || '').split(/[\n,]/))
+    .map(p => p.trim()).filter(Boolean);
+  return pats.some(p => {
+    try { return new RegExp(p, 'i').test(t); } catch { return false; }
+  });
+}
+
 // Pure helper — validate a user-entered webhook URL (ARCH-6). Returns '' when
 // the URL is blank (= disabled) or a valid http(s):// URL, else an error string.
 function webhookUrlError(url) {
