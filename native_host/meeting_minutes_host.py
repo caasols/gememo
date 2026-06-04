@@ -61,6 +61,40 @@ _PII_PHONE = (
 )
 
 
+def _ics_escape(s: str) -> str:
+    return (s.replace('\\', '\\\\').replace(';', '\\;')
+             .replace(',', '\\,').replace('\n', '\\n'))
+
+
+def build_ics(steps, dt, meeting_title: str = '') -> str:
+    """Build a VCALENDAR with one all-day VEVENT per Next Step line (RB-3b).
+
+    Steps are freeform follow-ups; each becomes an all-day reminder on the
+    meeting date (deterministic — no fuzzy date parsing). CRLF line endings per
+    RFC 5545. Returns '' when there are no usable steps.
+    """
+    clean = [s.strip().lstrip('-•* ').strip() for s in (steps or []) if s and s.strip()]
+    clean = [s for s in clean if s]
+    if not clean:
+        return ''
+    date  = dt.strftime('%Y%m%d')
+    stamp = dt.strftime('%Y%m%dT%H%M%S')
+    out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Gememo//Meeting Notes//EN']
+    for i, step in enumerate(clean):
+        out += [
+            'BEGIN:VEVENT',
+            f'UID:{stamp}-{i}@gememo',
+            f'DTSTAMP:{stamp}',
+            f'DTSTART;VALUE=DATE:{date}',
+            f'SUMMARY:{_ics_escape(step)}',
+        ]
+        if meeting_title:
+            out.append(f'DESCRIPTION:{_ics_escape("From: " + meeting_title)}')
+        out.append('END:VEVENT')
+    out.append('END:VCALENDAR')
+    return '\r\n'.join(out) + '\r\n'
+
+
 def redact_pii(text, keywords=None):
     """Strip emails, phone numbers, card-like numbers, and user keywords from a
     note before it is written/sent (RB-5b). Best-effort, order matters: emails
@@ -863,6 +897,12 @@ def main() -> None:
             recording=bool(msg.get("recording")),
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
+        # .ics for the Next Steps section (RB-3b), written next to the note.
+        if msg.get("emitIcs"):
+            steps = [ln for ln in parse_note_sections(craft_md).get('next_steps', '').split('\n') if ln.strip()]
+            ics = build_ics(steps, dt, label)
+            if ics:
+                file_path.with_suffix('.ics').write_text(ics, encoding="utf-8")
 
     # Generic webhook (P9-D) — POST the structured note before the output routing
     # sends its response (the host process is terminated once the response is read).

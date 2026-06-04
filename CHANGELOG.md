@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.116] – 2026-06-04 · .ics for Next Steps (RB-3b)
+
+### Added
+- **RB-3b** — an opt-in setting writes a standards-compliant `.ics` next to each backup note, with one all-day VEVENT per line of the **Next Steps** section, so shared follow-ups land on your calendar with no Calendar OAuth. New pure `build_ics()` (RFC-5545 CRLF, escaped text, bullet markers stripped). 4 new Python tests.
+
+---
+
 ## [0.1.115] – 2026-06-04 · Search filters (RB-6b)
 
 ### Added
