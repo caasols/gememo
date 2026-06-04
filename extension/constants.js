@@ -297,10 +297,21 @@ function tabKey(base, tabId) {
   return `${base}_${tabId}`;
 }
 
+// Pure helper — append a failed-send entry to the list.
+function addFailure(list, entry) {
+  return [...(Array.isArray(list) ? list : []), entry];
+}
+
+// Pure helper — remove a failed-send entry by tabId (per-tab dedup + tab-close
+// cleanup). User-initiated retry/dismiss uses removeFailureByPath instead.
+function removeFailure(list, tabId) {
+  return (Array.isArray(list) ? list : []).filter(f => f.tabId !== tabId);
+}
+
 // Pure helper — removes a failed-send entry by its backupPath. This is the
 // identity used by user-initiated retry/dismiss, because the log-retry path
 // carries no tabId (tabId is only reliable for per-tab dedup and tab-close
-// cleanup). background.js keeps a one-liner copy.
+// cleanup).
 function removeFailureByPath(list, backupPath) {
   return (Array.isArray(list) ? list : []).filter(f => f.backupPath !== backupPath);
 }

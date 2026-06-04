@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.112] – 2026-06-04 · De-duplicate service-worker helpers (ARCH-1)
+
+### Changed
+- **ARCH-1** — `background.js` now `importScripts('constants.js')` instead of hand-copying six helpers (`tabKey`, `addFailure`, `removeFailure`, `removeFailureByPath`, `countWords`, `updateStats`). `constants.js` is the single source of truth (it's DOM-free, so a classic MV3 service worker can load it). Removes the drift risk where a fix in `constants.js` silently didn't reach the worker. `addFailure`/`removeFailure` moved into `constants.js` and are now unit-tested as the real shared functions. No behavior change.
+
+---
+
 ## [0.1.111] – 2026-06-04 · Reliability: subprocess timeouts + shorter webhook waits (ARCH-2/3)
 
 ### Fixed

@@ -2020,10 +2020,8 @@ window.MM2C_TESTS = (() => {
   assert('tabKey: basic', tabKey('mm2c_capture_state', 42) === 'mm2c_capture_state_42');
   assert('tabKey: zero tabId', tabKey('mm2c_last_snapshot', 0) === 'mm2c_last_snapshot_0');
 
-  // addFailure / removeFailure — inline definitions matching background.js
-  const addFailure    = (list, entry) => [...(Array.isArray(list) ? list : []), entry];
-  const removeFailure = (list, tid)   => (Array.isArray(list) ? list : []).filter(f => f.tabId !== tid);
-
+  // addFailure / removeFailure — real functions from constants.js (now shared
+  // with background.js via importScripts, ARCH-1).
   const f1 = addFailure([], { tabId: 1, title: 'A', backupPath: '/a' });
   assert('addFailure: first entry', f1.length === 1);
 

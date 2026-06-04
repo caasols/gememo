@@ -2,24 +2,15 @@
 // Receives the Gemini transcript from content_meet.js and forwards it
 // to the native messaging host if backup is enabled.
 
+// Load the shared pure helpers (tabKey, addFailure, removeFailure,
+// removeFailureByPath, countWords, updateStats, …) from the single source of
+// truth. A classic MV3 service worker can importScripts, and constants.js is
+// DOM-free — this replaces the hand-copied helpers that used to drift (ARCH-1).
+importScripts('constants.js');
+
 const NATIVE_HOST = 'io.gememo.host';
 
-// One-liner copy of tabKey from constants.js — service workers cannot import constants.js.
-const _tabKey = (base, tabId) => `${base}_${tabId}`;
-const addFailure    = (list, entry) => [...(Array.isArray(list) ? list : []), entry];
-const removeFailure = (list, tabId) => (Array.isArray(list) ? list : []).filter(f => f.tabId !== tabId);
-// Copy of removeFailureByPath from constants.js — service workers can't import it.
-// Identity for user-initiated retry/dismiss (log-retry carries no tabId).
-const removeFailureByPath = (list, p) => (Array.isArray(list) ? list : []).filter(f => f.backupPath !== p);
-
-// Copies of countWords/updateStats from constants.js (UX-8 usage stats).
-const countWords = (text) => { const t = String(text || '').trim(); return t ? t.split(/\s+/).length : 0; };
-const updateStats = (prev, { durationMin = null, words = 0 } = {}) => {
-  const s = { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0,
-              ...(prev && typeof prev === 'object' ? prev : {}) };
-  return { ...s, notesSaved: s.notesSaved + 1, wordsCaptured: s.wordsCaptured + (words || 0),
-           totalMeetingMinutes: s.totalMeetingMinutes + (Number.isFinite(durationMin) ? durationMin : 0) };
-};
+const _tabKey = tabKey; // alias kept for existing mm2c_last_status_<tabId> call sites
 
 // ── Logging ────────────────────────────────────────────────────────────────
 // Stores up to 50 log entries in chrome.storage.local under mm2c_logs.
