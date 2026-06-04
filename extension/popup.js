@@ -125,9 +125,9 @@ function renderRules(rules) {
     item.innerHTML = `
       <div class="rule-header">
         <input class="rule-regex" type="text" placeholder="e.g. DAILY" value="${escapeHtml(rule.regex || '')}">
-        <button class="btn-rule-action" data-action="up" data-index="${i}" title="Move up">↑</button>
-        <button class="btn-rule-action" data-action="down" data-index="${i}" title="Move down">↓</button>
-        <button class="btn-rule-action danger" data-action="delete" data-index="${i}" title="Delete">✕</button>
+        <button class="btn-rule-action" data-action="up" data-index="${i}" title="Move up" aria-label="Move rule up">↑</button>
+        <button class="btn-rule-action" data-action="down" data-index="${i}" title="Move down" aria-label="Move rule down">↓</button>
+        <button class="btn-rule-action danger" data-action="delete" data-index="${i}" title="Delete" aria-label="Delete rule">✕</button>
       </div>
       <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
       <div class="rule-condition">
@@ -490,8 +490,10 @@ const TABS = ['main', 'rules', 'settings', 'logs', 'about'];
 
 function switchTab(tabName) {
   TABS.forEach(t => {
-    $(`tab-${t}`).classList.toggle('active', t === tabName);
-    $(`${t}-panel`).classList.toggle('hidden', t !== tabName);
+    const isActive = t === tabName;
+    $(`tab-${t}`).classList.toggle('active', isActive);
+    $(`tab-${t}`).setAttribute('aria-selected', isActive ? 'true' : 'false');
+    $(`${t}-panel`).classList.toggle('hidden', !isActive);
   });
 }
 
