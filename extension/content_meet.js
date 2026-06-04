@@ -754,7 +754,7 @@
     // the two methods always lands.
     await delay(150);
     if (!submit.disabled) submit.click();
-    showStatus('Waiting for Gemini...');
+    showStatus('Waiting for Gemini…');
 
     // 6. Wait for response to finish
     // Periodic snapshots pass a shorter timeout (90 s) so a slow response
@@ -1139,7 +1139,7 @@
       // intercepting blocks onLeaveClick from starting a concurrent flow.
       intercepting = true;
       sendLog('Gemini deactivated — no snapshot yet, attempting live capture (60 s)...');
-      showStatus('Meeting ended — capturing notes...');
+      showStatus('Meeting ended — capturing notes…');
       try {
         const transcript = await runGeminiFlow(60_000);
         cachedTranscript   = transcript;
@@ -1165,7 +1165,7 @@
     intercepting        = true; // ensure set (may already be from live attempt branch)
     capturedProactively = true;
     sendLog('Gemini deactivated — sending notes to Craft');
-    showStatus(`Saving notes to ${outputAppName(currentOutputApp)}...`);
+    showStatus(`Saving notes to ${outputAppName(currentOutputApp)}…`);
 
     chrome.runtime.sendMessage({
       type: 'MM2C_RESPONSE',
@@ -1256,7 +1256,7 @@
 
     sendLog('Leave clicked — capturing meeting notes');
     muteAll();
-    showStatus('Capturing notes...');
+    showStatus('Capturing notes…');
 
     try {
       let transcript = null;
@@ -1353,7 +1353,7 @@
       // Send to Craft only if a transcript was acquired by any path above.
       if (transcript) {
         sendLog(`Sending notes to ${outputAppName(currentOutputApp)}...`);
-        showStatus(`Sending to ${outputAppName(currentOutputApp)}...`);
+        showStatus(`Sending to ${outputAppName(currentOutputApp)}…`);
 
         // Await the Craft send before clicking Leave — the native host (Python)
         // needs 2-10 s to respond; leaving immediately would race the response

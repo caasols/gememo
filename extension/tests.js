@@ -2239,8 +2239,8 @@ window.MM2C_TESTS = (() => {
     b4.cls === 'ok' && b4.text === 'Saved to Craft: Daily');
 
   const b5 = resolveBanner({});
-  assert('resolveBanner: idle default',
-    b5.text === 'Not in a meeting.' && b5.cls === '');
+  assert('resolveBanner: idle default (no trailing period — UXC-17)',
+    b5.text === 'Not in a meeting' && b5.cls === '');
 
   // extractMeetingCode — Meet room code from the URL path (P9-A3a)
   assert('extractMeetingCode: standard path',
