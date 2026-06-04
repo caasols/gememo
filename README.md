@@ -43,6 +43,7 @@ bash native_host/install.sh
 - **Periodic snapshots** — captures the running Gemini summary every 8 minutes (configurable 3–30 min) so no content is lost if something goes wrong at leave time
 - **Proactive capture** — if Gemini deactivates mid-meeting (e.g. someone leaves a 1:1), the extension captures immediately rather than waiting for Leave
 - **"Capture now" button** — visible in the popup during meetings; triggers a snapshot immediately
+- **Keyboard shortcut** — Cmd/Ctrl+Shift+Y triggers a capture without opening the popup (rebindable at `chrome://extensions/shortcuts`)
 - **Retry on failure** — if the note app push fails, a Retry widget appears in the popup; the extension picks the freshest available content (2h cache → snapshot backup)
 
 ### Prompt & output
@@ -52,8 +53,15 @@ bash native_host/install.sh
 - **Per-meeting rules** — match a meeting by **title regex** and/or a **time window** (days of week + hour range) to apply a different prompt, with an optional **summary depth** (Brief / Standard / Detailed) per rule
 - **Recurring-meeting context** — for a repeating meeting, the previous session's summary and open action items are fed back into the prompt so notes build on each other
 - **Note language** — write notes in any language while preserving proper nouns, product names, and technical acronyms in their original form
+- **Glossary** — names, codenames, and acronyms you list are injected into the prompt with an instruction to spell them exactly
 - **Output apps** — Craft, Apple Notes, and Obsidian; pick a primary app and optionally **"Also send to"** others (multi-destination)
 - **Webhooks** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, your own endpoint), plus a dedicated **Slack** option (title, summary, action-item count)
+- **.ics export** — optionally write a calendar file next to each note, one all-day event per **Next Steps** line (no Calendar OAuth)
+
+### Privacy
+
+- **PII redaction** — optionally strip emails, phone numbers, and card-like numbers (plus your own keywords) from the note **before anything is written or sent** — file backup, output app, and webhook payloads alike
+- **Capture blocklist** — list title regexes (e.g. `interview`, `1:1 with HR`) and matching meetings are never captured — no snapshots, no notes
 
 ### UX
 
@@ -61,8 +69,10 @@ bash native_host/install.sh
 - **Snapshot countdown** — "Next in: Xm Ys" and "First snapshot in: Xm Ys" in the popup
 - **Action items** — extracted from each capture into a popup checklist with a "Copy as tasks" button (Markdown `- [ ]`)
 - **Logs tab** — activity grouped by meeting with a capture-outcome dot per group, per-entry Retry, and a Diagnostics toggle that hides routine internal events by default
-- **Search past meetings** — local full-text search across your backup notes (title, date, snippet); no API, runs on your machine
-- **About tab** — version, GitHub link, extension ID, and a "Your impact" panel (meetings attended, notes saved, words captured, time saved)
+- **Search past meetings** — local full-text search across your backup notes (title, date, snippet) with date-range and attendee filters; no API, runs on your machine
+- **Dark mode** — the popup follows your OS theme automatically
+- **Accessible** — keyboard/screen-reader friendly tab roles and labels
+- **About tab** — version, GitHub link, extension ID, a "Report an issue" link, and a "Your impact" panel (meetings attended, notes saved, words captured, time saved)
 
 ## Output apps
 
@@ -87,8 +97,12 @@ Open the extension popup → **Settings tab**:
 | Obsidian vault | Path to your Obsidian vault | — |
 | Snapshot interval | How often to capture mid-meeting | 8 min |
 | Note language | Language for generated notes | Auto |
+| Glossary | Terms to keep spelled exactly | — |
 | Webhook URL / Slack | POST each note as JSON / to a Slack incoming webhook (blank = off) | — |
+| Redact PII / keywords | Strip emails, phones, cards (+ keywords) before write/send | Off |
+| Never capture (blocklist) | Title regexes whose meetings are never captured | — |
 | File backup | Save a local `.md` copy of every note | Off |
+| .ics for Next Steps | Write a calendar file next to each note | Off |
 | Backup folder | Where backup files are written | `~/Downloads/meeting-notes` |
 
 ## Troubleshooting
