@@ -360,6 +360,19 @@ def build_webhook_payload(title: str, date_str: str, attendees, duration_min, se
     }
 
 
+def build_slack_payload(title: str, sections: dict) -> dict:
+    """Build a Slack incoming-webhook message from the note (P9-B): bold title,
+    the Summary, and a count of action items."""
+    summary = (sections.get('summary') or '').strip()
+    ai = (sections.get('action_items') or '').strip()
+    ai_count = len([ln for ln in ai.split('\n') if ln.strip()]) if ai else 0
+    text = f"*{title}*"
+    if summary:
+        text += f"\n{summary}"
+    text += f"\n\n*Action items:* {ai_count}"
+    return {"text": text}
+
+
 def post_webhook(url: str, payload: dict, timeout: float = 8.0) -> tuple[bool, str]:
     """POST payload as JSON to url. Best-effort; returns (ok, error_message)."""
     import json as _json
@@ -800,16 +813,20 @@ def main() -> None:
     # sends its response (the host process is terminated once the response is read).
     # Best-effort: webhook failures never affect the capture result.
     webhook_url = (msg.get("webhookUrl") or "").strip()
-    if webhook_url:
-        post_webhook(
-            webhook_url,
-            build_webhook_payload(
-                title, dt.strftime('%Y-%m-%d'),
-                msg.get("attendees") or [], msg.get("durationMin"),
-                parse_note_sections(craft_md),
-            ),
-            timeout=6.0,
-        )
+    slack_url   = (msg.get("slackWebhookUrl") or "").strip()
+    if webhook_url or slack_url:
+        sections = parse_note_sections(craft_md)
+        if webhook_url:
+            post_webhook(
+                webhook_url,
+                build_webhook_payload(
+                    title, dt.strftime('%Y-%m-%d'),
+                    msg.get("attendees") or [], msg.get("durationMin"), sections,
+                ),
+                timeout=6.0,
+            )
+        if slack_url:
+            post_webhook(slack_url, build_slack_payload(title, sections), timeout=6.0)
 
     back_type = msg.get("backupType", "craft")
 
