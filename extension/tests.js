@@ -1113,6 +1113,39 @@ window.MM2C_TESTS = (() => {
     assert('Case 5d: generic title matches no built-in',
       matchPromptRule(BUILT_IN_RULES, 'Q3 Budget Review') === null);
 
+    // P5-L2 · time/day conditions. Jan 1 2024 = Monday (ISO 1), Jan 5 = Friday (ISO 5).
+    const MON_9AM = new Date(2024, 0, 1, 9, 0);
+    const TUE_9AM = new Date(2024, 0, 2, 9, 0);
+    const FRI_3PM = new Date(2024, 0, 5, 15, 0);
+    assert('ruleTimeMatches: no condition → false',
+      ruleTimeMatches(undefined, MON_9AM) === false && ruleTimeMatches({}, MON_9AM) === false);
+    assert('ruleTimeMatches: day match',
+      ruleTimeMatches({ days: [1] }, MON_9AM) === true && ruleTimeMatches({ days: [1] }, TUE_9AM) === false);
+    assert('ruleTimeMatches: hour range [start,end)',
+      ruleTimeMatches({ startHour: 8, endHour: 10 }, MON_9AM) === true &&
+      ruleTimeMatches({ startHour: 8, endHour: 10 }, new Date(2024, 0, 1, 10, 0)) === false);
+    assert('ruleTimeMatches: day AND hour both required',
+      ruleTimeMatches({ days: [5], startHour: 14, endHour: 18 }, FRI_3PM) === true &&
+      ruleTimeMatches({ days: [5], startHour: 14, endHour: 18 }, new Date(2024, 0, 5, 19, 0)) === false &&
+      ruleTimeMatches({ days: [5], startHour: 14, endHour: 18 }, MON_9AM) === false);
+
+    assert('matchPromptRule: time condition matches regardless of title',
+      matchPromptRule([{ condition: { days: [1] }, prompt: 'standup' }], 'anything', MON_9AM) === 'standup');
+    assert('matchPromptRule: time condition fails off-day',
+      matchPromptRule([{ condition: { days: [1] }, prompt: 'standup' }], 'anything', TUE_9AM) === null);
+    assert('matchPromptRule: regex still wins with now arg',
+      matchPromptRule([{ regex: 'daily', prompt: 'x' }], 'Daily Sync', MON_9AM) === 'x');
+
+    // buildCondition — normalise Rules-tab inputs into a condition object or null
+    const c1 = buildCondition([1, 2], 8, 10);
+    assert('buildCondition: days + hours',
+      c1.days.join(',') === '1,2' && c1.startHour === 8 && c1.endHour === 10);
+    assert('buildCondition: days only', JSON.stringify(buildCondition([5], NaN, NaN)) === '{"days":[5]}');
+    assert('buildCondition: hours only',
+      JSON.stringify(buildCondition([], 8, 10)) === '{"startHour":8,"endHour":10}');
+    assert('buildCondition: nothing → null', buildCondition([], NaN, NaN) === null);
+    assert('buildCondition: single hour ignored → null', buildCondition([], 8, NaN) === null);
+
     console.groupEnd();
   }
 

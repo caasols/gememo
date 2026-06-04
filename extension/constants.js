@@ -202,17 +202,53 @@ const BUILT_IN_RULES = [
   },
 ];
 
-// Pure helper — return the prompt of the first rule whose regex matches the
-// meeting title, or null when none match. Shared by content_meet.js (live
-// matching) and tests.js. Invalid regexes are skipped silently.
-function matchPromptRule(rules, meetingTitle) {
+// Pure helper — normalise Rules-tab inputs into a rule `condition` object, or
+// null when nothing usable was entered (P5-L2). Hours require BOTH bounds.
+function buildCondition(days, startHour, endHour) {
+  const out = {};
+  const validDays = (Array.isArray(days) ? days : []).filter(d => Number.isInteger(d) && d >= 1 && d <= 7);
+  if (validDays.length) out.days = validDays;
+  if (Number.isInteger(startHour) && Number.isInteger(endHour) &&
+      startHour >= 0 && startHour <= 23 && endHour >= 0 && endHour <= 24 && startHour < endHour) {
+    out.startHour = startHour;
+    out.endHour = endHour;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Pure helper — does a rule's time condition match the given moment (P5-L2)?
+// condition: { days?: number[] (ISO 1=Mon..7=Sun), startHour?, endHour? (0-23, [start,end)) }.
+// Returns true only when the condition is non-empty AND every specified part holds.
+function ruleTimeMatches(condition, date) {
+  if (!condition || typeof condition !== 'object') return false;
+  const hasDays  = Array.isArray(condition.days) && condition.days.length > 0;
+  const hasHours = Number.isInteger(condition.startHour) && Number.isInteger(condition.endHour);
+  if (!hasDays && !hasHours) return false;
+  if (hasDays) {
+    const iso = date.getDay() === 0 ? 7 : date.getDay(); // JS 0=Sun → ISO 7
+    if (!condition.days.includes(iso)) return false;
+  }
+  if (hasHours) {
+    const h = date.getHours();
+    if (!(h >= condition.startHour && h < condition.endHour)) return false;
+  }
+  return true;
+}
+
+// Pure helper — return the prompt of the first rule that matches, or null.
+// A rule matches when its regex matches the title OR its time condition matches
+// `now` (P5-L2). Shared by content_meet.js and tests.js; invalid regexes skipped.
+function matchPromptRule(rules, meetingTitle, now = new Date()) {
   if (!Array.isArray(rules)) return null;
   const title = meetingTitle || '';
   for (const r of rules) {
-    if (!r?.regex) continue;
-    try {
-      if (new RegExp(r.regex, 'i').test(title)) return r.prompt?.trim() || null;
-    } catch { /* invalid regex — skip */ }
+    if (!r) continue;
+    let matched = false;
+    if (r.regex) {
+      try { matched = new RegExp(r.regex, 'i').test(title); } catch { /* skip bad regex */ }
+    }
+    if (!matched && r.condition) matched = ruleTimeMatches(r.condition, now);
+    if (matched) return r.prompt?.trim() || null;
   }
   return null;
 }

@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.106] – 2026-06-04 · Time- and day-based prompt rules (P5-L2)
+
+### Added
+- **P5-L2** — meeting rules can now match on **time** as well as title. Each rule gains an optional condition (days of week + an hour range); a rule fires when its regex matches the title **or** the current time falls in its window (e.g. "before 9am → standup", "Friday afternoon → weekly wrap-up"). New pure helpers `ruleTimeMatches()`, `buildCondition()`; `matchPromptRule()` now takes the current time and evaluates conditions. The Rules tab gains per-rule day checkboxes + an hour range. 12 new JS tests.
+
+---
+
 ## [0.1.105] – 2026-06-04 · Test-coverage audit (internal)
 
 ### Added
