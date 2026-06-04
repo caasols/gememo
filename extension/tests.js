@@ -1934,6 +1934,46 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  // Mirror of content_meet.js safeSend (A3). KEEP IN SYNC.
+  // Injectable deps so we can simulate a throwing sendMessage + dead context.
+  function safeSend_test(msg, { _send, _contextValid, _warn }) {
+    try {
+      _send(msg);
+    } catch (e) {
+      if (_contextValid()) _warn('[MM2C] sendMessage failed:', msg?.type, e?.message || e);
+    }
+  }
+
+  function testSafeSend() {
+    console.group('safeSend (A3 — never swallow unexpected failures)');
+    // Happy path: send succeeds, no warning.
+    let warned = 0;
+    safeSend_test({ type: 'X' }, {
+      _send: () => {}, _contextValid: () => true, _warn: () => { warned++; },
+    });
+    assertEq('no warning when send succeeds', warned, 0);
+
+    // Dead context (expected after reload): swallow silently, no warning, no throw.
+    warned = 0;
+    let threw = false;
+    try {
+      safeSend_test({ type: 'X' }, {
+        _send: () => { throw new Error('Extension context invalidated'); },
+        _contextValid: () => false, _warn: () => { warned++; },
+      });
+    } catch { threw = true; }
+    assert('dead context: no throw and no warning', !threw && warned === 0);
+
+    // Unexpected failure while context is still valid: surface via warn (don't swallow).
+    warned = 0;
+    safeSend_test({ type: 'X' }, {
+      _send: () => { throw new Error('boom'); },
+      _contextValid: () => true, _warn: () => { warned++; },
+    });
+    assertEq('valid context + failure → warned once', warned, 1);
+    console.groupEnd();
+  }
+
   function testCloseOverlayBody() {
     console.group('closeOverlayBody (UXC-1)');
     assertEq('names Craft', closeOverlayBody('Craft'),
@@ -2347,6 +2387,7 @@ window.MM2C_TESTS = (() => {
     testExtractBackupPath();
     testFirstSnapshotAt();
     testOutputAppName();
+    testSafeSend();
     testCloseOverlayBody();
     testGeminiInactiveMessage();
     testBuildPromptWithExample();
