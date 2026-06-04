@@ -1165,6 +1165,15 @@ window.MM2C_TESTS = (() => {
     assert('glossaryPrefix: lists terms', gp.includes('Falcon, Kubernetes, Carlos Sol'));
     assert('glossaryPrefix: says exactly', /exactly/i.test(gp));
 
+    // RB-1c · buildIssueUrl — prefilled GitHub issue link
+    const iu = buildIssueUrl({ title: 'Selector broke: Leave', body: 'v0.1.119\nDOM: x' });
+    assert('buildIssueUrl: points to the repo issues/new',
+      iu.startsWith('https://github.com/caasols/gememo/issues/new?'));
+    assert('buildIssueUrl: encodes title + body',
+      iu.includes('title=Selector%20broke%3A%20Leave') && iu.includes('body=v0.1.119%0ADOM%3A%20x'));
+    assert('buildIssueUrl: tolerates missing fields',
+      buildIssueUrl().includes('title=') && buildIssueUrl({}).includes('issues/new'));
+
     console.groupEnd();
   }
 

@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.120] – 2026-06-04 · Report-an-issue link (RB-1c)
+
+### Added
+- **RB-1c** — a **"Report an issue"** button in the About tab opens a prefilled GitHub issue (version + extension ID + a template) so bug reports arrive with context. New pure `buildIssueUrl()`. 3 new JS tests. (The auto-prompt-on-selector-failure with a DOM snapshot is deferred — it needs a live meeting to validate.)
+
+---
+
 ## [0.1.119] – 2026-06-04 · Accessibility pass (RB-7c)
 
 ### Added
