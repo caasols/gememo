@@ -1174,6 +1174,13 @@ window.MM2C_TESTS = (() => {
     assert('buildIssueUrl: tolerates missing fields',
       buildIssueUrl().includes('title=') && buildIssueUrl({}).includes('issues/new'));
 
+    // ARCH-6 · webhookUrlError — validate user-entered webhook/Slack URLs
+    assert('webhookUrlError: blank is allowed (off)', webhookUrlError('') === '' && webhookUrlError('  ') === '');
+    assert('webhookUrlError: https ok', webhookUrlError('https://hooks.slack.com/x') === '');
+    assert('webhookUrlError: http localhost ok', webhookUrlError('http://localhost:3000/h') === '');
+    assert('webhookUrlError: missing scheme → error', webhookUrlError('hooks.slack.com/x') !== '');
+    assert('webhookUrlError: wrong scheme → error', webhookUrlError('ftp://x') !== '');
+
     console.groupEnd();
   }
 

@@ -303,6 +303,8 @@ function applyState(s, tabId, live = null) {
   $('craft-space-id').value = s.mm2c_craft_space_id || '';
   $('webhook-url').value = s.mm2c_webhook_url || '';
   $('slack-webhook-url').value = s.mm2c_slack_webhook_url || '';
+  $('webhook-error').textContent = webhookUrlError(s.mm2c_webhook_url || '');
+  $('slack-error').textContent = webhookUrlError(s.mm2c_slack_webhook_url || '');
   $('redact-pii').checked = s.mm2c_redact_pii === true;
   $('redact-keywords').value = s.mm2c_redact_keywords || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
@@ -759,10 +761,16 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_craft_space_id: e.target.value.trim() });
   });
 
+  $('webhook-url').addEventListener('input', e => {
+    $('webhook-error').textContent = webhookUrlError(e.target.value);
+  });
   $('webhook-url').addEventListener('change', e => {
     save({ mm2c_webhook_url: e.target.value.trim() });
   });
 
+  $('slack-webhook-url').addEventListener('input', e => {
+    $('slack-error').textContent = webhookUrlError(e.target.value);
+  });
   $('slack-webhook-url').addEventListener('change', e => {
     save({ mm2c_slack_webhook_url: e.target.value.trim() });
   });

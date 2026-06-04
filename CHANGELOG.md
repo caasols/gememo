@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.123] – 2026-06-04 · Webhook URL validation (ARCH-6)
+
+### Added
+- **ARCH-6** — the Webhook and Slack URL fields now show an inline error when the value isn't a full `http(s)://` URL, so a typo'd hook is caught at entry instead of failing silently at capture time. New pure `webhookUrlError()` (blank = disabled, localhost allowed). 5 new JS tests.
+
+---
+
 ## [0.1.122] – 2026-06-04 · Capture-now keyboard shortcut (RB-7d)
 
 ### Added
