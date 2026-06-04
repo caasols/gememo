@@ -347,6 +347,13 @@ function assemblePrompt({ title = '', priorContext = '', glossary = '', language
     + effectiveBase;
 }
 
+// Pure helper — body copy for the leave-confirmation overlay (UXC-1). Names the
+// user's actual output app instead of a hardcoded "Craft", which was factually
+// wrong for Apple Notes / Obsidian users.
+function closeOverlayBody(appName) {
+  return `Gemini notes are active. Save a summary to ${appName} before leaving?`;
+}
+
 // Canonical user-facing copy for "Gemini wasn't active in this meeting" (UXC-2).
 // One string routed to every surface — the in-page toast, the popup status
 // banner (via MM2C_WARNING → mm2c_last_status), and the GeminiNotActiveError
