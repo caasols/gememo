@@ -81,6 +81,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         chrome.runtime.sendNativeMessage(NATIVE_HOST, {
           type: 'search',
           query: msg.query || '',
+          since: msg.since || '',
+          until: msg.until || '',
+          attendee: msg.attendee || '',
           fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
         }, (response) => {
           const err = chrome.runtime.lastError?.message || null;

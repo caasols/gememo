@@ -237,6 +237,24 @@ class TestSearchNotes(unittest.TestCase):
             self._make(Path(tmp), "20260601-x.md", "nothing relevant here")
             self.assertEqual(search_notes("zebra", tmp), [])
 
+    def test_since_until_date_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            self._make(d, "20260101-a.md", '---\ndate: 2026-01-01\ntitle: "A"\n---\nwidget here')
+            self._make(d, "20260601-b.md", '---\ndate: 2026-06-01\ntitle: "B"\n---\nwidget here')
+            r = search_notes("widget", tmp, since="2026-03-01")
+            self.assertEqual([x["date"] for x in r], ["2026-06-01"])
+            r = search_notes("widget", tmp, until="2026-03-01")
+            self.assertEqual([x["date"] for x in r], ["2026-01-01"])
+
+    def test_attendee_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            self._make(d, "20260101-a.md", '---\ndate: 2026-01-01\ntitle: "A"\nattendees:\n  - Alice\n---\nplan')
+            self._make(d, "20260102-b.md", '---\ndate: 2026-01-02\ntitle: "B"\nattendees:\n  - Bob\n---\nplan')
+            r = search_notes("plan", tmp, attendee="alice")
+            self.assertEqual([x["title"] for x in r], ["A"])
+
     def test_limit_respected(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
