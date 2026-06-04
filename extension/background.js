@@ -394,6 +394,16 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 // When a Meet tab closes, remove all its tab-scoped storage keys and its
 // entry from mm2c_failed_list. Prevents unbounded key accumulation.
 
+// Keyboard shortcut → trigger a snapshot without opening the popup (RB-7d).
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== 'capture-now') return;
+  chrome.tabs.query({ url: 'https://meet.google.com/*' }, (tabs) => {
+    if (!tabs.length) return;
+    const target = [...tabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+    chrome.tabs.sendMessage(target.id, { type: 'MM2C_CAPTURE_NOW' }, () => void chrome.runtime.lastError);
+  });
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   chrome.storage.local.remove([
     _tabKey('mm2c_capture_state', tabId),
