@@ -487,6 +487,14 @@ function inferMeetingType(title) {
   return 'calendar';
 }
 
+// Pure helper — a stable key for a log/meeting group (UXF-6), used to persist
+// which groups the user expanded across re-renders and the 10 s auto-refresh.
+// Keyed by calendar day + title so the same meeting keeps its disclosure state.
+function logGroupKey(title, ts) {
+  const day = new Date(ts).toDateString();
+  return `${day}|${title || 'System'}`;
+}
+
 // Pure helper — best-outcome status for a log group's entries (UX-7), shown as
 // a dot on the collapsed group header. Precedence by severity-of-interest:
 // a successful send (ok) wins; else any error; else any warning; else info.
