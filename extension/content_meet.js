@@ -1153,8 +1153,8 @@
           showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
           safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
         } else {
-          sendLog(`Proactive live capture failed: ${err.message}`);
-          showStatus(`Capture failed: ${err.message}`, 'err');
+          sendLog(`Proactive live capture failed: ${err.message}`, 'debug');
+          showStatus(friendlyError(err.message), 'err');
           safeSend({ type: 'MM2C_ERROR', error: err.message, meetingTitle });
         }
         return;
@@ -1179,9 +1179,9 @@
     }, (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
         const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
-        sendLog(`Proactive capture failed: ${err}`);
+        sendLog(`Proactive capture failed: ${err}`, 'debug');
         safeSend({ type: 'MM2C_ERROR', error: err, meetingTitle });
-        showStatus(`Error: ${err}`, 'err');
+        showStatus(friendlyError(err), 'err');
         capturedProactively         = false;
         captureProactivelyAttempted = false;
         intercepting                = false;
@@ -1376,7 +1376,8 @@
             clearTimeout(giveUp);
             if (chrome.runtime.lastError || !response?.ok) {
               const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
-              showStatus(`Error: ${err}`, 'err');
+              sendLog(`Send failed: ${err}`, 'debug');
+              showStatus(friendlyError(err), 'err');
             } else {
               showStatus(`✓ Saved to ${outputAppName(currentOutputApp)}`, 'ok');
             }
@@ -1393,7 +1394,7 @@
       } else {
         console.error('[MM2C]', err);
         safeSend({ type: 'MM2C_ERROR', error: err.message, meetingTitle });
-        showStatus(`Error: ${err.message}`, 'err');
+        showStatus(friendlyError(err.message), 'err');
       }
     } finally {
       // Always leave the call
