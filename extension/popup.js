@@ -27,6 +27,7 @@ const GLOBAL_KEYS = [
   'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_blocklist',
   'mm2c_emit_ics',
   'mm2c_glossary',
+  'mm2c_beta_enabled',
 ];
 
 function tabScopedKeys(tabId) {
@@ -311,6 +312,9 @@ function applyState(s, tabId, live = null) {
   $('redact-keywords').value = s.mm2c_redact_keywords || '';
   $('blocklist').value = s.mm2c_blocklist || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
+  const betaOn = s.mm2c_beta_enabled === true;
+  $('beta-enabled').checked = betaOn;
+  document.body.classList.toggle('beta-enabled', betaOn);
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
   document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
 
@@ -801,6 +805,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('emit-ics').addEventListener('change', e => {
     save({ mm2c_emit_ics: e.target.checked });
+  });
+  $('beta-enabled').addEventListener('change', e => {
+    document.body.classList.toggle('beta-enabled', e.target.checked);
+    save({ mm2c_beta_enabled: e.target.checked });
   });
 
   document.querySelectorAll('.also-send-opt').forEach(cb => {
