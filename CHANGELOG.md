@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.113] – 2026-06-04 · REC badge without a full-storage scan (ARCH-4)
+
+### Changed
+- **ARCH-4** — the toolbar REC badge no longer calls `chrome.storage.local.get(null)` (which deserialized **all** of storage — logs, snapshots, stats, the last note — on every capture-state change just to look for a `mm2c_capture_state_*` key). Capturing tabs are now tracked in a tiny `mm2c_capturing_tabs` array via new pure `addCapturingTab()`/`removeCapturingTab()` helpers; `tabs.onRemoved` also prunes it and clears the badge if the closing tab was the last. 7 new JS tests. No user-visible behavior change.
+
+---
+
 ## [0.1.112] – 2026-06-04 · De-duplicate service-worker helpers (ARCH-1)
 
 ### Changed
