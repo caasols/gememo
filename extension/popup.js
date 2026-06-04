@@ -268,7 +268,7 @@ function renderRetryList(list) {
           <button class="btn retry-dismiss-btn"
             data-tabid="${entry.tabId ?? ''}"
             data-backup="${escapeHtml(entry.backupPath || '')}"
-            title="Dismiss">×</button>
+            title="Dismiss">✕</button>
         </div>
         <div class="retry-card-actions">
           <button class="btn retry-btn"
