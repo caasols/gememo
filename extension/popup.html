@@ -411,6 +411,8 @@
       align-items: center;
       justify-content: space-between;
     }
+    .field-error { display:block; font-size:11px; color: var(--danger-text); min-height:0; }
+    .field-error:empty { display:none; }
     .note-search {
       width: 100%;
       box-sizing: border-box;
@@ -1097,10 +1099,12 @@
         <span class="label">URL</span>
         <input type="text" id="webhook-url" placeholder="https://hooks.example.com/...">
       </div>
+      <span class="field-error" id="webhook-error" role="alert"></span>
       <div class="row">
         <span class="label">Slack</span>
         <input type="text" id="slack-webhook-url" placeholder="https://hooks.slack.com/services/...">
       </div>
+      <span class="field-error" id="slack-error" role="alert"></span>
       <p class="hint">Slack: posts the title, summary, and action-item count to an incoming webhook.</p>
     </div>
 

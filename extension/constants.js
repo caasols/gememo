@@ -258,6 +258,15 @@ function matchPromptRule(rules, meetingTitle, now = new Date()) {
   return findPromptRule(rules, meetingTitle, now)?.prompt?.trim() || null;
 }
 
+// Pure helper — validate a user-entered webhook URL (ARCH-6). Returns '' when
+// the URL is blank (= disabled) or a valid http(s):// URL, else an error string.
+function webhookUrlError(url) {
+  const u = String(url || '').trim();
+  if (!u) return '';
+  if (!/^https?:\/\/\S+$/i.test(u)) return 'Enter a full http:// or https:// URL';
+  return '';
+}
+
 // Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
 function buildIssueUrl(report) {
   const enc = s => encodeURIComponent(String(s == null ? '' : s));
