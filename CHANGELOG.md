@@ -11,6 +11,17 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.111] – 2026-06-04 · Reliability: subprocess timeouts + shorter webhook waits (ARCH-2/3)
+
+### Fixed
+- **ARCH-2** — every `subprocess.run` in the native host now has a `timeout` (osascript for Apple Notes/notifications: 30 s/10 s; Craft push + snapshot-retry: 45 s; `open`: 30 s). Previously an AppleScript modal or permission prompt could hang the host **forever**, stalling Chrome's native-messaging port and silently losing the capture. `notify()` swallows its own timeout (best-effort). 6 new Python tests.
+- **ARCH-3** — the post-capture webhook + Slack POSTs now use a 2.5 s timeout (was 6 s each), cutting the worst-case delay before the "Saved" response from ~12 s to ~5 s on the post-meeting page.
+
+### Coverage
+- Native-host coverage **95% total** (`meeting_minutes_host.py` 91%, `push_to_craft.py` 92%); 164 Python tests.
+
+---
+
 ## [0.1.110] – 2026-06-04 · Configurable Craft space (5.5)
 
 ### Added
