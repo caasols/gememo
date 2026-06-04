@@ -171,6 +171,19 @@ def parse_transcript(text: str) -> tuple[str, str]:
     return title, body
 
 
+def build_provenance_footer(dt: datetime) -> str:
+    """Return the provenance footer appended to every captured note (UXC-22).
+
+    Gives an anonymous file in Craft/Obsidian/Notes a durable signal of where it
+    came from and that it was AI-assisted. Plain text (no markdown) so it reads
+    the same in every destination. Leading blank lines separate it from the body.
+    """
+    return (
+        "\n\nCaptured automatically by Gememo · "
+        f"{dt.strftime('%Y-%m-%d')} · source: Google Meet + Gemini"
+    )
+
+
 def build_yaml_frontmatter(
     title: str,
     dt: datetime,
@@ -870,6 +883,12 @@ def main() -> None:
         dt = datetime.now()  # local time as fallback
     date_prefix = dt.strftime("%Y%m%d")
 
+    # Provenance footer (UXC-22) — appended to every persisted/sent note so the
+    # file carries its origin. note_body stays footer-free so the structured
+    # webhook payload's section parsing isn't polluted by the footer line.
+    note_body = craft_md
+    craft_md = craft_md + build_provenance_footer(dt)
+
     # Title: always YYYYMMDD HH:MM + meeting name (or "Meeting" fallback)
     tab_title = msg.get("meetingTitle", "").strip()
     label     = tab_title or "Meeting"
@@ -899,7 +918,7 @@ def main() -> None:
         file_path.write_text(fm + craft_md, encoding="utf-8")
         # .ics for the Next Steps section (RB-3b), written next to the note.
         if msg.get("emitIcs"):
-            steps = [ln for ln in parse_note_sections(craft_md).get('next_steps', '').split('\n') if ln.strip()]
+            steps = [ln for ln in parse_note_sections(note_body).get('next_steps', '').split('\n') if ln.strip()]
             ics = build_ics(steps, dt, label)
             if ics:
                 file_path.with_suffix('.ics').write_text(ics, encoding="utf-8")
@@ -913,7 +932,7 @@ def main() -> None:
     webhook_url = (msg.get("webhookUrl") or "").strip()
     slack_url   = (msg.get("slackWebhookUrl") or "").strip()
     if webhook_url or slack_url:
-        sections = parse_note_sections(craft_md)
+        sections = parse_note_sections(note_body)  # footer-free (UXC-22)
         if webhook_url:
             post_webhook(
                 webhook_url,
