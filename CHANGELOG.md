@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.125] – 2026-06-04 · Testable prompt construction (Tier 3 audit)
+
+### Changed
+- Extracted the entire Gemini **prompt construction** out of `content_meet.js` into a pure, unit-tested `assemblePrompt()` (+ `meetingTitlePrefix`/`noteLanguagePrefix`/`attendeesPrefix`) in `constants.js`. The most bug-prone logic — where a mistake means bad AI notes, and which had carried the new glossary/prior-context/depth/language wiring as untested string concatenation — is now covered at the 99.5% pure-layer level. Output is byte-identical; no behavior change. 6 new JS tests.
+
+---
+
 ## [0.1.124] – 2026-06-04 · Capture blocklist (RB-5a)
 
 ### Added

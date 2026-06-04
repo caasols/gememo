@@ -653,30 +653,25 @@
     const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules, mm2c_glossary } = isContextValid()
       ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules', 'mm2c_glossary'])
       : {};
-    const promptBase     = mm2c_prompt?.trim() || DEFAULT_PROMPT;
-    const languagePrefix = mm2c_note_language
-      ? `Write all notes in ${mm2c_note_language}. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n`
-      : '';
+    const promptBase = mm2c_prompt?.trim() || DEFAULT_PROMPT;
 
     // Rule matching: user rules win first, then built-in templates, then default.
     const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
     const matchedRule =
       findPromptRule(rules, currentMeetingTitle) ||
       findPromptRule(BUILT_IN_RULES, currentMeetingTitle);
-    const baseFromRule = matchedRule?.prompt?.trim() || promptBase;
-    const depthPrefix  = depthInstruction(matchedRule?.depth);
-    const effectiveBase = depthPrefix ? `${depthPrefix}\n\n${baseFromRule}` : baseFromRule;
-    const titlePrefix = currentMeetingTitle
-      ? `Meeting title: ${currentMeetingTitle}. Use this context to interpret references to projects, teams, or products in the transcript.\n\n`
-      : '';
-    const attendees = getAttendeeNames();
-    const attendeesPrefix = attendees.length > 0
-      ? `Meeting attendees: ${attendees.map((n, i) => `${i + 1}. ${n}`).join(', ')}. Use these exact names when assigning action items.\n\n`
-      : '';
-    const examplePrefix = `Here is an example of the exact note format to produce:\n\n---\n${EXAMPLE_NOTES}\n---\n\nNow produce notes for the current meeting following this exact format:\n\n`;
-    const priorPrefix = priorContext ? `${priorContext}\n\n` : ''; // recurring-meeting context (P9-C)
-    const glossPrefix = glossaryPrefix(mm2c_glossary); // custom vocabulary (RB-4a)
-    const prompt = titlePrefix + priorPrefix + glossPrefix + languagePrefix + attendeesPrefix + examplePrefix + effectiveBase;
+
+    // Full prompt construction lives in the (unit-tested) assemblePrompt helper.
+    const prompt = assemblePrompt({
+      title:       currentMeetingTitle,
+      priorContext,                                  // recurring-meeting context (P9-C)
+      glossary:    mm2c_glossary,                     // custom vocabulary (RB-4a)
+      language:    mm2c_note_language,
+      attendees:   getAttendeeNames(),
+      example:     EXAMPLE_NOTES,
+      base:        matchedRule?.prompt?.trim() || promptBase,
+      depth:       matchedRule?.depth,
+    });
 
     // Helper: returns true only when an element is rendered inside the viewport.
     // 1. Find the Gemini toolbar button first — if it's gone, Gemini isn't active.
