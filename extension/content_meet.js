@@ -710,7 +710,7 @@
     // 3. If the input still isn't in the viewport, Gemini was never started.
     if (!input) {
       throw new GeminiNotActiveError(
-        'Gemini notes was not active during this meeting. ' +
+        "Gemini wasn't active during this meeting. " +
         'Start Gemini at the beginning of your next meeting to get a summary.'
       );
     }
@@ -1154,8 +1154,8 @@
         intercepting = false; // release so Leave button can still fire normally
         if (err instanceof GeminiNotActiveError) {
           sendLog('Proactive live capture: Gemini not active — meeting too short for notes');
-          showStatus('Meeting ended — Gemini was not active, no notes saved', 'warn');
-          try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: 'Meeting too short — Gemini was not active', meetingTitle }); } catch {}
+          showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
+          try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle }); } catch {}
         } else {
           sendLog(`Proactive live capture failed: ${err.message}`);
           showStatus(`Capture failed: ${err.message}`, 'err');
@@ -1376,8 +1376,8 @@
     } catch (err) {
       if (err instanceof GeminiNotActiveError) {
         console.info('[MM2C] Gemini not active, skipping summary.');
-        showStatus('Gemini notes were not active in this meeting', 'warn');
-        try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: err.message, meetingTitle }); } catch {}
+        showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
+        try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle }); } catch {}
       } else {
         console.error('[MM2C]', err);
         try { chrome.runtime.sendMessage({ type: 'MM2C_ERROR', error: err.message, meetingTitle }); } catch {}
