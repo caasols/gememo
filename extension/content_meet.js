@@ -1433,10 +1433,9 @@
       document.body.appendChild(el);
     }
     el.textContent      = msg;
-    el.style.background = type === 'err'  ? '#c5221f'
-                        : type === 'warn' ? '#e37400'
-                        : type === 'ok'   ? '#137333'
-                        :                   '#1a73e8';
+    // Toast fill from the shared token map (UXC-5) — same palette as the badge.
+    el.style.background = tokenStatusFill(type);
+    el.style.color      = TOKENS.color.onColor;
     if (type === 'err')  setTimeout(() => el.remove(), 8000);
     if (type === 'warn') setTimeout(() => el.remove(), 6000);
     if (type === 'ok')   setTimeout(() => el.remove(), 5000);
