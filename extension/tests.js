@@ -1934,6 +1934,17 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testCloseOverlayBody() {
+    console.group('closeOverlayBody (UXC-1)');
+    assertEq('names Craft', closeOverlayBody('Craft'),
+      'Gemini notes are active. Save a summary to Craft before leaving?');
+    assert('uses the passed app name, not hardcoded Craft',
+      closeOverlayBody('Apple Notes').includes('Apple Notes') &&
+      !closeOverlayBody('Apple Notes').includes('Craft'));
+    assert('Obsidian flows through', closeOverlayBody('Obsidian').includes('Obsidian'));
+    console.groupEnd();
+  }
+
   function testGeminiInactiveMessage() {
     console.group('GEMINI_INACTIVE_MESSAGE (UXC-2)');
     assert('canonical message is defined and non-empty',
@@ -2336,6 +2347,7 @@ window.MM2C_TESTS = (() => {
     testExtractBackupPath();
     testFirstSnapshotAt();
     testOutputAppName();
+    testCloseOverlayBody();
     testGeminiInactiveMessage();
     testBuildPromptWithExample();
     testBuildPromptWithAttendees();

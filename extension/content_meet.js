@@ -1544,7 +1544,7 @@
           Leaving without notes?
         </div>
         <div style="font-size:13px;color:#9aa0a6;margin-bottom:24px;line-height:1.5;">
-          Gemini notes are active. Save a summary to Craft before leaving?
+          ${closeOverlayBody(outputAppName(currentOutputApp))}
         </div>
         <div style="display:flex;gap:12px;justify-content:center;">
           <button id="mm2c-close-leave"
