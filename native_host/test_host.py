@@ -293,6 +293,42 @@ class TestHandleRetry(unittest.TestCase):
             self.assertEqual(sent[-1]["status"], "error")
 
 
+class TestSendToExtras(unittest.TestCase):
+    """send_to_extras — best-effort secondary outputs (P9-X)."""
+
+    def _dt(self):
+        from datetime import datetime
+        return datetime(2026, 6, 1, 9, 0)
+
+    def test_obsidian_extra_writes_vault_file(self):
+        with tempfile.TemporaryDirectory() as vault:
+            host.send_to_extras(['obsidian'], '## Summary\nx', 'T', self._dt(), 'Standup',
+                                obsidian_vault_path=vault)
+            self.assertEqual(len(list(Path(vault).glob('*.md'))), 1)
+
+    def test_apple_notes_extra_calls_push(self):
+        calls = []
+        with patch.object(host, 'push_to_apple_notes', side_effect=lambda t, h: calls.append(t)), \
+                patch.object(host, 'notify'):
+            host.send_to_extras(['apple_notes'], '## Summary\nx', 'T', self._dt(), 'T')
+        self.assertEqual(len(calls), 1)
+
+    def test_craft_extra_runs_push_subprocess(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as cache_tmp, \
+                patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                patch.object(host.subprocess, 'run', side_effect=lambda cmd, **k: calls.append(cmd)):
+            host.send_to_extras(['craft'], '## Summary\nx', 'My Note', self._dt(), 'My Note',
+                                craft_folder_id='folder-9')
+        self.assertEqual(len(calls), 1)
+        self.assertIn('--folder-id', calls[0])
+
+    def test_failing_extra_is_swallowed(self):
+        with patch.object(host, 'push_to_apple_notes', side_effect=RuntimeError('boom')), \
+                patch.object(host, 'notify'):
+            host.send_to_extras(['apple_notes'], 'x', 'T', self._dt(), 'T')  # must not raise
+
+
 class TestResolveExtras(unittest.TestCase):
     """resolve_extras — secondary output destinations for multi-destination (P9-X)."""
 
