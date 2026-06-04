@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.117] – 2026-06-04 · Custom glossary (RB-4a)
+
+### Added
+- **RB-4a** — a **Glossary** field (Rules tab): names, codenames, and acronyms you list are injected into the prompt with an instruction to spell them exactly, never translating or abbreviating. New pure `glossaryPrefix()`; wired into the prompt build alongside the existing prefixes. 3 new JS tests.
+
+---
+
 ## [0.1.116] – 2026-06-04 · .ics for Next Steps (RB-3b)
 
 ### Added

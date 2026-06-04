@@ -258,6 +258,14 @@ function matchPromptRule(rules, meetingTitle, now = new Date()) {
   return findPromptRule(rules, meetingTitle, now)?.prompt?.trim() || null;
 }
 
+// Pure helper — custom vocabulary/glossary → a prompt prefix (RB-4a). Terms are
+// comma- or newline-separated; the model is told to keep them verbatim.
+function glossaryPrefix(glossary) {
+  const terms = String(glossary || '').split(/[\n,]/).map(t => t.trim()).filter(Boolean);
+  if (!terms.length) return '';
+  return `Spell the following names and terms exactly as written, never translating, abbreviating, or altering them: ${terms.join(', ')}.\n\n`;
+}
+
 // Pure helper — per-rule summary depth → an instruction prefix (P5-L).
 function depthInstruction(depth) {
   if (depth === 'brief') {

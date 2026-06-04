@@ -648,8 +648,8 @@
   }
 
   async function _runGeminiFlowInner(timeoutMs = 120000) {
-    const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules } = isContextValid()
-      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules'])
+    const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules, mm2c_glossary } = isContextValid()
+      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules', 'mm2c_glossary'])
       : {};
     const promptBase     = mm2c_prompt?.trim() || DEFAULT_PROMPT;
     const languagePrefix = mm2c_note_language
@@ -673,7 +673,8 @@
       : '';
     const examplePrefix = `Here is an example of the exact note format to produce:\n\n---\n${EXAMPLE_NOTES}\n---\n\nNow produce notes for the current meeting following this exact format:\n\n`;
     const priorPrefix = priorContext ? `${priorContext}\n\n` : ''; // recurring-meeting context (P9-C)
-    const prompt = titlePrefix + priorPrefix + languagePrefix + attendeesPrefix + examplePrefix + effectiveBase;
+    const glossPrefix = glossaryPrefix(mm2c_glossary); // custom vocabulary (RB-4a)
+    const prompt = titlePrefix + priorPrefix + glossPrefix + languagePrefix + attendeesPrefix + examplePrefix + effectiveBase;
 
     // Helper: returns true only when an element is rendered inside the viewport.
     // 1. Find the Gemini toolbar button first — if it's gone, Gemini isn't active.
