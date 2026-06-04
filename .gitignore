@@ -46,3 +46,8 @@ build/
 
 # Session context (local only)
 context.md
+
+# Python coverage (dev tool)
+.coverage
+htmlcov/
+.pytest_cache/
