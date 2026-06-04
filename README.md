@@ -48,16 +48,21 @@ bash native_host/install.sh
 ### Prompt & output
 
 - **Default prompt** — structured sections: Attendees, Summary, Key Points, Decisions Made, Action Items, Next Steps, Open Questions. Fully customisable from the Rules tab
-- **Per-meeting rules** — match a meeting title with a regex to use a completely different prompt (e.g. `standup` → Blockers/Done/Next format)
+- **Built-in templates** — Standup, 1:1, and Retro formats auto-applied when the meeting title matches (e.g. `daily standup` → Blockers/Done/Next). Shown read-only in the Rules tab; your own rules always take precedence
+- **Per-meeting rules** — match a meeting title with a regex to use a completely different prompt
+- **Recurring-meeting context** — for a repeating meeting, the previous session's summary and open action items are fed back into the prompt so notes build on each other
 - **Note language** — write notes in any language while preserving proper nouns, product names, and technical acronyms in their original form
 - **Output apps** — Craft, Apple Notes, and Obsidian are all supported; select in Settings
+- **Generic webhook** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, or your own endpoint)
 
 ### UX
 
 - **Extension badge** — shows 'REC' (green) during active capture, '!' on error
 - **Snapshot countdown** — "Next in: Xm Ys" and "First snapshot in: Xm Ys" in the popup
-- **Logs tab** — full activity log grouped by meeting; per-entry Retry button on errors
-- **About tab** — version, GitHub link, extension ID copy button
+- **Action items** — extracted from each capture into a popup checklist with a "Copy as tasks" button (Markdown `- [ ]`)
+- **Logs tab** — activity grouped by meeting with a capture-outcome dot per group, per-entry Retry, and a Diagnostics toggle that hides routine internal events by default
+- **Search past meetings** — local full-text search across your backup notes (title, date, snippet); no API, runs on your machine
+- **About tab** — version, GitHub link, extension ID, and a "Your impact" panel (meetings attended, notes saved, words captured, time saved)
 
 ## Output apps
 
@@ -66,6 +71,9 @@ bash native_host/install.sh
 | **Craft** | Creates a document via `craftdocs://createdocument` with inline markdown content | Optional folder ID in Settings |
 | **Apple Notes** | Creates a note via `osascript` with HTML body (headings, bullets, paragraphs) | No config needed |
 | **Obsidian** | Writes a YAML-frontmatted `.md` file directly to your vault folder | Select vault folder in Settings |
+| **Webhook** (any) | POSTs the note as structured JSON to a URL — runs alongside whichever app above is selected | Webhook URL in Settings |
+
+Backup `.md` files (and Obsidian notes) include YAML frontmatter: `date`, `title`, `attendees`, `duration_min`, `meeting_code`, `meeting_type` (calendar vs ad-hoc), and `recording` — so they're searchable and usable in Obsidian Dataview, Bear, or Notion.
 
 ## Configuration
 
@@ -78,6 +86,7 @@ Open the extension popup → **Settings tab**:
 | Obsidian vault | Path to your Obsidian vault | — |
 | Snapshot interval | How often to capture mid-meeting | 8 min |
 | Note language | Language for generated notes | Auto |
+| Webhook URL | POST each note as JSON to this URL (blank = off) | — |
 | File backup | Save a local `.md` copy of every note | Off |
 | Backup folder | Where backup files are written | `~/Downloads/meeting-notes` |
 
