@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.107] – 2026-06-04 · Per-rule summary depth (P5-L)
+
+### Added
+- **P5-L** — each meeting rule can set a **summary depth** (Standard / Brief / Detailed). When a rule matches, a depth instruction is prepended to its prompt — e.g. a standup rule set to "Brief" yields terse notes, a strategy-meeting rule set to "Detailed" yields exhaustive ones. New pure `findPromptRule()` (returns the matched rule) and `depthInstruction()`; `matchPromptRule()` is now a thin wrapper. Depth `<select>` added per rule in the Rules tab. 5 new JS tests.
+
+---
+
 ## [0.1.106] – 2026-06-04 · Time- and day-based prompt rules (P5-L2)
 
 ### Added
