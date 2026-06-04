@@ -2034,6 +2034,15 @@ window.MM2C_TESTS = (() => {
   const r2 = removeFailure(f2, 99);
   assert('removeFailure: no-op on missing tabId', r2.length === 2);
 
+  // addCapturingTab / removeCapturingTab — REC-badge tab tracking (ARCH-4)
+  assert('addCapturingTab: adds new', JSON.stringify(addCapturingTab([], 5)) === '[5]');
+  assert('addCapturingTab: no duplicate', JSON.stringify(addCapturingTab([5], 5)) === '[5]');
+  assert('addCapturingTab: appends second', JSON.stringify(addCapturingTab([5], 7)) === '[5,7]');
+  assert('addCapturingTab: tolerates non-array', JSON.stringify(addCapturingTab(undefined, 3)) === '[3]');
+  assert('removeCapturingTab: removes', JSON.stringify(removeCapturingTab([5, 7], 5)) === '[7]');
+  assert('removeCapturingTab: empty when last removed', removeCapturingTab([5], 5).length === 0);
+  assert('removeCapturingTab: tolerates non-array', removeCapturingTab(undefined, 5).length === 0);
+
   // removeFailureByPath — real function from constants.js. Identity used by
   // user-initiated retry/dismiss, since the log-retry path carries no tabId (BUG-D).
   const fl = [

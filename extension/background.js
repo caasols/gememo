@@ -326,18 +326,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!tabId) break;
       const newState = msg.state || 'idle';
       chrome.storage.local.set({ [_tabKey('mm2c_capture_state', tabId)]: newState }, () => {
-        if (newState === 'capturing') {
-          chrome.action.setBadgeText({ text: 'REC' });
-          chrome.action.setBadgeBackgroundColor({ color: '#137333' });
-        } else {
-          // Only clear badge if no other tab is still capturing
-          chrome.storage.local.get(null, (all) => {
-            const anyCapturing = Object.entries(all).some(
-              ([k, v]) => k.startsWith('mm2c_capture_state_') && v === 'capturing'
-            );
-            if (!anyCapturing) chrome.action.setBadgeText({ text: '' });
-          });
-        }
+        // Badge reflects whether ANY tab is capturing — tracked in a tiny array
+        // (mm2c_capturing_tabs) instead of scanning all of storage (ARCH-4).
+        chrome.storage.local.get(['mm2c_capturing_tabs'], ({ mm2c_capturing_tabs }) => {
+          const tabs = newState === 'capturing'
+            ? addCapturingTab(mm2c_capturing_tabs, tabId)
+            : removeCapturingTab(mm2c_capturing_tabs, tabId);
+          chrome.storage.local.set({ mm2c_capturing_tabs: tabs });
+          if (tabs.length) {
+            chrome.action.setBadgeText({ text: 'REC' });
+            chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+          } else {
+            chrome.action.setBadgeText({ text: '' });
+          }
+        });
       });
       break;
     }
@@ -391,6 +393,13 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     _tabKey('mm2c_last_status',    tabId),
   ]);
   chrome.storage.session.remove(_tabKey('mm2c_last_fingerprint', tabId));
+  // Drop the closed tab from the REC-badge set; clear the badge if it was the last (ARCH-4).
+  chrome.storage.local.get(['mm2c_capturing_tabs'], ({ mm2c_capturing_tabs }) => {
+    if (!Array.isArray(mm2c_capturing_tabs) || !mm2c_capturing_tabs.includes(tabId)) return;
+    const tabs = removeCapturingTab(mm2c_capturing_tabs, tabId);
+    chrome.storage.local.set({ mm2c_capturing_tabs: tabs });
+    if (!tabs.length) chrome.action.setBadgeText({ text: '' });
+  });
   chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
     if (!Array.isArray(mm2c_failed_list)) return;
     const updated = removeFailure(mm2c_failed_list, tabId);

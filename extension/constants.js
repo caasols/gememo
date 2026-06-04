@@ -297,6 +297,16 @@ function tabKey(base, tabId) {
   return `${base}_${tabId}`;
 }
 
+// Pure helpers — track which tabs are actively capturing so the REC badge can be
+// decided from a tiny array instead of scanning ALL of storage (ARCH-4).
+function addCapturingTab(tabs, tabId) {
+  const arr = Array.isArray(tabs) ? tabs : [];
+  return arr.includes(tabId) ? arr : [...arr, tabId];
+}
+function removeCapturingTab(tabs, tabId) {
+  return (Array.isArray(tabs) ? tabs : []).filter(t => t !== tabId);
+}
+
 // Pure helper — append a failed-send entry to the list.
 function addFailure(list, entry) {
   return [...(Array.isArray(list) ? list : []), entry];
