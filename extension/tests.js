@@ -1181,6 +1181,20 @@ window.MM2C_TESTS = (() => {
     assert('webhookUrlError: missing scheme → error', webhookUrlError('hooks.slack.com/x') !== '');
     assert('webhookUrlError: wrong scheme → error', webhookUrlError('ftp://x') !== '');
 
+    // A4 · craftFolderIdError — validate the Craft inbox/doc ID field
+    assert('craftFolderIdError: blank is allowed (default)', craftFolderIdError('') === '' && craftFolderIdError('  ') === '');
+    assert('craftFolderIdError: bare docId ok', craftFolderIdError('A1B2-c3d4-EF56') === '');
+    assert('craftFolderIdError: whitespace → error', craftFolderIdError('abc def') !== '');
+    assert('craftFolderIdError: full deeplink URL → error', craftFolderIdError('craftdocs://open?blockId=x') !== '');
+    assert('craftFolderIdError: https URL → error', craftFolderIdError('https://craft.do/x') !== '');
+
+    // A4 · obsidianVaultPathError — validate the Obsidian vault folder path
+    assert('obsidianVaultPathError: blank is allowed (not set)', obsidianVaultPathError('') === '' && obsidianVaultPathError('  ') === '');
+    assert('obsidianVaultPathError: absolute / path ok', obsidianVaultPathError('/Users/me/Vault') === '');
+    assert('obsidianVaultPathError: ~ path ok', obsidianVaultPathError('~/Documents/Vault') === '');
+    assert('obsidianVaultPathError: relative path → error', obsidianVaultPathError('Documents/Vault') !== '');
+    assert('obsidianVaultPathError: URL → error', obsidianVaultPathError('https://x/y') !== '');
+
     // RB-5a · titleBlocked — exclude sensitive meetings from capture
     assert('titleBlocked: regex match (array)', titleBlocked('1:1 with HR', ['1:1 with HR|interview']) === true);
     assert('titleBlocked: regex match (string list)', titleBlocked('Interview: Bob', 'interview, salary') === true);

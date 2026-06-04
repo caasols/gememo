@@ -301,6 +301,8 @@ function applyState(s, tabId, live = null) {
 
   $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
   $('craft-space-id').value = s.mm2c_craft_space_id || '';
+  $('craft-folder-error').textContent = craftFolderIdError(s.mm2c_craft_folder_id || '');
+  $('obsidian-vault-error').textContent = obsidianVaultPathError(s.mm2c_obsidian_vault_path || '');
   $('webhook-url').value = s.mm2c_webhook_url || '';
   $('slack-webhook-url').value = s.mm2c_slack_webhook_url || '';
   $('webhook-error').textContent = webhookUrlError(s.mm2c_webhook_url || '');
@@ -754,6 +756,9 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_output_app: app });
   });
 
+  $('craft-folder-id').addEventListener('input', e => {
+    $('craft-folder-error').textContent = craftFolderIdError(e.target.value);
+  });
   $('craft-folder-id').addEventListener('change', e => {
     save({ mm2c_craft_folder_id: e.target.value.trim() });
   });
