@@ -86,7 +86,7 @@
     meetingBlocked              = false;
     captureProactivelyAttempted = false;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
-    try { chrome.runtime.sendMessage({ type: 'MM2C_SET_SNAPSHOT', snapshot: null }); } catch {}
+    safeSend({ type: 'MM2C_SET_SNAPSHOT', snapshot: null });
     sendLog('Meeting state reset for new meeting');
   }
 
@@ -119,7 +119,7 @@
     // mm2c_last_status_<tabId>, written by background.js — there is no global
     // status key to clear here.)
     if (enabled) {
-      try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' }); } catch {}
+      safeSend({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' });
     }
     // ── Meeting lifecycle variables ──────────────────────────────────────────
     // Closure-scoped (not module-level) because they only need to survive across
@@ -639,13 +639,13 @@
     if (geminiFlowPromise) throw new Error('Another Gemini capture is already running');
     let releaseLock;
     geminiFlowPromise = new Promise(resolve => { releaseLock = resolve; });
-    try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' }); } catch {}
+    safeSend({ type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' });
     try {
       return await _runGeminiFlowInner(timeoutMs);
     } finally {
       releaseLock();            // unblocks any onLeaveClick awaiting this promise
       geminiFlowPromise = null; // null so guard check passes for the next caller
-      try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' }); } catch {}
+      safeSend({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' });
     }
   }
 
@@ -1017,24 +1017,20 @@
       sendLog(`Periodic snapshot saved (${transcript.length} chars)`);
       showStatus('✓ Notes snapshot saved', 'ok'); // auto-dismisses in 5 s
       // Store a short preview so the popup can show "Last snapshot: N min ago ▸"
-      try {
-        chrome.runtime.sendMessage({
-          type: 'MM2C_SET_SNAPSHOT',
-          snapshot: { ts: Date.now(), preview: transcript.slice(0, 300) },
-        });
-      } catch {}
+      safeSend({
+        type: 'MM2C_SET_SNAPSHOT',
+        snapshot: { ts: Date.now(), preview: transcript.slice(0, 300) },
+      });
       refreshRecordingState(); // re-check: recording may have started after join (P9-A3c)
       // Back up this snapshot to disk (fire-and-forget — no callback needed).
       // background.js checks mm2c_file_backup_enabled before writing.
       if (isContextValid()) {
-        try {
-          chrome.runtime.sendMessage({
-            type: 'MM2C_SNAPSHOT',
-            text: transcript,
-            meetingTitle: currentMeetingTitle || getMeetingTitle() || '',
-            timestamp: new Date().toISOString(),
-          });
-        } catch {}
+        safeSend({
+          type: 'MM2C_SNAPSHOT',
+          text: transcript,
+          meetingTitle: currentMeetingTitle || getMeetingTitle() || '',
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (err) {
       sendLog(`Periodic snapshot skipped: ${err instanceof GeminiNotActiveError ? 'Gemini not accessible' : err.message}`);
@@ -1061,7 +1057,7 @@
           const n = (el.textContent || el.dataset?.selfName || '').trim();
           if (n.length > 1 && n.length < 80 && !/^\d+$/.test(n)) names.add(n);
         });
-      } catch {}
+      } catch { /* selector unsupported in this Meet build — try the next one */ }
     }
     return [...names];
   }
@@ -1109,7 +1105,7 @@
       '[aria-label*="is being recorded" i]',
     ];
     for (const s of selectors) {
-      try { if (document.querySelector(s)) return true; } catch {}
+      try { if (document.querySelector(s)) return true; } catch { /* bad selector for this build — skip */ }
     }
     return false;
   }
@@ -1155,11 +1151,11 @@
         if (err instanceof GeminiNotActiveError) {
           sendLog('Proactive live capture: Gemini not active — meeting too short for notes');
           showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
-          try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle }); } catch {}
+          safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
         } else {
           sendLog(`Proactive live capture failed: ${err.message}`);
           showStatus(`Capture failed: ${err.message}`, 'err');
-          try { chrome.runtime.sendMessage({ type: 'MM2C_ERROR', error: err.message, meetingTitle }); } catch {}
+          safeSend({ type: 'MM2C_ERROR', error: err.message, meetingTitle });
         }
         return;
       }
@@ -1184,7 +1180,7 @@
       if (chrome.runtime.lastError || !response?.ok) {
         const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
         sendLog(`Proactive capture failed: ${err}`);
-        try { chrome.runtime.sendMessage({ type: 'MM2C_ERROR', error: err, meetingTitle }); } catch {}
+        safeSend({ type: 'MM2C_ERROR', error: err, meetingTitle });
         showStatus(`Error: ${err}`, 'err');
         capturedProactively         = false;
         captureProactivelyAttempted = false;
@@ -1206,6 +1202,18 @@
     try { return !!chrome?.runtime?.id; } catch { return false; }
   }
 
+  // Fire-and-forget chrome.runtime.sendMessage that doesn't blindly swallow (A3).
+  // A dead extension context (expected after a reload) is the one benign failure
+  // and stays silent; any OTHER failure is surfaced via console.warn instead of
+  // vanishing into an empty catch.
+  function safeSend(msg) {
+    try {
+      chrome.runtime.sendMessage(msg);
+    } catch (e) {
+      if (isContextValid()) console.warn('[MM2C] sendMessage failed:', msg?.type, e?.message || e);
+    }
+  }
+
   // ── Persistent log helper ──────────────────────────────────────────────────
   // Sends a log entry to background.js which stores it in mm2c_logs.
   // Silently ignored if the runtime context is dead.
@@ -1219,7 +1227,11 @@
         meetingTitle: getMeetingTitle() || '',
         level,
       });
-    } catch {}
+    } catch (e) {
+      // Context was valid above but the send still failed — never swallow a
+      // logger failure silently (A3). Use console directly (sendLog can't recurse).
+      console.warn('[MM2C] sendLog failed:', e?.message || e);
+    }
   }
 
   async function onLeaveClick(e) {
@@ -1311,7 +1323,7 @@
             if (flowErr instanceof InjectionTimeoutError) {
               // Tab never came to the foreground during the inject window.
               sendLog(`Prompt injection timed out: ${flowErr.message}`);
-              try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: flowErr.message, meetingTitle }); } catch {}
+              safeSend({ type: 'MM2C_WARNING', message: flowErr.message, meetingTitle });
               if (cachedTranscript) {
                 sendLog(`Falling back to cached snapshot (${cachedTranscript.length} chars${ageSuffix})`);
                 if (ageMin !== null && ageMin > 15) {
@@ -1377,10 +1389,10 @@
       if (err instanceof GeminiNotActiveError) {
         console.info('[MM2C] Gemini not active, skipping summary.');
         showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
-        try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle }); } catch {}
+        safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
       } else {
         console.error('[MM2C]', err);
-        try { chrome.runtime.sendMessage({ type: 'MM2C_ERROR', error: err.message, meetingTitle }); } catch {}
+        safeSend({ type: 'MM2C_ERROR', error: err.message, meetingTitle });
         showStatus(`Error: ${err.message}`, 'err');
       }
     } finally {
@@ -1474,7 +1486,7 @@
           if (meetingBlocked) sendLog('Meeting excluded by blocklist — capture disabled for this meeting', 'user');
         }).catch(() => {});
       }
-      try { chrome.runtime.sendMessage({ type: 'MM2C_STAT_JOINED' }); } catch {} // UX-8 stats
+      safeSend({ type: 'MM2C_STAT_JOINED' }); // UX-8 stats
       // Fetch prior-session context for recurring meetings (P9-C) — fire-and-forget.
       if (currentMeetingTitle) {
         try {
@@ -1486,7 +1498,9 @@
               if (priorContext) sendLog('Loaded context from a previous session of this meeting', 'debug');
             },
           );
-        } catch {}
+        } catch (e) {
+          if (isContextValid()) console.warn('[MM2C] prior-context request failed:', e?.message || e);
+        }
       }
       const geminiNote = geminiWasActive ? ', Gemini active' : ', Gemini not yet detected';
       sendLog(`Meeting joined — ready to capture notes${geminiNote}`);
