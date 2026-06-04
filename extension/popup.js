@@ -618,10 +618,12 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAndApplyState(tabId, { inMeeting: false, geminiActive });
         return;
       }
-      // Show snapshot widget if snapshot exists
-      chrome.storage.local.get([tabKey('mm2c_last_snapshot', tabId)], (data) => {
-        const snap = data[tabKey('mm2c_last_snapshot', tabId)] || null;
-        renderSnapshotWidget(snap);
+      // Single storage read for the whole in-meeting panel (C2). Previously this
+      // did get(snapKey) here AND a second get of an overlapping key set inside
+      // loadAndApplyState. Now one get renders the snapshot widget and applies
+      // state. Banner + capture button stay owned solely by applyState (BUG-C).
+      chrome.storage.local.get([...GLOBAL_KEYS, ...tabScopedKeys(tabId)], (s) => {
+        renderSnapshotWidget(s[tabKey('mm2c_last_snapshot', tabId)] || null);
         const nextEl = $('snapshot-next');
         if (nextEl) {
           const countdown = formatCountdown(response.nextSnapshotAt || 0);
@@ -636,10 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
             nextEl.classList.add('hidden');
           }
         }
+        applyState(s, tabId, { inMeeting: true, geminiActive });
       });
-      // Banner + capture button are owned solely by applyState (via resolveBanner),
-      // fed the fresh live state — no second writer here (BUG-C).
-      loadAndApplyState(tabId, { inMeeting: true, geminiActive });
     });
   }
   queryMeetingState();
