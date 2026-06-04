@@ -292,6 +292,19 @@ class TestHandleRetry(unittest.TestCase):
             sent = self._run({"title": "X", "backupPath": str(bp)}, returncode=1)
             self.assertEqual(sent[-1]["status"], "error")
 
+    def test_subprocess_exception_sends_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-x.md"
+            bp.write_text("n", encoding="utf-8")
+            sent = []
+            with patch.object(host, 'CACHE_DIR', Path(tmp)), \
+                    patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                    patch.object(host, 'notify'), \
+                    patch.object(host.subprocess, 'run', side_effect=RuntimeError('boom')):
+                host.handle_retry({"title": "X", "backupPath": str(bp)})
+            self.assertEqual(sent[-1]["status"], "error")
+            self.assertIn("boom", sent[-1]["error"])
+
 
 class TestSendToExtras(unittest.TestCase):
     """send_to_extras — best-effort secondary outputs (P9-X)."""
@@ -327,6 +340,13 @@ class TestSendToExtras(unittest.TestCase):
         with patch.object(host, 'push_to_apple_notes', side_effect=RuntimeError('boom')), \
                 patch.object(host, 'notify'):
             host.send_to_extras(['apple_notes'], 'x', 'T', self._dt(), 'T')  # must not raise
+
+    def test_obsidian_extra_without_vault_writes_nothing(self):
+        # obsidian extra with no vault path is a no-op (not an error)
+        host.send_to_extras(['obsidian'], 'x', 'T', self._dt(), 'T', obsidian_vault_path='')
+
+    def test_unknown_extra_ignored(self):
+        host.send_to_extras(['bogus'], 'x', 'T', self._dt(), 'T')  # must not raise
 
 
 class TestResolveExtras(unittest.TestCase):
