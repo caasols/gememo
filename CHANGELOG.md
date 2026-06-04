@@ -11,6 +11,19 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.105] – 2026-06-04 · Test-coverage audit (internal)
+
+### Added
+- **Native-host coverage 81% → 93%.** New `test_main_flow.py` drives `main()` end-to-end with `read_message`/`send_message`/`subprocess` mocked — covering the Craft success path, file-backup write, push-failure + snapshot-retry, the `none`/route-output path, and the `ping`/`choose_folder`/`snapshot`/`search`/`prior_context`/`retry` dispatch. New `handle_retry` tests (success, empty-title fallback, missing file, push failure) in `test_host.py`. New `push_to_craft` tests for `cleanup_cache`, `stage_for_craft`, `_prune_craft_uploads`, and `main()` (frontmatter strip + `%` double-encode). +22 Python tests (120 → 142).
+
+### Removed
+- Dead `date_str` computation in `parse_transcript` (computed but never used).
+
+### Notes
+- `meeting_minutes_host.py` 87%, `push_to_craft.py` 88%; the remaining uncovered lines are `osascript` side-effects (Apple Notes, notifications, the folder dialog) covered only by the opt-in `GEMEMO_NOTES_INTEGRATION` tests. Measure with `python3 -m coverage run --source=native_host,scripts -m pytest native_host/ && python3 -m coverage report -m` (coverage.py is a dev-only tool, not a project dependency).
+
+---
+
 ## [0.1.104] – 2026-06-04 · Usage stats in the About tab (UX-8)
 
 ### Added
