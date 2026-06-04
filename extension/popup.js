@@ -24,6 +24,7 @@ const GLOBAL_KEYS = [
   'mm2c_slack_webhook_url',
   'mm2c_stats',
   'mm2c_also_send',
+  'mm2c_redact_pii', 'mm2c_redact_keywords',
 ];
 
 function tabScopedKeys(tabId) {
@@ -299,6 +300,8 @@ function applyState(s, tabId, live = null) {
   $('craft-space-id').value = s.mm2c_craft_space_id || '';
   $('webhook-url').value = s.mm2c_webhook_url || '';
   $('slack-webhook-url').value = s.mm2c_slack_webhook_url || '';
+  $('redact-pii').checked = s.mm2c_redact_pii === true;
+  $('redact-keywords').value = s.mm2c_redact_keywords || '';
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
   document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
 
@@ -747,6 +750,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('slack-webhook-url').addEventListener('change', e => {
     save({ mm2c_slack_webhook_url: e.target.value.trim() });
+  });
+
+  $('redact-pii').addEventListener('change', e => {
+    save({ mm2c_redact_pii: e.target.checked });
+  });
+  $('redact-keywords').addEventListener('change', e => {
+    save({ mm2c_redact_keywords: e.target.value.trim() });
   });
 
   document.querySelectorAll('.also-send-opt').forEach(cb => {

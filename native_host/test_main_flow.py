@@ -100,6 +100,19 @@ class TestMainCaptureFlow(unittest.TestCase):
                              _proc(0))
             self.assertEqual(sent[-1]["status"], "ok")
 
+    def test_pii_redaction_applied_to_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            msg = self._capture_msg(
+                tmp,
+                transcript="## Summary\nEmail alice@example.com about Falcon.",
+                redactPii=True, redactKeywords="Falcon",
+            )
+            self._run(msg, _proc(0))
+            content = next(Path(tmp).glob("*.md")).read_text(encoding="utf-8")
+            self.assertNotIn("alice@example.com", content)
+            self.assertNotIn("Falcon", content)
+            self.assertIn("[redacted-email]", content)
+
     def test_ping(self):
         sent = self._run({"type": "ping"}, _proc(0))
         self.assertEqual(sent[-1]["status"], "ok")

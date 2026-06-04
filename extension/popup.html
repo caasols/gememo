@@ -1057,6 +1057,23 @@
       <p class="hint">Slack: posts the title, summary, and action-item count to an incoming webhook.</p>
     </div>
 
+    <!-- Privacy: PII redaction (RB-5b) -->
+    <div class="widget">
+      <div class="widget-title">Privacy</div>
+      <div class="row">
+        <span class="label">Redact PII</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="redact-pii">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div class="row">
+        <span class="label">Also redact</span>
+        <input type="text" id="redact-keywords" placeholder="comma,separated,keywords">
+      </div>
+      <p class="hint">Strips emails, phone numbers, and card-like numbers (plus your keywords) from notes and webhook payloads before anything is written.</p>
+    </div>
+
   </div><!-- /settings-panel -->
 
   <!-- ── Logs panel ─────────────────────────────────────────────── -->
