@@ -1414,7 +1414,8 @@
         '.mm2c-toast{',
           'position:fixed;left:50%;transform:translateX(-50%);',
           'z-index:99999;padding:10px 22px;border-radius:20px;',
-          "font-family:'Google Sans',Roboto,sans-serif;font-size:13px;",
+          // Shared font stack (UXC-12) — same system-UI family as the popup.
+          `font-family:${TOKENS.font.ui};font-size:13px;`,
           'font-weight:500;color:#fff;pointer-events:none;',
           'box-shadow:0 2px 10px rgba(0,0,0,.3)',
         '}',
