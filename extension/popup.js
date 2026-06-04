@@ -971,7 +971,8 @@ document.addEventListener('DOMContentLoaded', () => {
       navigator.clipboard.writeText(md).then(() => {
         const btn = $('copy-action-items');
         btn.textContent = 'Copied';
-        setTimeout(() => { btn.textContent = 'Copy as tasks'; }, 2000);
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy as tasks'; btn.classList.remove('copied'); }, 2000);
       });
     });
   });

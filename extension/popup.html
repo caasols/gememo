@@ -813,6 +813,26 @@
       user-select: none;
     }
 
+    /* Keyboard focus rings (UXC-9, extends RB-7c) — one consistent ring via
+       --focus on every interactive control that lacked one. */
+    .tab:focus-visible,
+    .btn-collapse:focus-visible,
+    .btn-rule-action:focus-visible,
+    .btn-capture-now:focus-visible,
+    #add-rule-btn:focus-visible,
+    .note-search:focus-visible,
+    .reset-link:focus-visible,
+    .logs-debug-toggle:focus-visible,
+    .snapshot-header:focus-visible,
+    .log-group-header:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 1px;
+    }
+    .toggle-wrap input:focus-visible + .toggle-track {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
     .hidden { display: none !important; }
 
     /* Ko-fi inline tip panel (MON-1) */
