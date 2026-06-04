@@ -12,7 +12,7 @@
 
 A Chrome extension that captures Google Meet notes automatically when you leave a call — using Google's own Gemini AI that's already running inside your meeting. No bot, no API key, no subscription.
 
-Unlike Fireflies, Otter.ai, or Granola, Gememo doesn't send a bot into your call. It reads the Gemini transcript that's already in your browser, formats it, and saves it to your note app the moment you click Leave — silently, in the background, without stealing focus.
+Unlike Fireflies, Otter.ai, or Granola, Gememo doesn't send a bot into your call. It reads the Gemini transcript that's already in your browser, formats it, and saves it to your output app the moment you click Leave — silently, in the background, without stealing focus.
 
 <!-- ![Gememo Screenshot](./metadata/gememo-1.png) -->
 
@@ -60,12 +60,12 @@ bash native_host/install.sh
 
 ### Capture
 
-- **Automatic** — when you click Leave, the extension captures the full Gemini summary of your meeting and saves it to your note app, silently in the background
+- **Automatic** — when you click Leave, the extension captures the full Gemini summary of your meeting and saves it to your output app, silently in the background
 - **Periodic snapshots** — captures the running Gemini summary every 8 minutes (configurable 3–30 min) so no content is lost if something goes wrong at leave time
 - **Proactive capture** — if Gemini deactivates mid-meeting (e.g. someone leaves a 1:1), the extension captures immediately rather than waiting for Leave
 - **"Capture now" button** — visible in the popup during meetings; triggers a snapshot immediately
 - **Keyboard shortcut** — Cmd/Ctrl+Shift+Y triggers a capture without opening the popup (rebindable at `chrome://extensions/shortcuts`)
-- **Retry on failure** — if the note app push fails, a Retry widget appears in the popup; the extension picks the freshest available content (2h cache → snapshot backup)
+- **Retry on failure** — if the output app push fails, a Retry widget appears in the popup; the extension picks the freshest available content (2h cache → snapshot backup)
 
 ### Prompt & output
 
