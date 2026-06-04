@@ -259,6 +259,20 @@ class TestRouteOutput(unittest.TestCase):
             self.assertIn('## Summary', content)
             self.assertEqual(sent[0]['status'], 'ok')
 
+    def test_obsidian_write_failure_sends_error(self):
+        """An unwritable vault path is caught and reported, not raised."""
+        import tempfile
+        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+        with tempfile.NamedTemporaryFile() as f:
+            # A path *under* a regular file can't be created → mkdir raises → caught.
+            result = route_output(
+                'obsidian', '## Summary\nx', '20260101 09:00 Meeting', None,
+                obsidian_vault_path=f.name + '/cannot',
+                notify_fn=note_fn, send_fn=send_fn,
+            )
+        self.assertTrue(result)
+        self.assertEqual(sent[0]['status'], 'error')
+
     def test_obsidian_no_vault_path_sends_error(self):
         """obsidian branch with empty vault path sends error and returns True."""
         _, _, sent, push_fn, note_fn, send_fn = self._deps()
