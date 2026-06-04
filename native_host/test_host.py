@@ -18,6 +18,10 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import types
+from unittest.mock import patch
+
+import meeting_minutes_host as host
 from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback, search_notes
 
 
@@ -239,6 +243,54 @@ class TestSearchNotes(unittest.TestCase):
             for i in range(5):
                 self._make(d, f"2026060{i}-m{i}.md", "common keyword here")
             self.assertEqual(len(search_notes("keyword", tmp, limit=3)), 3)
+
+
+class TestHandleRetry(unittest.TestCase):
+    """handle_retry — re-push a failed note (subprocess mocked)."""
+
+    def _run(self, msg, returncode=0, stderr=''):
+        sent = []
+        with tempfile.TemporaryDirectory() as cache_tmp, \
+                patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                patch.object(host, 'notify'), \
+                patch.object(host.subprocess, 'run',
+                             return_value=types.SimpleNamespace(returncode=returncode, stdout='', stderr=stderr)):
+            host.handle_retry(msg)
+        return sent
+
+    def test_no_title_or_backup_errors(self):
+        sent = self._run({"title": "", "backupPath": ""})
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("No title or backup path", sent[-1]["error"])
+
+    def test_success_with_backup_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-daily-standup.md"
+            bp.write_text("notes", encoding="utf-8")
+            sent = self._run({"title": "Daily Standup", "backupPath": str(bp)}, returncode=0)
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(sent[-1]["title"], "Daily Standup")
+
+    def test_empty_title_uses_filename_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-weekly-review.md"
+            bp.write_text("notes", encoding="utf-8")
+            sent = self._run({"title": "", "backupPath": str(bp)}, returncode=0)
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(sent[-1]["title"], "weekly review")
+
+    def test_missing_file_errors(self):
+        sent = self._run({"title": "X", "backupPath": "/nonexistent/x.md"}, returncode=0)
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("No recoverable file", sent[-1]["error"])
+
+    def test_push_failure_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-x.md"
+            bp.write_text("n", encoding="utf-8")
+            sent = self._run({"title": "X", "backupPath": str(bp)}, returncode=1)
+            self.assertEqual(sent[-1]["status"], "error")
 
 
 if __name__ == '__main__':

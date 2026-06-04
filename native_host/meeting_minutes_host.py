@@ -60,15 +60,6 @@ def parse_transcript(text: str) -> tuple[str, str]:
         else:
             body_lines.append(line)
 
-    date_str = ""
-    if len(title) >= 8:
-        try:
-            date_str = datetime.strptime(title[:8], "%Y%m%d").strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-    if not date_str:
-        date_str = datetime.now().strftime("%Y-%m-%d")
-
     body = "\n".join(body_lines).strip()
 
     # Gemini sometimes copies the ---Heading pattern from the EXAMPLE_NOTES

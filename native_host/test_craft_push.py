@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -14,6 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+import push_to_craft as pc
 from push_to_craft import (
     wait_for_craft_callback,
     build_import_url,
@@ -244,6 +247,72 @@ class TestWaitForCraftCallback(unittest.TestCase):
             success, msg = wait_for_craft_callback(self._BASE_URL, timeout=0.15)
         self.assertFalse(success)
         self.assertIn("Timeout", msg)
+
+
+class TestCleanupCache(unittest.TestCase):
+
+    def test_removes_old_md_keeps_recent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            old = d / "old.md"; old.write_text("x", encoding="utf-8")
+            new = d / "new.md"; new.write_text("y", encoding="utf-8")
+            os.utime(old, (time.time() - 10_000, time.time() - 10_000))
+            pc.cleanup_cache(d, max_age_seconds=7200)
+            self.assertFalse(old.exists())
+            self.assertTrue(new.exists())
+
+    def test_noop_on_missing_dir(self):
+        pc.cleanup_cache(Path("/no/such/dir"))  # must not raise
+
+
+class TestStageForCraft(unittest.TestCase):
+
+    def test_copies_to_uploads_with_clean_name(self):
+        with tempfile.TemporaryDirectory() as up, tempfile.TemporaryDirectory() as src:
+            srcf = Path(src) / "note.md"
+            srcf.write_text("body content", encoding="utf-8")
+            with patch.object(pc, "CRAFT_UPLOADS_DIR", Path(up)):
+                dest = pc.stage_for_craft(srcf, "My Meeting / Q3")
+            self.assertTrue(dest.exists())
+            self.assertEqual(dest.read_text(encoding="utf-8"), "body content")
+            self.assertTrue(dest.suffix == ".md")
+
+
+class TestPruneCraftUploads(unittest.TestCase):
+
+    def test_prunes_old_files(self):
+        with tempfile.TemporaryDirectory() as up:
+            d = Path(up)
+            old = d / "old.md"; old.write_text("x", encoding="utf-8")
+            os.utime(old, (time.time() - 3 * 86400, time.time() - 3 * 86400))
+            with patch.object(pc, "CRAFT_UPLOADS_DIR", d):
+                pc._prune_craft_uploads(max_age_days=1)
+            self.assertFalse(old.exists())
+
+
+class TestMainPush(unittest.TestCase):
+
+    def test_main_strips_frontmatter_double_encodes_and_opens(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cf = Path(tmp) / "note.md"
+            cf.write_text('---\ndate: 2026-06-01\ntitle: "T"\n---\n## Summary\n50% done.',
+                          encoding="utf-8")
+            opened = {}
+            with patch.object(pc.sys, "argv",
+                              ["push_to_craft.py", "--title", "20260601 Test",
+                               "--content-file", str(cf), "--background"]), \
+                    patch.object(pc, "open_url", side_effect=lambda url, background=False: opened.setdefault("url", url) or 0):
+                rc = pc.main()
+            self.assertEqual(rc, 0)
+            self.assertTrue(opened["url"].startswith("craftdocs://createdocument?"))
+            self.assertIn("%2525", opened["url"])          # % double-encoded
+            self.assertNotIn("date%3A", opened["url"])      # frontmatter stripped (no 'date:')
+
+    def test_main_missing_file_returns_2(self):
+        with patch.object(pc.sys, "argv",
+                          ["push_to_craft.py", "--title", "T",
+                           "--content-file", "/no/such/file.md"]):
+            self.assertEqual(pc.main(), 2)
 
 
 if __name__ == "__main__":
