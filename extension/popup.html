@@ -805,6 +805,16 @@
 
     .hidden { display: none !important; }
 
+    /* Ko-fi inline tip panel (MON-1) */
+    .kofi-frame {
+      width: 100%;
+      height: 360px;
+      border: none;
+      border-radius: 6px;
+      margin-top: 8px;
+      background: var(--surface-subtle);
+    }
+
     /* Retry cards — one per failed meeting capture */
     .retry-card {
       padding: var(--widget-py) var(--widget-px);
@@ -1203,11 +1213,19 @@
       </div>
     </div>
 
-    <!-- Support development -->
+    <!-- Support development (MON-1) — inline Ko-fi panel, lazy-loaded only when
+         the About tab is first opened (never during capture). The floating Ko-fi
+         JS widget is blocked by MV3 CSP (script-src 'self'); the iframe embed is
+         allowed. Verify-needed (🟡): if Ko-fi refuses framing from the
+         chrome-extension:// origin the iframe stays blank and the link below
+         remains the working fallback. -->
     <div class="widget">
       <div class="widget-title">Support development</div>
-      <!-- TODO: confirm the Ko-fi handle below matches your account -->
-      <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener" class="btn kofi-btn" style="margin-top:4px">☕ Support on Ko-fi</a>
+      <p class="hint" style="margin:0">If Gememo saves you time, a small tip keeps it maintained.</p>
+      <iframe id="kofi-frame" title="Support Gememo on Ko-fi"
+              data-src="https://ko-fi.com/caasols/?hidefeed=true&widget=true&embed=true&preview=true"
+              class="kofi-frame hidden" loading="lazy"></iframe>
+      <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener" class="btn kofi-btn" style="margin-top:8px">Support on Ko-fi ☕</a>
     </div>
 
   </div><!-- /about-panel -->
