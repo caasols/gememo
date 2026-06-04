@@ -347,6 +347,24 @@ function assemblePrompt({ title = '', priorContext = '', glossary = '', language
     + effectiveBase;
 }
 
+// Pure helper — map a raw error string to friendly "what happened + what to do"
+// copy for the in-page toast and popup banner (UXC-3). The raw text is kept only
+// in the debug log; the user never sees a bare JS / native-messaging string.
+function friendlyError(raw) {
+  const s = String(raw == null ? '' : raw);
+  if (/native (messaging )?host not found|not found.*host|host.*not found|forbidden|not allowed|access to the specified native messaging host is forbidden/i.test(s))
+    return 'Native host not found — open the Set up panel to install it.';
+  if (/Craft is not running/i.test(s))
+    return "Craft isn't running — open Craft and click Retry.";
+  if (/context invalidated|Extension context/i.test(s))
+    return 'The extension reloaded mid-capture — reload the Meet tab and try again.';
+  if (/timed out|timeout/i.test(s))
+    return 'Saving timed out — your notes are backed up; click Retry.';
+  if (/transcript is empty|appears empty|Response extracted|Submit button not found/i.test(s))
+    return 'No notes were captured — Gemini may not have produced a summary.';
+  return 'Something went wrong saving your notes. Check the Logs tab for details.';
+}
+
 // Pure helper — body copy for the leave-confirmation overlay (UXC-1). Names the
 // user's actual output app instead of a hardcoded "Craft", which was factually
 // wrong for Apple Notes / Obsidian users.

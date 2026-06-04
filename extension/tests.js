@@ -1974,6 +1974,26 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testFriendlyError() {
+    console.group('friendlyError (UXC-3)');
+    assert('native-host-not-found → setup guidance',
+      /Set up panel/i.test(friendlyError('Specified native messaging host not found.')));
+    assert('Craft not running → open Craft',
+      /Craft/i.test(friendlyError('Craft is not running — open Craft and try again')));
+    assert('context invalidated → reload guidance',
+      /reload the Meet tab/i.test(friendlyError('Extension context invalidated.')));
+    assert('timeout → backed up + retry',
+      /Retry/i.test(friendlyError('Craft send timed out')));
+    assert('empty response → no notes captured',
+      /No notes were captured/i.test(friendlyError('Response extracted but appears empty')));
+    assert('unknown → generic friendly fallback',
+      /Something went wrong/i.test(friendlyError('TypeError: x is not a function')));
+    assert('never echoes the raw stack/text verbatim',
+      friendlyError('TypeError: x is not a function').indexOf('TypeError') === -1);
+    assert('null/undefined safe', typeof friendlyError(null) === 'string' && friendlyError(undefined).length > 0);
+    console.groupEnd();
+  }
+
   function testCloseOverlayBody() {
     console.group('closeOverlayBody (UXC-1)');
     assertEq('names Craft', closeOverlayBody('Craft'),
@@ -2388,6 +2408,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testFriendlyError();
     testCloseOverlayBody();
     testGeminiInactiveMessage();
     testBuildPromptWithExample();

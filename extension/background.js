@@ -256,7 +256,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       chrome.action.setBadgeText({ text: '!' });
       chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
       { const eTabId = _sender.tab?.id;
-        const eStatus = `Error: ${msg.error}`;
+        // Banner shows friendly copy (UXC-3); the 'Error:' prefix keeps
+        // resolveBanner classifying it as an error. Raw text → the log below.
+        const eStatus = `Error: ${friendlyError(msg.error)}`;
         if (eTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', eTabId)]: eStatus });
         else         chrome.storage.local.set({ mm2c_last_status: eStatus }); }
       appendLog('err', msg.meetingTitle || '', msg.error || '');
@@ -437,10 +439,10 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         console.error('[MM2C] Native messaging error:', err);
         chrome.action.setBadgeText({ text: '!' });
         chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
-        const errStatus = `Native host error: ${err}`;
+        const errStatus = `Error: ${friendlyError(err)}`;  // friendly banner (UXC-3)
         if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: errStatus });
         else        chrome.storage.local.set({ mm2c_last_status: errStatus });
-        appendLog('err', meetingTitle, errStatus);
+        appendLog('err', meetingTitle, `Native host error: ${err}`);  // raw in the log
         if (callback) callback({ ok: false, error: err });
         return;
       }
@@ -471,12 +473,13 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
       } else {
         const detail = response?.error || 'unknown';
         const backup = response?.backupPath ? ` — backup at ${response.backupPath}` : '';
-        const label  = `Host error: ${detail}${backup}`;
+        const rawLabel = `Host error: ${detail}${backup}`;     // log keeps "backup at" for the retry chip
+        const banner   = `Error: ${friendlyError(detail)}`;    // friendly banner (UXC-3)
         chrome.action.setBadgeText({ text: '!' });
         chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
-        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
-        else        chrome.storage.local.set({ mm2c_last_status: label });
-        appendLog('err', meetingTitle, label);
+        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: banner });
+        else        chrome.storage.local.set({ mm2c_last_status: banner });
+        appendLog('err', meetingTitle, rawLabel);
         // Store for retry widget — only when a backup path exists to retry from
         if (response?.backupPath) {
           chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
