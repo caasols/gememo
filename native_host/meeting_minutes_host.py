@@ -1002,8 +1002,12 @@ def main() -> None:
             response_d: dict = {"status": "error", "error": error}
             if backup_hint:
                 response_d["backupPath"] = backup_hint
+            # Desktop notification on failure (RB-7e) — the in-page toast is gone
+            # by now (the Meet tab closed), so this is the user's only signal.
+            notify("Meeting Notes — capture failed", error)
             send_message(response_d)
     except Exception as exc:
+        notify("Meeting Notes — capture failed", str(exc))
         send_message({"status": "error", "error": str(exc)})
     # No finally: note_path lives in CACHE_DIR — cleaned up by push_to_craft.py
     # on the next run (files older than 2 h are deleted automatically).
