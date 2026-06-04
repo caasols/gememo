@@ -31,6 +31,7 @@
       --widget-py:      10px;
       --widget-px:      12px;
       --gap:            8px;
+      --space-3:        6px;
     }
 
     /* Dark mode — follows the OS theme (RB-7f). Only the colour tokens flip; the
@@ -267,7 +268,7 @@
     .host-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-3);
     }
     .host-dot {
       width: 7px; height: 7px;
@@ -294,7 +295,7 @@
       color: var(--text-muted);
       line-height: 1.4;
     }
-    .id-row { display: flex; align-items: center; gap: 6px; }
+    .id-row { display: flex; align-items: center; gap: var(--space-3); }
     .id-box {
       flex: 1;
       font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
@@ -432,7 +433,7 @@
       color: var(--text);
     }
     #search-results:not(:empty) { margin-bottom: 8px; }
-    .search-filters { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .search-filters { display: flex; gap: var(--space-3); margin-bottom: 8px; flex-wrap: wrap; }
     .search-filters input { font-size: 11px; padding: 3px 5px; }
     .search-filters input[type="text"] { flex: 1; min-width: 80px; }
     .search-result {
@@ -479,7 +480,7 @@
     .log-entry {
       display: flex;
       gap: var(--gap);
-      padding: 9px 0;
+      padding: 8px 0;
       border-bottom: 1px solid var(--border);
     }
     .log-entry:last-child { border-bottom: none; }
@@ -509,17 +510,8 @@
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      gap: 6px;
+      gap: var(--space-3);
       margin-bottom: 2px;
-    }
-    .log-title {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-strong);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      min-width: 0;
     }
     .log-time {
       font-size: 10px;
@@ -545,7 +537,7 @@
     .log-group-header {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-3);
       padding: 8px var(--widget-px);
       cursor: pointer;
       user-select: none;
@@ -648,7 +640,7 @@
       padding-top: 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-3);
     }
     .rule-item:first-child { border-top: none; padding-top: 0; }
     .rule-header {
@@ -758,7 +750,7 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-3);
       margin-top: 5px;
       font-size: 11px;
       color: var(--text-muted);
@@ -789,7 +781,7 @@
       cursor: pointer;
       font-size: 12px;
       display: flex;
-      gap: 6px;
+      gap: var(--space-3);
       align-items: baseline;
     }
     .builtin-rule summary .bi-name { font-weight: 600; }
@@ -878,7 +870,7 @@
     }
     .retry-card-actions {
       display: flex;
-      gap: 6px;
+      gap: var(--space-3);
       margin-top: 4px;
     }
     .retry-card-actions .btn { flex: 1; justify-content: center; }
@@ -912,7 +904,7 @@
 
     <!-- Meeting picker — shown when 2+ Meet tabs open and none is focused -->
     <div id="meeting-picker" class="hidden">
-      <div class="row" style="gap:6px">
+      <div class="row" style="gap:var(--space-3)">
         <span class="label" style="font-size:12px;color:var(--text-muted)">Viewing:</span>
         <select id="meeting-tab-select" style="flex:1;max-width:200px"></select>
       </div>
@@ -1015,7 +1007,7 @@
       <div class="widget-title">Snapshot frequency</div>
       <div class="row">
         <span class="label">Every</span>
-        <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:flex;align-items:center;gap:var(--space-3)">
           <input type="number" id="snapshot-interval" min="3" max="30" value="8">
           <span class="unit-label">min (3–30)</span>
         </div>
@@ -1237,7 +1229,7 @@
     <!-- Extension ID -->
     <div class="widget">
       <div class="widget-title">Extension ID</div>
-      <div class="row" style="gap:6px;margin-top:4px">
+      <div class="row" style="gap:var(--space-3);margin-top:4px">
         <span id="about-ext-id" style="font-family:Monaco,Menlo,'Ubuntu Mono',monospace;font-size:11px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="btn" id="copy-ext-id">Copy</button>
       </div>
