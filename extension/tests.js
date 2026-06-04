@@ -1974,6 +1974,16 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testNormalizeTheme() {
+    console.group('normalizeTheme (UXF-8)');
+    assertEq('light passes through', normalizeTheme('light'), 'light');
+    assertEq('dark passes through', normalizeTheme('dark'), 'dark');
+    assertEq('system passes through', normalizeTheme('system'), 'system');
+    assertEq('undefined → system', normalizeTheme(undefined), 'system');
+    assertEq('garbage → system', normalizeTheme('purple'), 'system');
+    console.groupEnd();
+  }
+
   function testLogGroupKey() {
     console.group('logGroupKey (UXF-6)');
     const ts = new Date('2026-06-05T10:00:00').getTime();
@@ -2435,6 +2445,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testNormalizeTheme();
     testLogGroupKey();
     testBuildMailtoUrl();
     testFriendlyError();

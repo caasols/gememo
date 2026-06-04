@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="system">
 <head>
   <meta charset="utf-8">
   <style>
@@ -34,10 +34,44 @@
       --space-3:        6px;
     }
 
-    /* Dark mode — follows the OS theme (RB-7f). Only the colour tokens flip; the
-       spacing tokens above are inherited unchanged. */
+    /* Dark tokens (RB-7f + UXF-8). Light tokens in :root are the default.
+       Applied when the user forces Dark (data-theme="dark") OR chooses System
+       (data-theme="system") and the OS is dark. Only colour tokens flip; the
+       spacing tokens are inherited unchanged. The two blocks share one custom
+       property called --mm-dark so the values are written once. */
+    html[data-theme="dark"],
+    html[data-theme="system"] { color-scheme: light dark; }
+
+    html[data-theme="dark"] {
+      --surface:        #202124;
+      --surface-subtle: #292a2d;
+      --border:         #3c4043;
+      --border-strong:  #5f6368;
+      --text:           #e8eaed;
+      --text-muted:     #9aa0a6;
+      --text-strong:    #f1f3f4;
+      --primary:        #8ab4f8;
+      --primary-dark:   #aecbfa;
+      --success:        #81c995;
+      --success-text:   #81c995;
+      --success-bg:     #1e3328;
+      --success-border: #2d5a3d;
+      --warn:           #fa903e;
+      --warn-text:      #fdd663;
+      --warn-bg:        #332b16;
+      --warn-border:    #5c4a1f;
+      --info:           #8ab4f8;
+      --danger:         #f28b82;
+      --danger-text:    #f28b82;
+      --danger-bg:      #33211f;
+      --danger-border:  #5c2f2a;
+      --focus:          #5f6368;
+      --hover-primary:  #2d3a4d;
+      color-scheme: dark;
+    }
+
     @media (prefers-color-scheme: dark) {
-      :root {
+      html[data-theme="system"] {
         --surface:        #202124;
         --surface-subtle: #292a2d;
         --border:         #3c4043;
@@ -62,8 +96,8 @@
         --danger-border:  #5c2f2a;
         --focus:          #5f6368;
         --hover-primary:  #2d3a4d;
+        color-scheme: dark;
       }
-      input, textarea, select { color-scheme: dark; }
     }
 
     *, *::before, *::after { box-sizing: border-box; }
@@ -843,6 +877,28 @@
       margin-left: 6px;
     }
 
+    /* Segmented control — tri-state appearance switcher (UXF-8) */
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .segmented button {
+      border: none;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: inherit;
+      height: 24px;
+      padding: 0 10px;
+      cursor: pointer;
+    }
+    .segmented button:last-child { border-right: none; }
+    .segmented button.active { background: var(--primary); color: var(--surface); }
+    .segmented button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
     .hidden { display: none !important; }
 
     /* Ko-fi inline tip panel (MON-1) */
@@ -1027,6 +1083,19 @@
 
   <!-- ── Settings panel ─────────────────────────────────────────── -->
   <div class="panel hidden" id="settings-panel" role="tabpanel" aria-labelledby="tab-settings">
+
+    <!-- Appearance (UXF-8) -->
+    <div class="widget">
+      <div class="widget-title">Appearance</div>
+      <div class="row">
+        <span class="label">Theme</span>
+        <div class="segmented" id="theme-control" role="group" aria-label="Theme">
+          <button type="button" data-theme-value="system">System</button>
+          <button type="button" data-theme-value="light">Light</button>
+          <button type="button" data-theme-value="dark">Dark</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Snapshot frequency -->
     <div class="widget">
