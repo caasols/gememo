@@ -500,6 +500,15 @@ function switchTab(tabName) {
     $(`tab-${t}`).setAttribute('aria-selected', isActive ? 'true' : 'false');
     $(`${t}-panel`).classList.toggle('hidden', !isActive);
   });
+  // Lazy-load the Ko-fi tip iframe only on first About open (MON-1) — never
+  // during capture, and never if the user never visits About.
+  if (tabName === 'about') {
+    const frame = $('kofi-frame');
+    if (frame && !frame.src && frame.dataset.src) {
+      frame.src = frame.dataset.src;
+      frame.classList.remove('hidden');
+    }
+  }
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
