@@ -235,10 +235,10 @@ function ruleTimeMatches(condition, date) {
   return true;
 }
 
-// Pure helper — return the prompt of the first rule that matches, or null.
-// A rule matches when its regex matches the title OR its time condition matches
-// `now` (P5-L2). Shared by content_meet.js and tests.js; invalid regexes skipped.
-function matchPromptRule(rules, meetingTitle, now = new Date()) {
+// Pure helper — return the first rule that matches, or null. A rule matches when
+// its regex matches the title OR its time condition matches `now` (P5-L2).
+// Shared by content_meet.js and tests.js; invalid regexes are skipped.
+function findPromptRule(rules, meetingTitle, now = new Date()) {
   if (!Array.isArray(rules)) return null;
   const title = meetingTitle || '';
   for (const r of rules) {
@@ -248,9 +248,25 @@ function matchPromptRule(rules, meetingTitle, now = new Date()) {
       try { matched = new RegExp(r.regex, 'i').test(title); } catch { /* skip bad regex */ }
     }
     if (!matched && r.condition) matched = ruleTimeMatches(r.condition, now);
-    if (matched) return r.prompt?.trim() || null;
+    if (matched) return r;
   }
   return null;
+}
+
+// Pure helper — the matched rule's prompt, or null (thin wrapper over findPromptRule).
+function matchPromptRule(rules, meetingTitle, now = new Date()) {
+  return findPromptRule(rules, meetingTitle, now)?.prompt?.trim() || null;
+}
+
+// Pure helper — per-rule summary depth → an instruction prefix (P5-L).
+function depthInstruction(depth) {
+  if (depth === 'brief') {
+    return 'Keep these notes brief: a short Summary and only the most important points. Omit minor detail and any section with little to say.';
+  }
+  if (depth === 'detailed') {
+    return 'Be especially thorough and detailed: capture full context, rationale, owners, and nuance for every point.';
+  }
+  return '';
 }
 
 // Pure response-extraction logic shared between content_meet.js and tests.js.

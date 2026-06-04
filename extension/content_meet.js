@@ -658,10 +658,12 @@
 
     // Rule matching: user rules win first, then built-in templates, then default.
     const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
-    const matchedPrompt =
-      matchPromptRule(rules, currentMeetingTitle) ||
-      matchPromptRule(BUILT_IN_RULES, currentMeetingTitle);
-    const effectiveBase = matchedPrompt || promptBase;
+    const matchedRule =
+      findPromptRule(rules, currentMeetingTitle) ||
+      findPromptRule(BUILT_IN_RULES, currentMeetingTitle);
+    const baseFromRule = matchedRule?.prompt?.trim() || promptBase;
+    const depthPrefix  = depthInstruction(matchedRule?.depth);
+    const effectiveBase = depthPrefix ? `${depthPrefix}\n\n${baseFromRule}` : baseFromRule;
     const titlePrefix = currentMeetingTitle
       ? `Meeting title: ${currentMeetingTitle}. Use this context to interpret references to projects, teams, or products in the transcript.\n\n`
       : '';

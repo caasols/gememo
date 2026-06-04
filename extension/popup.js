@@ -132,6 +132,11 @@ function renderRules(rules) {
           <input type="number" class="rule-hour-start" min="0" max="23" placeholder="0" value="${Number.isInteger(cond.startHour) ? cond.startHour : ''}">–
           <input type="number" class="rule-hour-end" min="0" max="24" placeholder="24" value="${Number.isInteger(cond.endHour) ? cond.endHour : ''}">h
         </span>
+        <select class="rule-depth" title="Summary depth">
+          <option value="" ${!rule.depth ? 'selected' : ''}>Standard depth</option>
+          <option value="brief" ${rule.depth === 'brief' ? 'selected' : ''}>Brief</option>
+          <option value="detailed" ${rule.depth === 'detailed' ? 'selected' : ''}>Detailed</option>
+        </select>
       </div>
     `;
     list.appendChild(item);
@@ -147,8 +152,10 @@ function readRuleFromItem(item) {
   const sh = parseInt(item.querySelector('.rule-hour-start').value, 10);
   const eh = parseInt(item.querySelector('.rule-hour-end').value, 10);
   const condition = buildCondition(days, Number.isNaN(sh) ? NaN : sh, Number.isNaN(eh) ? NaN : eh);
+  const depth = item.querySelector('.rule-depth')?.value || '';
   const rule = { regex, prompt };
   if (condition) rule.condition = condition;
+  if (depth) rule.depth = depth;
   return rule;
 }
 
@@ -703,9 +710,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   $('rules-list').addEventListener('blur', saveRuleFromEvent, true);
-  // Day checkboxes fire 'change', not 'blur' — capture those too.
+  // Day checkboxes + depth select fire 'change', not 'blur' — capture those too.
   $('rules-list').addEventListener('change', (e) => {
-    if (e.target.classList.contains('rule-day')) saveRuleFromEvent(e);
+    if (e.target.classList.contains('rule-day') || e.target.classList.contains('rule-depth')) saveRuleFromEvent(e);
   });
 
   $('prompt').addEventListener('change', e => {

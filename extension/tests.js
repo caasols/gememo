@@ -1146,6 +1146,19 @@ window.MM2C_TESTS = (() => {
     assert('buildCondition: nothing → null', buildCondition([], NaN, NaN) === null);
     assert('buildCondition: single hour ignored → null', buildCondition([], 8, NaN) === null);
 
+    // P5-L · findPromptRule returns the matched rule; depthInstruction maps depth → text
+    const depthRules = [{ regex: 'standup', prompt: 'p', depth: 'brief' }];
+    assert('findPromptRule: returns the matched rule object',
+      findPromptRule(depthRules, 'Daily Standup').depth === 'brief');
+    assert('findPromptRule: null when nothing matches',
+      findPromptRule(depthRules, 'Q3 Review') === null);
+    assert('depthInstruction: brief mentions brief',
+      /brief/i.test(depthInstruction('brief')) && depthInstruction('brief').length > 0);
+    assert('depthInstruction: detailed mentions thorough/detailed',
+      /(thorough|detail)/i.test(depthInstruction('detailed')));
+    assert('depthInstruction: standard/empty → no instruction',
+      depthInstruction('standard') === '' && depthInstruction() === '');
+
     console.groupEnd();
   }
 
