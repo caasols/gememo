@@ -287,6 +287,45 @@ function buildIssueUrl(report) {
   return `https://github.com/caasols/gememo/issues/new?title=${title}&body=${body}`;
 }
 
+// Pure prompt-prefix builders (extracted from content_meet so the whole prompt
+// construction is unit-testable — a bug here means bad AI notes).
+function meetingTitlePrefix(title) {
+  return title
+    ? `Meeting title: ${title}. Use this context to interpret references to projects, teams, or products in the transcript.\n\n`
+    : '';
+}
+function noteLanguagePrefix(lang) {
+  return lang
+    ? `Write all notes in ${lang}. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n`
+    : '';
+}
+function attendeesPrefix(names) {
+  const list = Array.isArray(names) ? names.filter(Boolean) : [];
+  return list.length
+    ? `Meeting attendees: ${list.map((n, i) => `${i + 1}. ${n}`).join(', ')}. Use these exact names when assigning action items.\n\n`
+    : '';
+}
+
+// Pure helper — assemble the full Gemini prompt from its parts in the canonical
+// order: title → prior-session context → glossary → language → attendees →
+// few-shot example → (depth-prefixed) base prompt.
+function assemblePrompt({ title = '', priorContext = '', glossary = '', language = '',
+                          attendees = [], example = '', base = '', depth = '' } = {}) {
+  const depthPfx = depthInstruction(depth);
+  const effectiveBase = depthPfx ? `${depthPfx}\n\n${base}` : base;
+  const examplePfx = example
+    ? `Here is an example of the exact note format to produce:\n\n---\n${example}\n---\n\nNow produce notes for the current meeting following this exact format:\n\n`
+    : '';
+  const priorPfx = priorContext ? `${priorContext}\n\n` : '';
+  return meetingTitlePrefix(title)
+    + priorPfx
+    + glossaryPrefix(glossary)
+    + noteLanguagePrefix(language)
+    + attendeesPrefix(attendees)
+    + examplePfx
+    + effectiveBase;
+}
+
 // Pure helper — custom vocabulary/glossary → a prompt prefix (RB-4a). Terms are
 // comma- or newline-separated; the model is told to keep them verbatim.
 function glossaryPrefix(glossary) {

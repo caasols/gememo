@@ -1189,6 +1189,28 @@ window.MM2C_TESTS = (() => {
       titleBlocked('', ['x']) === false && titleBlocked('Sync', '') === false);
     assert('titleBlocked: invalid regex skipped', titleBlocked('Sync', ['(', 'sync']) === true);
 
+    // Tier-3 · assemblePrompt — the full prompt construction, now a pure tested unit
+    const empty = assemblePrompt({ base: 'BASE' });
+    assert('assemblePrompt: bare base when nothing else', empty === 'BASE');
+    const full = assemblePrompt({
+      title: 'Q3 Plan', priorContext: 'PRIOR', glossary: 'Falcon',
+      language: 'Spanish', attendees: ['Alice', 'Bob'], example: 'EX', base: 'BASE', depth: 'brief',
+    });
+    assert('assemblePrompt: includes every piece',
+      /Meeting title: Q3 Plan/.test(full) && full.includes('PRIOR') && /Falcon/.test(full) &&
+      /Spanish/.test(full) && /Alice/.test(full) && full.includes('EX') && full.endsWith('BASE'));
+    assert('assemblePrompt: order title<prior<glossary<language<attendees<example<base',
+      full.indexOf('Q3 Plan') < full.indexOf('PRIOR') &&
+      full.indexOf('PRIOR') < full.indexOf('Falcon') &&
+      full.indexOf('Falcon') < full.indexOf('Spanish') &&
+      full.indexOf('Spanish') < full.indexOf('Alice') &&
+      full.indexOf('Alice') < full.indexOf('EX') &&
+      full.indexOf('EX') < full.indexOf('BASE'));
+    assert('assemblePrompt: depth instruction prepended to base',
+      /brief/i.test(full.slice(full.indexOf('EX'))));
+    assert('assemblePrompt: attendees omitted when none',
+      !assemblePrompt({ base: 'B', attendees: [] }).includes('attendees'));
+
     console.groupEnd();
   }
 
