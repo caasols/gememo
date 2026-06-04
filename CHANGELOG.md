@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.118] – 2026-06-04 · Dark mode (RB-7f)
+
+### Added
+- **RB-7f** — the popup now follows the OS theme via `prefers-color-scheme`. Only the colour tokens flip (a Google-style dark palette); spacing is unchanged. Form controls get `color-scheme: dark` so native inputs render correctly. CSS-only, no behavior change.
+
+---
+
 ## [0.1.117] – 2026-06-04 · Custom glossary (RB-4a)
 
 ### Added
