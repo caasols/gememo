@@ -487,6 +487,12 @@ function inferMeetingType(title) {
   return 'calendar';
 }
 
+// Pure helper — normalise a stored theme value to one of system|light|dark
+// (UXF-8). Anything unrecognised (including undefined) falls back to 'system'.
+function normalizeTheme(v) {
+  return (v === 'light' || v === 'dark') ? v : 'system';
+}
+
 // Pure helper — a stable key for a log/meeting group (UXF-6), used to persist
 // which groups the user expanded across re-renders and the 10 s auto-refresh.
 // Keyed by calendar day + title so the same meeting keeps its disclosure state.

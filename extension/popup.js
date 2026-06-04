@@ -34,7 +34,17 @@ const GLOBAL_KEYS = [
   'mm2c_glossary',
   'mm2c_beta_enabled',
   'mm2c_expanded_groups',
+  'mm2c_theme',
 ];
+
+// Apply a theme (system|light|dark) to <html> and the segmented control (UXF-8).
+function applyTheme(theme) {
+  const t = normalizeTheme(theme);
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll('#theme-control button').forEach(b => {
+    b.classList.toggle('active', b.dataset.themeValue === t);
+  });
+}
 
 function tabScopedKeys(tabId) {
   if (!tabId) return [];
@@ -326,6 +336,7 @@ function applyState(s, tabId, live = null) {
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
+  applyTheme(s.mm2c_theme);
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
   document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
 
@@ -824,6 +835,15 @@ document.addEventListener('DOMContentLoaded', () => {
   $('beta-enabled').addEventListener('change', e => {
     document.body.classList.toggle('beta-enabled', e.target.checked);
     save({ mm2c_beta_enabled: e.target.checked });
+  });
+
+  // Tri-state appearance control (UXF-8)
+  $('theme-control').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-theme-value]');
+    if (!btn) return;
+    const theme = normalizeTheme(btn.dataset.themeValue);
+    applyTheme(theme);
+    save({ mm2c_theme: theme });
   });
 
   document.querySelectorAll('.also-send-opt').forEach(cb => {
