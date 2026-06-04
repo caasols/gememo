@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.109] – 2026-06-04 · Slack post after capture (P9-B)
+
+### Added
+- **P9-B** — an optional **Slack webhook** in Settings posts the meeting title, summary, and action-item count to a Slack incoming webhook after each capture. New pure `build_slack_payload()`; reuses the existing `post_webhook()` (best-effort, no deps). Threaded via `background.js`. 3 new Python tests.
+
+---
+
 ## [0.1.108] – 2026-06-04 · Multi-destination output (P9-X)
 
 ### Added

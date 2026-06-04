@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from meeting_minutes_host import parse_note_sections, build_webhook_payload
+from meeting_minutes_host import parse_note_sections, build_webhook_payload, build_slack_payload
 
 
 class TestParseNoteSections(unittest.TestCase):
@@ -61,6 +61,26 @@ class TestBuildWebhookPayload(unittest.TestCase):
         self.assertEqual(payload["summary"], "")
         self.assertEqual(payload["attendees"], [])
         self.assertIsNone(payload["duration_min"])
+
+
+class TestBuildSlackPayload(unittest.TestCase):
+    """build_slack_payload — Slack incoming-webhook message (P9-B)."""
+
+    def test_title_summary_and_action_count(self):
+        sections = {"summary": "We shipped it.", "action_items": "Alice: x\nBob: y"}
+        p = build_slack_payload("Q3 Planning", sections)
+        self.assertIn("*Q3 Planning*", p["text"])
+        self.assertIn("We shipped it.", p["text"])
+        self.assertIn("*Action items:* 2", p["text"])
+
+    def test_no_summary_zero_actions(self):
+        p = build_slack_payload("Sync", {})
+        self.assertIn("*Sync*", p["text"])
+        self.assertIn("*Action items:* 0", p["text"])
+
+    def test_blank_lines_not_counted(self):
+        p = build_slack_payload("M", {"action_items": "Alice: x\n\n\nBob: y\n"})
+        self.assertIn("*Action items:* 2", p["text"])
 
 
 if __name__ == "__main__":
