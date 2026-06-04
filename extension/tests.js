@@ -1974,6 +1974,21 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testBuildMailtoUrl() {
+    console.group('buildMailtoUrl (RB-3c)');
+    const u = buildMailtoUrl({ title: 'Q3 Sync', body: 'Notes here' });
+    assert('starts with mailto:?subject=', u.startsWith('mailto:?subject='));
+    assert('subject is URL-encoded', u.includes('Q3%20Sync'));
+    assert('body is URL-encoded in the body param', u.includes('body=Notes%20here'));
+    assert('blank title falls back to "Meeting notes"',
+      buildMailtoUrl({ body: 'x' }).includes('subject=Meeting%20notes'));
+    const longBody = 'a'.repeat(5000);
+    const lu = buildMailtoUrl({ body: longBody, maxBody: 100 });
+    assert('long body is truncated', decodeURIComponent(lu.split('body=')[1]).includes('truncated'));
+    assert('truncation keeps the URL short', lu.length < 5000);
+    console.groupEnd();
+  }
+
   function testFriendlyError() {
     console.group('friendlyError (UXC-3)');
     assert('native-host-not-found → setup guidance',
@@ -2408,6 +2423,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testBuildMailtoUrl();
     testFriendlyError();
     testCloseOverlayBody();
     testGeminiInactiveMessage();
