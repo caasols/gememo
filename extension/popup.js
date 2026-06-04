@@ -915,8 +915,11 @@ document.addEventListener('DOMContentLoaded', () => {
         captureBtn.textContent = capturing ? 'Capturing notes…' : 'Capture now';
       }
       if (capturing) {
-        $('status').textContent = 'Capturing notes…';
-        $('status-banner').className = 'status-banner ok';
+        // Route through resolveBanner so there is one banner writer (UXC-15) —
+        // no hardcoded text/class that can drift from applyState's version.
+        const b = resolveBanner({ capturing: true });
+        $('status').textContent = b.text;
+        $('status-banner').className = 'status-banner' + (b.cls ? ' ' + b.cls : '');
       } else {
         loadAndApplyState(activeMetTabId);
       }
