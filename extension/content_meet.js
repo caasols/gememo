@@ -1300,7 +1300,7 @@
         // Fresh flow failed or Gemini was not active — use last periodic snapshot.
         sendLog(`Using cached snapshot as fallback (${cachedTranscript.length} chars${ageSuffix})`);
         if (ageMin !== null && ageMin > 15) {
-          showStatus(`⚠️ Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
+          showStatus(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
         }
         transcript = cachedTranscript;
       } else if (!transcript) {
@@ -1327,7 +1327,7 @@
               if (cachedTranscript) {
                 sendLog(`Falling back to cached snapshot (${cachedTranscript.length} chars${ageSuffix})`);
                 if (ageMin !== null && ageMin > 15) {
-                  showStatus(`⚠️ Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
+                  showStatus(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
                 }
                 transcript = cachedTranscript;
               } else {

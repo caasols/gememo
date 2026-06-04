@@ -191,7 +191,7 @@
       flex-shrink: 0;
     }
     .btn-collapse:hover { background: var(--hover-primary); border-color: var(--focus); }
-    .btn-collapse.open { transform: rotate(180deg); }
+    .btn-collapse.open { transform: rotate(90deg); }
 
     /* Row */
     .row {
@@ -934,7 +934,7 @@
     <div class="widget">
       <div class="widget-header">
         <div class="widget-title">Default prompt</div>
-        <button class="btn-collapse" id="prompt-toggle">▾</button>
+        <button class="btn-collapse" id="prompt-toggle">▶</button>
       </div>
       <div id="prompt-body" class="sub-options hidden">
         <textarea id="prompt" rows="5"></textarea>
@@ -953,7 +953,7 @@
     <div class="widget">
       <div class="widget-header">
         <div class="widget-title">Meeting rules</div>
-        <button class="btn-collapse" id="rules-toggle">▾</button>
+        <button class="btn-collapse" id="rules-toggle">▶</button>
       </div>
       <p class="hint">Match meeting titles with a regex to apply a custom prompt instead of the default.</p>
       <div id="rules-body" class="sub-options hidden">
