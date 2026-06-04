@@ -706,6 +706,10 @@
     .action-item .action-meta { color: var(--text-muted); font-size: 11px; }
     .action-item input:checked + .action-task { text-decoration: line-through; color: var(--text-muted); }
 
+    /* Also send to (P9-X) */
+    .also-send { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; font-size: 12px; }
+    .also-send label { display: inline-flex; align-items: center; gap: 3px; }
+
     /* Per-rule time condition (P5-L2) */
     .rule-condition {
       display: flex;
@@ -995,6 +999,15 @@
         </div>
         <p class="hint">Click the field to open a folder picker and select your Obsidian vault.</p>
       </div>
+
+      <!-- Also send to (P9-X multi-destination) -->
+      <div class="also-send">
+        <span class="label">Also send to</span>
+        <label><input type="checkbox" class="also-send-opt" value="craft"> Craft</label>
+        <label><input type="checkbox" class="also-send-opt" value="apple_notes"> Apple Notes</label>
+        <label><input type="checkbox" class="also-send-opt" value="obsidian"> Obsidian</label>
+      </div>
+      <p class="hint">Send each note to these in addition to the primary app above. The primary app is ignored here.</p>
     </div>
 
     <!-- File backup -->
