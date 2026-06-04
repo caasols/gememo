@@ -31,6 +31,36 @@
       --gap:            8px;
     }
 
+    /* Dark mode — follows the OS theme (RB-7f). Only the colour tokens flip; the
+       spacing tokens above are inherited unchanged. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface:        #202124;
+        --surface-subtle: #292a2d;
+        --border:         #3c4043;
+        --border-strong:  #5f6368;
+        --text:           #e8eaed;
+        --text-muted:     #9aa0a6;
+        --text-strong:    #f1f3f4;
+        --primary:        #8ab4f8;
+        --primary-dark:   #aecbfa;
+        --success:        #81c995;
+        --success-text:   #81c995;
+        --success-bg:     #1e3328;
+        --success-border: #2d5a3d;
+        --warn-text:      #fdd663;
+        --warn-bg:        #332b16;
+        --warn-border:    #5c4a1f;
+        --danger:         #f28b82;
+        --danger-text:    #f28b82;
+        --danger-bg:      #33211f;
+        --danger-border:  #5c2f2a;
+        --focus:          #5f6368;
+        --hover-primary:  #2d3a4d;
+      }
+      input, textarea, select { color-scheme: dark; }
+    }
+
     *, *::before, *::after { box-sizing: border-box; }
 
     body {
