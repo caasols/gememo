@@ -49,11 +49,11 @@ bash native_host/install.sh
 
 - **Default prompt** — structured sections: Attendees, Summary, Key Points, Decisions Made, Action Items, Next Steps, Open Questions. Fully customisable from the Rules tab
 - **Built-in templates** — Standup, 1:1, and Retro formats auto-applied when the meeting title matches (e.g. `daily standup` → Blockers/Done/Next). Shown read-only in the Rules tab; your own rules always take precedence
-- **Per-meeting rules** — match a meeting title with a regex to use a completely different prompt
+- **Per-meeting rules** — match a meeting by **title regex** and/or a **time window** (days of week + hour range) to apply a different prompt, with an optional **summary depth** (Brief / Standard / Detailed) per rule
 - **Recurring-meeting context** — for a repeating meeting, the previous session's summary and open action items are fed back into the prompt so notes build on each other
 - **Note language** — write notes in any language while preserving proper nouns, product names, and technical acronyms in their original form
-- **Output apps** — Craft, Apple Notes, and Obsidian are all supported; select in Settings
-- **Generic webhook** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, or your own endpoint)
+- **Output apps** — Craft, Apple Notes, and Obsidian; pick a primary app and optionally **"Also send to"** others (multi-destination)
+- **Webhooks** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, your own endpoint), plus a dedicated **Slack** option (title, summary, action-item count)
 
 ### UX
 
@@ -82,11 +82,12 @@ Open the extension popup → **Settings tab**:
 | Setting | Description | Default |
 |---|---|---|
 | Output app | Where notes are saved | Craft |
-| Craft folder ID | Destination folder (leave blank for Unsorted) | — |
+| Also send to | Additional apps to send each note to | — |
+| Craft folder ID / Space ID | Destination folder / Craft space (blank = defaults) | — |
 | Obsidian vault | Path to your Obsidian vault | — |
 | Snapshot interval | How often to capture mid-meeting | 8 min |
 | Note language | Language for generated notes | Auto |
-| Webhook URL | POST each note as JSON to this URL (blank = off) | — |
+| Webhook URL / Slack | POST each note as JSON / to a Slack incoming webhook (blank = off) | — |
 | File backup | Save a local `.md` copy of every note | Off |
 | Backup folder | Where backup files are written | `~/Downloads/meeting-notes` |
 
