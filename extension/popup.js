@@ -274,7 +274,7 @@ function renderRetryList(list) {
           <button class="btn retry-btn"
             data-tabid="${entry.tabId ?? ''}"
             data-title="${escapeHtml(entry.title || '')}"
-            data-backup="${escapeHtml(entry.backupPath || '')}">Retry →</button>
+            data-backup="${escapeHtml(entry.backupPath || '')}">Retry</button>
         </div>
       </div>`;
   }).join('');
@@ -520,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('copy-ext-id').addEventListener('click', () => {
     navigator.clipboard.writeText(chrome.runtime.id).then(() => {
       const btn = $('copy-ext-id');
-      btn.textContent = 'Copied!';
+      btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
     });
@@ -671,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cmd = $('install-cmd').textContent;
     navigator.clipboard.writeText(cmd).then(() => {
       const btn = $('copy-cmd');
-      btn.textContent = 'Copied!';
+      btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
     });
@@ -961,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!md) return;
       navigator.clipboard.writeText(md).then(() => {
         const btn = $('copy-action-items');
-        btn.textContent = 'Copied!';
+        btn.textContent = 'Copied';
         setTimeout(() => { btn.textContent = 'Copy as tasks'; }, 2000);
       });
     });
