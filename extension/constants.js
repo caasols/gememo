@@ -258,6 +258,14 @@ function matchPromptRule(rules, meetingTitle, now = new Date()) {
   return findPromptRule(rules, meetingTitle, now)?.prompt?.trim() || null;
 }
 
+// Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
+function buildIssueUrl(report) {
+  const enc = s => encodeURIComponent(String(s == null ? '' : s));
+  const title = enc((report && report.title) || 'Gememo issue');
+  const body = enc((report && report.body) || '');
+  return `https://github.com/caasols/gememo/issues/new?title=${title}&body=${body}`;
+}
+
 // Pure helper — custom vocabulary/glossary → a prompt prefix (RB-4a). Terms are
 // comma- or newline-separated; the model is told to keep them verbatim.
 function glossaryPrefix(glossary) {

@@ -506,6 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // About tab — populate from Chrome runtime
   $('about-version').textContent = `v${chrome.runtime.getManifest().version}`;
   $('about-ext-id').textContent  = chrome.runtime.id;
+  // Prefill the "Report an issue" link with version + extension ID (RB-1c).
+  $('report-issue').href = buildIssueUrl({
+    title: '[bug] ',
+    body: `Version: ${chrome.runtime.getManifest().version}\nExtension ID: ${chrome.runtime.id}\n\nWhat happened:\n\nSteps to reproduce:\n`,
+  });
 
   $('copy-ext-id').addEventListener('click', () => {
     navigator.clipboard.writeText(chrome.runtime.id).then(() => {
