@@ -11,6 +11,7 @@ const GLOBAL_KEYS = [
   'mm2c_enabled', 'mm2c_prompt',
   'mm2c_output_app',
   'mm2c_craft_folder_id',
+  'mm2c_craft_space_id',
   'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
   'mm2c_logs',
   'mm2c_note_language',
@@ -295,6 +296,7 @@ function applyState(s, tabId, live = null) {
   $('obsidian-vault-path').value = s.mm2c_obsidian_vault_path || '';
 
   $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
+  $('craft-space-id').value = s.mm2c_craft_space_id || '';
   $('webhook-url').value = s.mm2c_webhook_url || '';
   $('slack-webhook-url').value = s.mm2c_slack_webhook_url || '';
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
@@ -733,6 +735,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('craft-folder-id').addEventListener('change', e => {
     save({ mm2c_craft_folder_id: e.target.value.trim() });
+  });
+
+  $('craft-space-id').addEventListener('change', e => {
+    save({ mm2c_craft_space_id: e.target.value.trim() });
   });
 
   $('webhook-url').addEventListener('change', e => {

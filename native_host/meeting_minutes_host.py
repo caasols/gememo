@@ -858,7 +858,7 @@ def main() -> None:
         note_path  = CACHE_DIR / f"{safe_title}.md"
         note_path.write_text(craft_md, encoding="utf-8")
 
-        space_id  = os.environ.get("CRAFT_SPACE_ID", "")
+        space_id  = (msg.get("craftSpaceId") or os.environ.get("CRAFT_SPACE_ID", "")).strip()
         folder_id = msg.get("craftFolderId", "").strip()
         cmd = [sys.executable, str(PUSH_PY), "--title", title,
                "--content-file", str(note_path), "--background"]

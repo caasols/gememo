@@ -146,6 +146,20 @@ class TestMainCaptureFlow(unittest.TestCase):
                 host.main()
             self.assertEqual(len(calls), 1)  # the apple_notes extra fired
 
+    def test_craft_space_id_passed_to_push(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache_tmp:
+            msg = self._capture_msg(tmp, craftSpaceId="space-123", fileBackupEnabled=False)
+            calls = []
+            with patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                    patch.object(host, 'read_message', return_value=msg), \
+                    patch.object(host, 'send_message'), \
+                    patch.object(host, 'notify'), \
+                    patch.object(host.subprocess, 'run',
+                                 side_effect=lambda cmd, **k: calls.append(cmd) or _proc(0)):
+                host.main()
+            self.assertIn("--space-id", calls[0])
+            self.assertIn("space-123", calls[0])
+
     def test_retry_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             bp = Path(tmp) / "20260601-standup.md"
