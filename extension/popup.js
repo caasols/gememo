@@ -109,7 +109,10 @@ function renderRules(rules) {
     list.innerHTML = '<div class="rules-empty">No rules yet. Add one to use a custom prompt for specific meetings.</div>';
     return;
   }
+  const DAYS = [[1, 'Mo'], [2, 'Tu'], [3, 'We'], [4, 'Th'], [5, 'Fr'], [6, 'Sa'], [7, 'Su']];
   rules.forEach((rule, i) => {
+    const cond = (rule.condition && typeof rule.condition === 'object') ? rule.condition : {};
+    const selDays = Array.isArray(cond.days) ? cond.days : [];
     const item = document.createElement('div');
     item.className = 'rule-item';
     item.dataset.index = i;
@@ -121,9 +124,32 @@ function renderRules(rules) {
         <button class="btn-rule-action danger" data-action="delete" data-index="${i}" title="Delete">✕</button>
       </div>
       <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
+      <div class="rule-condition">
+        <span class="rule-cond-label">…or when:</span>
+        <span class="rule-days">${DAYS.map(([n, lbl]) =>
+          `<label title="${lbl}"><input type="checkbox" class="rule-day" data-day="${n}" ${selDays.includes(n) ? 'checked' : ''}>${lbl}</label>`).join('')}</span>
+        <span class="rule-hours">
+          <input type="number" class="rule-hour-start" min="0" max="23" placeholder="0" value="${Number.isInteger(cond.startHour) ? cond.startHour : ''}">–
+          <input type="number" class="rule-hour-end" min="0" max="24" placeholder="24" value="${Number.isInteger(cond.endHour) ? cond.endHour : ''}">h
+        </span>
+      </div>
     `;
     list.appendChild(item);
   });
+}
+
+// Read a full rule object (regex, prompt, optional time condition) from a
+// rendered .rule-item element (P5-L2).
+function readRuleFromItem(item) {
+  const regex  = item.querySelector('.rule-regex').value.trim();
+  const prompt = item.querySelector('.rule-prompt').value.trim();
+  const days   = [...item.querySelectorAll('.rule-day:checked')].map(c => parseInt(c.dataset.day, 10));
+  const sh = parseInt(item.querySelector('.rule-hour-start').value, 10);
+  const eh = parseInt(item.querySelector('.rule-hour-end').value, 10);
+  const condition = buildCondition(days, Number.isNaN(sh) ? NaN : sh, Number.isNaN(eh) ? NaN : eh);
+  const rule = { regex, prompt };
+  if (condition) rule.condition = condition;
+  return rule;
 }
 
 // Render the lifetime usage-stats panel in the About tab (UX-8).
@@ -665,19 +691,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  $('rules-list').addEventListener('blur', (e) => {
+  function saveRuleFromEvent(e) {
     const item = e.target.closest('.rule-item');
     if (!item) return;
     const idx = parseInt(item.dataset.index, 10);
     chrome.storage.local.get(['mm2c_prompt_rules'], ({ mm2c_prompt_rules }) => {
       const rules = Array.isArray(mm2c_prompt_rules) ? [...mm2c_prompt_rules] : [];
       if (!rules[idx]) return;
-      const regex  = item.querySelector('.rule-regex').value.trim();
-      const prompt = item.querySelector('.rule-prompt').value.trim();
-      rules[idx] = { regex, prompt };
+      rules[idx] = readRuleFromItem(item);
       save({ mm2c_prompt_rules: rules });
     });
-  }, true);
+  }
+  $('rules-list').addEventListener('blur', saveRuleFromEvent, true);
+  // Day checkboxes fire 'change', not 'blur' — capture those too.
+  $('rules-list').addEventListener('change', (e) => {
+    if (e.target.classList.contains('rule-day')) saveRuleFromEvent(e);
+  });
 
   $('prompt').addEventListener('change', e => {
     save({ mm2c_prompt: e.target.value.trim() || DEFAULT_PROMPT });

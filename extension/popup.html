@@ -706,6 +706,20 @@
     .action-item .action-meta { color: var(--text-muted); font-size: 11px; }
     .action-item input:checked + .action-task { text-decoration: line-through; color: var(--text-muted); }
 
+    /* Per-rule time condition (P5-L2) */
+    .rule-condition {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 5px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .rule-days { display: flex; gap: 4px; flex-wrap: wrap; }
+    .rule-days label { display: inline-flex; align-items: center; gap: 2px; }
+    .rule-hours input { width: 38px; padding: 2px 4px; font-size: 11px; }
+
     /* Built-in templates (read-only) */
     .rules-subhead {
       font-size: 11px;
