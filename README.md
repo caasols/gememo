@@ -35,7 +35,7 @@ Gememo writes **plain Markdown files you own** — with YAML frontmatter — str
 ### Prerequisites
 
 - **macOS** (native messaging host is macOS-only)
-- **Google Chrome**
+- **Google Chrome** or **Microsoft Edge** (Chromium) — `install.sh` registers the native host for whichever is installed
 - **Google Workspace** account with Gemini in Google Meet enabled
 - **Python 3.9+**
 - One of: **Craft**, **Apple Notes**, or **Obsidian**
