@@ -3,11 +3,32 @@
 ![macOS](https://img.shields.io/badge/macOS-only-black?logo=apple&style=flat)
 ![License](https://img.shields.io/badge/license-MIT-black?style=flat)
 
+![No bot](https://img.shields.io/badge/✓%20no%20bot-black?style=flat)
+![No audio](https://img.shields.io/badge/✓%20no%20audio-black?style=flat)
+![No voiceprint](https://img.shields.io/badge/✓%20no%20voiceprint-black?style=flat)
+![No lock-in](https://img.shields.io/badge/✓%20no%20lock--in-black?style=flat)
+
+**No bot · no audio · no voiceprint · no cloud account · no lock-in.** The meeting's own AI summarizes; Gememo just files the result where you want it.
+
 A Chrome extension that captures Google Meet notes automatically when you leave a call — using Google's own Gemini AI that's already running inside your meeting. No bot, no API key, no subscription.
 
 Unlike Fireflies, Otter.ai, or Granola, Gememo doesn't send a bot into your call. It reads the Gemini transcript that's already in your browser, formats it, and saves it to your note app the moment you click Leave — silently, in the background, without stealing focus.
 
 <!-- ![Gememo Screenshot](./metadata/gememo-1.png) -->
+
+## Why bot-free & no lock-in
+
+Most AI note-takers work by sending a bot into your call to record everyone, then processing that audio on their servers. That model has two problems Gememo is built to avoid:
+
+**The bot records — and that's a consent problem.** A visible bot joins, captures audio from every participant, and ships it to a third party. In 2025–2026 that approach drew real legal fire: Otter.ai was hit with a federal class action alleging it recorded private conversations without all-party consent, with pre-meeting notifications turned **off by default** ([Brewer v. Otter.ai](https://www.npr.org/2025/08/15/g-s1-83087/otter-ai-transcription-class-action-lawsuit), [analysis](https://natlawreview.com/article/ai-notetaking-tools-under-fire-lessons-otterai-class-action-complaint)). Fireflies.ai was sued under Illinois' biometric privacy law for generating **voiceprints** of participants — including someone who never had an account ([Cruz v. Fireflies.AI](https://www.ebglaw.com/insights/publications/ai-meeting-assistants-and-biometric-privacy-lessons-from-the-fireflies-ai-lawsuit)). Around **12 US states require all-party consent** to record a conversation.
+
+Gememo sends **no bot**, records **no audio**, and generates **no voiceprint**. It reads the summary Google's own Gemini already produced inside your meeting — the meeting host's existing, in-product AI — and saves the *text*. Nothing new is recorded, and nothing leaves your machine except the note you choose to save where you choose to save it.
+
+**Your notes shouldn't be trapped in someone's app.** Even the better bot-free tools keep your notes locked in. Granola, for instance, has no export function — users resort to copy-paste or reverse-engineering the desktop app to get their own notes into Obsidian ([teardown](https://meetingnotes.com/blog/granola-ai-teardown), [the reverse-engineering write-up](https://josephthacker.com/hacking/2025/05/08/reverse-engineering-granola-notes.html)), and the community had to build [unofficial sync plugins](https://github.com/dannymcc/Granola-to-Obsidian) to escape the lock-in.
+
+Gememo writes **plain Markdown files you own** — with YAML frontmatter — straight into Craft, Apple Notes, your Obsidian vault, a local folder, or any webhook. No proprietary store, no API to reverse-engineer, no subscription to keep your own meeting notes readable.
+
+> **In short:** no bot, no audio, no voiceprint, no cloud account, no lock-in. The meeting's own AI does the summarizing; Gememo just files the result where you want it.
 
 ## Installation
 
