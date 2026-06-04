@@ -825,6 +825,24 @@
       outline-offset: 2px;
     }
 
+    /* Beta-features gating (UXF-1) — .beta elements are hidden unless the user
+       opts in via the Experimental toggle (body.beta-enabled). When shown they
+       keep their natural display, so this works on rows, widgets, and buttons. */
+    body:not(.beta-enabled) .beta { display: none !important; }
+    .beta-pill {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--warn-text);
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 6px;
+      padding: 0 4px;
+      margin-left: 6px;
+    }
+
     .hidden { display: none !important; }
 
     /* Ko-fi inline tip panel (MON-1) */
@@ -1163,6 +1181,19 @@
         <textarea id="blocklist" rows="2" placeholder="interview, 1:1 with HR, /salary/i"></textarea>
       </div>
       <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
+    </div>
+
+    <!-- Experimental features toggle (UXF-1) -->
+    <div class="widget">
+      <div class="widget-title">Experimental</div>
+      <div class="row">
+        <span class="label">Show experimental features</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="beta-enabled">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <p class="hint">Reveal in-progress features marked Beta. They may change or disappear.</p>
     </div>
 
   </div><!-- /settings-panel -->
