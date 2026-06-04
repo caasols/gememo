@@ -78,6 +78,15 @@ test('badge + toast use token colours, not hardcoded hexes (UXC-5)', () => {
   expect(cm).not.toContain("'#e37400'");
 });
 
+test('in-Meet toast uses the shared font stack, not Google Sans (UXC-12)', () => {
+  const cm = fs.readFileSync(path.join(EXT, 'content_meet.js'), 'utf8');
+  // Toast style block uses the token font stack…
+  expect(cm).toMatch(/font-family:\$\{TOKENS\.font\.ui\}/);
+  // …and the toast no longer hardcodes Google Sans with font-size:13px.
+  expect(cm).not.toContain("font-family:'Google Sans',Roboto,sans-serif;font-size:13px;");
+  // (The close overlay's Google Sans stack is reskinned separately by UXC-6.)
+});
+
 test('all three surfaces load design_tokens.js first', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   const js = manifest.content_scripts[0].js;

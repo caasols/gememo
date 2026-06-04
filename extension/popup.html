@@ -764,12 +764,14 @@
     .rule-hours input { width: 38px; padding: 2px 4px; font-size: 11px; }
 
     /* Built-in templates (read-only) */
+    /* Section label — same type as .widget-title (UXC-12), just with vertical
+       margin since it sits inline within the Rules panel. */
     .rules-subhead {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.6px;
       margin: 10px 0 4px;
     }
     .builtin-rule {
@@ -1182,7 +1184,7 @@
     <div class="widget">
       <div class="widget-header">
         <div>
-          <div style="font-size:15px;font-weight:600;color:var(--text-strong)">Gememo</div>
+          <h1>Gememo</h1>
           <div class="hint" id="about-version" style="margin-top:2px"></div>
         </div>
       </div>
