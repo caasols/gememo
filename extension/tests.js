@@ -1159,6 +1159,12 @@ window.MM2C_TESTS = (() => {
     assert('depthInstruction: standard/empty → no instruction',
       depthInstruction('standard') === '' && depthInstruction() === '');
 
+    // RB-4a · glossaryPrefix — inject a "spell these exactly" instruction
+    assert('glossaryPrefix: empty → ""', glossaryPrefix('') === '' && glossaryPrefix('  ') === '');
+    const gp = glossaryPrefix('Falcon, Kubernetes\nCarlos Sol');
+    assert('glossaryPrefix: lists terms', gp.includes('Falcon, Kubernetes, Carlos Sol'));
+    assert('glossaryPrefix: says exactly', /exactly/i.test(gp));
+
     console.groupEnd();
   }
 

@@ -26,6 +26,7 @@ const GLOBAL_KEYS = [
   'mm2c_also_send',
   'mm2c_redact_pii', 'mm2c_redact_keywords',
   'mm2c_emit_ics',
+  'mm2c_glossary',
 ];
 
 function tabScopedKeys(tabId) {
@@ -289,6 +290,7 @@ function applyState(s, tabId, live = null) {
   document.body.classList.toggle('ext-disabled', !enabled);
 
   $('prompt').value = s.mm2c_prompt || DEFAULT_PROMPT;
+  $('glossary').value = s.mm2c_glossary || '';
 
   // Output app selector — default to 'craft' for existing users
   const outputApp = s.mm2c_output_app || 'craft';
@@ -729,6 +731,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('prompt').addEventListener('change', e => {
     save({ mm2c_prompt: e.target.value.trim() || DEFAULT_PROMPT });
+  });
+
+  $('glossary').addEventListener('change', e => {
+    save({ mm2c_glossary: e.target.value.trim() });
   });
 
   $('output-app').addEventListener('change', e => {
