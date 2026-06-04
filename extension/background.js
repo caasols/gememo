@@ -202,7 +202,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           else        chrome.storage.local.set({ mm2c_last_status: statusLabel });
           appendLog('ok', title, `Retry succeeded — sent to Craft (from ${response.source || 'file'})`);
           chrome.action.setBadgeText({ text: 'OK' });
-          chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+          chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
           setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
         } else {
           appendLog('err', title, `Retry failed: ${response?.error || 'unknown'}`);
@@ -242,7 +242,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case 'MM2C_WARNING':
       chrome.action.setBadgeText({ text: '!' });
-      chrome.action.setBadgeBackgroundColor({ color: '#e37400' });
+      chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.warn });
       { const wTabId = _sender.tab?.id;
         const wStatus = `Warning: ${msg.message}`;
         if (wTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', wTabId)]: wStatus });
@@ -254,7 +254,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case 'MM2C_ERROR':
       console.error('[MM2C] Error from content script:', msg.error);
       chrome.action.setBadgeText({ text: '!' });
-      chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
+      chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
       { const eTabId = _sender.tab?.id;
         const eStatus = `Error: ${msg.error}`;
         if (eTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', eTabId)]: eStatus });
@@ -343,7 +343,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           chrome.storage.local.set({ mm2c_capturing_tabs: tabs });
           if (tabs.length) {
             chrome.action.setBadgeText({ text: 'REC' });
-            chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+            chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
           } else {
             chrome.action.setBadgeText({ text: '' });
           }
@@ -436,7 +436,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         const err = chrome.runtime.lastError.message;
         console.error('[MM2C] Native messaging error:', err);
         chrome.action.setBadgeText({ text: '!' });
-        chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
+        chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
         const errStatus = `Native host error: ${err}`;
         if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: errStatus });
         else        chrome.storage.local.set({ mm2c_last_status: errStatus });
@@ -454,7 +454,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
           ? `Saved to ${dest}: ${response.title}${filePart}${retryNote}`
           : `Saved to ${dest}.${filePart}${retryNote}`;
         chrome.action.setBadgeText({ text: 'OK' });
-        chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+        chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
         // Store the note so the popup can surface its action items (P6-B).
         chrome.storage.local.set({ mm2c_last_note: transcript || '' });
         // Update lifetime usage stats (UX-8).
@@ -473,7 +473,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         const backup = response?.backupPath ? ` — backup at ${response.backupPath}` : '';
         const label  = `Host error: ${detail}${backup}`;
         chrome.action.setBadgeText({ text: '!' });
-        chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
+        chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
         if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
         else        chrome.storage.local.set({ mm2c_last_status: label });
         appendLog('err', meetingTitle, label);

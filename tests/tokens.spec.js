@@ -65,6 +65,19 @@ test('popup.html :root mirrors the colour tokens 1:1 (no drift)', () => {
   }
 });
 
+test('badge + toast use token colours, not hardcoded hexes (UXC-5)', () => {
+  const bg = fs.readFileSync(path.join(EXT, 'background.js'), 'utf8');
+  // No literal hex inside any setBadgeBackgroundColor call.
+  expect(bg).not.toMatch(/setBadgeBackgroundColor\(\{ color: '#/);
+  expect(bg).toMatch(/setBadgeBackgroundColor\(\{ color: TOKENS\.color\./);
+
+  const cm = fs.readFileSync(path.join(EXT, 'content_meet.js'), 'utf8');
+  expect(cm).toMatch(/el\.style\.background = tokenStatusFill\(type\)/);
+  // The old divergent toast hexes must be gone.
+  expect(cm).not.toContain("'#c5221f'");
+  expect(cm).not.toContain("'#e37400'");
+});
+
 test('all three surfaces load design_tokens.js first', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   const js = manifest.content_scripts[0].js;
