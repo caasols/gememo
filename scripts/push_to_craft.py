@@ -167,10 +167,13 @@ def open_url(url: str, background: bool = False) -> int:
         )
     try:
         cmd = ["open", "-g", url] if background else ["open", url]
-        return subprocess.run(cmd, check=False).returncode
+        return subprocess.run(cmd, check=False, timeout=30).returncode
     except FileNotFoundError:
         print("Error: `open` command not found.", file=sys.stderr)
         return 127
+    except subprocess.TimeoutExpired:
+        print("Error: `open` timed out.", file=sys.stderr)
+        return 124
 
 
 class _CallbackHandler(BaseHTTPRequestHandler):
@@ -210,7 +213,10 @@ def wait_for_craft_callback(url: str, background: bool = True,
         + f"&x-error={quote(f'http://localhost:{port}/error', safe='')}"
     )
     cmd = ["open", "-g", full_url] if background else ["open", full_url]
-    subprocess.run(cmd, check=False)
+    try:
+        subprocess.run(cmd, check=False, timeout=30)
+    except subprocess.TimeoutExpired:
+        pass  # `open` only launches Craft; the callback wait below bounds the rest
 
     t = threading.Thread(target=server.handle_request, daemon=True)
     t.start()

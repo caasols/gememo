@@ -216,14 +216,19 @@ def push_to_apple_notes(title: str, body_html: str) -> None:
             f'  make new note with properties {{name:"{safe_title}", body:noteBody}}\n'
             f'end tell'
         )
-        subprocess.run(['osascript', '-e', script], check=True, capture_output=True)
+        # timeout guards against AppleScript hanging on a modal/permission prompt,
+        # which would otherwise block the native host (and Chrome's port) forever.
+        subprocess.run(['osascript', '-e', script], check=True, capture_output=True, timeout=30)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
 
 def notify(title: str, message: str) -> None:
     script = f'display notification "{message}" with title "{title}"'
-    subprocess.run(["osascript", "-e", script], check=False, capture_output=True)
+    try:
+        subprocess.run(["osascript", "-e", script], check=False, capture_output=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        pass  # best-effort notification — never block on it
 
 
 def prune_snapshots(backup_path: Path, slug: str, file_ext: str, keep: int = 3) -> None:
@@ -569,7 +574,7 @@ def handle_retry(msg: dict) -> None:
             cmd += ["--space-id", space_id]
         if folder_id:
             cmd += ["--folder-id", folder_id]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
         if result.returncode == 0:
             notify("Meeting Notes → Craft", title)
             send_message({"status": "ok", "title": title, "source": source})
@@ -699,7 +704,7 @@ def send_to_extras(extras, craft_md, title, dt, label,
                 cmd = [sys.executable, str(PUSH_PY), "--title", title, "--content-file", str(cf), "--background"]
                 if craft_folder_id:
                     cmd += ["--folder-id", craft_folder_id]
-                subprocess.run(cmd, capture_output=True, text=True)
+                subprocess.run(cmd, capture_output=True, text=True, timeout=45)
         except Exception:
             pass  # best-effort secondary output
 
@@ -811,7 +816,10 @@ def main() -> None:
 
     # Generic webhook (P9-D) — POST the structured note before the output routing
     # sends its response (the host process is terminated once the response is read).
-    # Best-effort: webhook failures never affect the capture result.
+    # Best-effort: webhook failures never affect the capture result. Timeouts are
+    # kept short (ARCH-3) so a slow/unreachable hook adds at most a few seconds to
+    # the "Saved" response rather than blocking the user on the post-meeting page.
+    _HOOK_TIMEOUT = 2.5
     webhook_url = (msg.get("webhookUrl") or "").strip()
     slack_url   = (msg.get("slackWebhookUrl") or "").strip()
     if webhook_url or slack_url:
@@ -823,10 +831,10 @@ def main() -> None:
                     title, dt.strftime('%Y-%m-%d'),
                     msg.get("attendees") or [], msg.get("durationMin"), sections,
                 ),
-                timeout=6.0,
+                timeout=_HOOK_TIMEOUT,
             )
         if slack_url:
-            post_webhook(slack_url, build_slack_payload(title, sections), timeout=6.0)
+            post_webhook(slack_url, build_slack_payload(title, sections), timeout=_HOOK_TIMEOUT)
 
     back_type = msg.get("backupType", "craft")
 
@@ -867,7 +875,7 @@ def main() -> None:
         if folder_id:
             cmd += ["--folder-id", folder_id]
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
 
         if result.returncode == 0:
             notify("Meeting Notes → Craft", title)
@@ -885,7 +893,7 @@ def main() -> None:
                 retry = subprocess.run(
                     [sys.executable, str(PUSH_PY), "--title", title,
                      "--content-file", str(snap_file), "--background"],
-                    capture_output=True, text=True,
+                    capture_output=True, text=True, timeout=45,
                 )
                 if retry.returncode == 0:
                     notify("Meeting Notes → Craft", title)

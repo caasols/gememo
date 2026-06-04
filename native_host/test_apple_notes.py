@@ -4,11 +4,14 @@
 import os
 import subprocess
 import sys
+import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent))
-from meeting_minutes_host import body_to_html, push_to_apple_notes, route_output
+import meeting_minutes_host as mh
+from meeting_minutes_host import body_to_html, push_to_apple_notes, route_output, notify
 
 # The integration tests below create real notes via `osascript`, which LAUNCHES
 # Apple Notes on macOS. They are opt-in so the default `npm run test:all` never
@@ -163,6 +166,30 @@ class TestBodyToHtml(unittest.TestCase):
         # Key Points prose paragraphs separated by blank line → two separate <p>
         self.assertIn('<p>Topic one: explanation here.</p>', result)
         self.assertIn('<p>Another topic: more explanation.</p>', result)
+
+
+class TestSubprocessTimeouts(unittest.TestCase):
+    """ARCH-2 — osascript calls must carry a timeout so the host can't hang forever."""
+
+    def test_push_to_apple_notes_sets_timeout(self):
+        with patch.object(mh.subprocess, 'run',
+                          return_value=types.SimpleNamespace(returncode=0)) as mrun:
+            push_to_apple_notes('T', '<p>x</p>')
+        _, kwargs = mrun.call_args
+        self.assertIn('timeout', kwargs)
+        self.assertGreater(kwargs['timeout'], 0)
+
+    def test_notify_swallows_timeout(self):
+        with patch.object(mh.subprocess, 'run',
+                          side_effect=subprocess.TimeoutExpired(cmd='osascript', timeout=10)):
+            notify('Title', 'message')  # must not raise
+
+    def test_notify_sets_timeout(self):
+        with patch.object(mh.subprocess, 'run',
+                          return_value=types.SimpleNamespace(returncode=0)) as mrun:
+            notify('Title', 'message')
+        _, kwargs = mrun.call_args
+        self.assertIn('timeout', kwargs)
 
 
 class TestRouteOutput(unittest.TestCase):

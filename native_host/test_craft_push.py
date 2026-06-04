@@ -290,6 +290,27 @@ class TestPruneCraftUploads(unittest.TestCase):
             self.assertFalse(old.exists())
 
 
+class TestOpenUrl(unittest.TestCase):
+    """open_url — timeout + missing-binary handling (ARCH-2)."""
+
+    def test_timeout_returns_124(self):
+        with patch.object(pc.subprocess, 'run',
+                          side_effect=pc.subprocess.TimeoutExpired(cmd='open', timeout=30)):
+            self.assertEqual(pc.open_url('craftdocs://x'), 124)
+
+    def test_missing_open_returns_127(self):
+        with patch.object(pc.subprocess, 'run', side_effect=FileNotFoundError):
+            self.assertEqual(pc.open_url('craftdocs://x'), 127)
+
+    def test_success_returns_code(self):
+        import types as _t
+        with patch.object(pc.subprocess, 'run',
+                          return_value=_t.SimpleNamespace(returncode=0)) as mrun:
+            self.assertEqual(pc.open_url('craftdocs://x', background=True), 0)
+        _, kwargs = mrun.call_args
+        self.assertIn('timeout', kwargs)
+
+
 class TestMainPush(unittest.TestCase):
 
     def test_main_strips_frontmatter_double_encodes_and_opens(self):
