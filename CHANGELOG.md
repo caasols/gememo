@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.121] – 2026-06-04 · Desktop notification on failure (RB-7e)
+
+### Added
+- **RB-7e** — the native host now fires a macOS notification when a capture **fails** (Craft push failure or an unexpected error), not only on success. Since the in-page toast is gone once the Meet tab closes, this is often the user's only signal that something went wrong. 1 new main-flow test.
+
+---
+
 ## [0.1.120] – 2026-06-04 · Report-an-issue link (RB-1c)
 
 ### Added

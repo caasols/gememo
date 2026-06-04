@@ -113,6 +113,18 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertNotIn("Falcon", content)
             self.assertIn("[redacted-email]", content)
 
+    def test_failure_fires_desktop_notification(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache_tmp:
+            msg = self._capture_msg(tmp)
+            notifs = []
+            with patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                    patch.object(host, 'read_message', return_value=msg), \
+                    patch.object(host, 'send_message'), \
+                    patch.object(host, 'notify', side_effect=lambda t, m: notifs.append((t, m))), \
+                    patch.object(host.subprocess, 'run', return_value=_proc(1, stderr='boom')):
+                host.main()
+            self.assertTrue(any('failed' in t.lower() for t, _ in notifs))
+
     def test_ping(self):
         sent = self._run({"type": "ping"}, _proc(0))
         self.assertEqual(sent[-1]["status"], "ok")
