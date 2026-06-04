@@ -125,6 +125,79 @@ class TestMainCaptureFlow(unittest.TestCase):
                 host.main()
             self.assertTrue(any('failed' in t.lower() for t, _ in notifs))
 
+    # ── Tier 1 · integration seams that were "green" but unproven ──────────────
+
+    def _run_capturing_webhooks(self, msg):
+        """Run main() with post_webhook + subprocess mocked; return posted payloads."""
+        posted = []
+        with tempfile.TemporaryDirectory() as cache_tmp, \
+                patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                patch.object(host, 'read_message', return_value=msg), \
+                patch.object(host, 'send_message'), \
+                patch.object(host, 'notify'), \
+                patch.object(host, 'post_webhook',
+                             side_effect=lambda url, payload, timeout=8.0: posted.append((url, payload)) or (True, '')), \
+                patch.object(host.subprocess, 'run', return_value=_proc(0)):
+            host.main()
+        return posted
+
+    def test_emit_ics_writes_file_with_events(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            msg = self._capture_msg(
+                tmp, emitIcs=True,
+                transcript="## Summary\nx\n\n## Next Steps\nArchitecture review Tuesday\nDemo on Friday")
+            self._run(msg, _proc(0))
+            ics = list(Path(tmp).glob("*.ics"))
+            self.assertEqual(len(ics), 1, "an .ics should be written next to the note")
+            content = ics[0].read_text(encoding="utf-8")
+            self.assertEqual(content.count("BEGIN:VEVENT"), 2)
+            self.assertIn("SUMMARY:Architecture review Tuesday", content)
+
+    def test_emit_ics_not_written_without_next_steps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            msg = self._capture_msg(tmp, emitIcs=True, transcript="## Summary\nNo follow-ups here.")
+            self._run(msg, _proc(0))
+            self.assertEqual(list(Path(tmp).glob("*.ics")), [])
+
+    def test_webhook_dispatched_with_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            posted = self._run_capturing_webhooks(self._capture_msg(
+                tmp, webhookUrl="https://hook.example/x", transcript="## Summary\nWe shipped it."))
+            self.assertEqual(len(posted), 1)
+            self.assertEqual(posted[0][0], "https://hook.example/x")
+            self.assertIn("We shipped it.", posted[0][1]["summary"])
+
+    def test_redaction_reaches_the_webhook_payload(self):
+        # The CHANGELOG claims redaction applies to webhook payloads — prove it.
+        with tempfile.TemporaryDirectory() as tmp:
+            posted = self._run_capturing_webhooks(self._capture_msg(
+                tmp, webhookUrl="https://hook.example/x", redactPii=True,
+                transcript="## Summary\nEmail alice@example.com about it."))
+            blob = str(posted[0][1])
+            self.assertNotIn("alice@example.com", blob)
+            self.assertIn("[redacted-email]", blob)
+
+    def test_slack_dispatched_with_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            posted = self._run_capturing_webhooks(self._capture_msg(
+                tmp, slackWebhookUrl="https://hooks.slack.com/x",
+                transcript="## Summary\nx\n\n## Action Items\nAlice: do y"))
+            self.assertEqual(posted[0][0], "https://hooks.slack.com/x")
+            self.assertIn("text", posted[0][1])
+
+    def test_unexpected_exception_notifies_and_errors(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache_tmp:
+            sent, notifs = [], []
+            with patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                    patch.object(host, 'read_message', return_value=self._capture_msg(tmp)), \
+                    patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                    patch.object(host, 'notify', side_effect=lambda t, m: notifs.append((t, m))), \
+                    patch.object(host.subprocess, 'run', side_effect=RuntimeError('kaboom')):
+                host.main()
+            self.assertEqual(sent[-1]['status'], 'error')
+            self.assertIn('kaboom', sent[-1]['error'])
+            self.assertTrue(any('failed' in t.lower() for t, _ in notifs))
+
     def test_ping(self):
         sent = self._run({"type": "ping"}, _proc(0))
         self.assertEqual(sent[-1]["status"], "ok")
