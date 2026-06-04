@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.122] – 2026-06-04 · Capture-now keyboard shortcut (RB-7d)
+
+### Added
+- **RB-7d** — a `chrome.commands` shortcut (**Cmd/Ctrl+Shift+Y**, rebindable at `chrome://extensions/shortcuts`) triggers "Capture now" on the active Meet tab without opening the popup. Background routes the command to the most recently used Meet tab.
+
+---
+
 ## [0.1.121] – 2026-06-04 · Desktop notification on failure (RB-7e)
 
 ### Added
