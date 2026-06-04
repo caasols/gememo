@@ -4,7 +4,8 @@
   "scripts": {
     "test": "playwright test",
     "test:python": "python3 -m pytest native_host/ -v",
-    "test:all": "python3 -m pytest native_host/ -v && playwright test"
+    "test:all": "python3 -m pytest native_host/ -v && playwright test",
+    "test:coverage": "playwright test tests/coverage.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0"
