@@ -449,9 +449,9 @@ function renderLogs(logs) {
     const groupClass = i === 0 ? 'log-group expanded' : 'log-group';
     const groupTitle = group.title || 'System';
     const outcome = groupOutcome(group.entries);
-    const groupDate = formatLogTime(group.entries[0].ts);
-    const entryCount = group.entries.length;
-    const meta = `${groupDate} · ${entryCount} entr${entryCount === 1 ? 'y' : 'ies'}`;
+    // Group meta is just the time — the entry count is internal log bookkeeping,
+    // not user-meaningful (UXF-3).
+    const meta = formatLogTime(group.entries[0].ts);
 
     const entriesHtml = group.entries.map(entry => {
       const dotClass = entry.status === 'ok' ? 'ok' : entry.status === 'warn' ? 'warn' : entry.status === 'err' ? 'err' : 'info';
@@ -477,10 +477,10 @@ function renderLogs(logs) {
     return `
       <div class="${groupClass}">
         <div class="log-group-header">
-          <span class="log-group-chevron">▶</span>
           <span class="log-dot ${outcome}" title="Capture outcome"></span>
           <span class="log-group-title">${escapeHtml(groupTitle)}</span>
           <span class="log-group-meta">${escapeHtml(meta)}</span>
+          <span class="log-group-chevron">▶</span>
         </div>
         <div class="log-group-entries">${entriesHtml}</div>
       </div>`;
