@@ -1974,6 +1974,18 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testLogGroupKey() {
+    console.group('logGroupKey (UXF-6)');
+    const ts = new Date('2026-06-05T10:00:00').getTime();
+    assertEq('stable for same title+day', logGroupKey('Q3 Sync', ts), logGroupKey('Q3 Sync', ts));
+    assert('different titles → different keys', logGroupKey('A', ts) !== logGroupKey('B', ts));
+    assert('includes the title', logGroupKey('Q3 Sync', ts).includes('Q3 Sync'));
+    assert('blank title → System', logGroupKey('', ts).includes('System'));
+    const ts2 = new Date('2026-06-06T10:00:00').getTime();
+    assert('different day → different key', logGroupKey('Q3 Sync', ts) !== logGroupKey('Q3 Sync', ts2));
+    console.groupEnd();
+  }
+
   function testBuildMailtoUrl() {
     console.group('buildMailtoUrl (RB-3c)');
     const u = buildMailtoUrl({ title: 'Q3 Sync', body: 'Notes here' });
@@ -2423,6 +2435,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testLogGroupKey();
     testBuildMailtoUrl();
     testFriendlyError();
     testCloseOverlayBody();

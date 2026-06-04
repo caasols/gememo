@@ -7,6 +7,11 @@ let activeMetTabId = null;
 // Logs tab tier toggle — when false, level:'debug' entries are hidden (UX-6).
 let showDebugLogs = false;
 
+// Persisted set of expanded log-group keys (UXF-6). Loaded from
+// mm2c_expanded_groups in applyState; mutated + saved by the toggle handler.
+// Default: all groups collapsed.
+let expandedGroups = new Set();
+
 const GLOBAL_KEYS = [
   'mm2c_enabled', 'mm2c_prompt',
   'mm2c_output_app',
@@ -28,6 +33,7 @@ const GLOBAL_KEYS = [
   'mm2c_emit_ics',
   'mm2c_glossary',
   'mm2c_beta_enabled',
+  'mm2c_expanded_groups',
 ];
 
 function tabScopedKeys(tabId) {
@@ -374,6 +380,7 @@ function applyState(s, tabId, live = null) {
     }
   }
 
+  expandedGroups = new Set(Array.isArray(s.mm2c_expanded_groups) ? s.mm2c_expanded_groups : []);
   renderLogs(s.mm2c_logs);
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
@@ -456,9 +463,12 @@ function renderLogs(logs) {
   const groups = groupLogs(logs);
   countEl.textContent = `${groups.length} meeting${groups.length === 1 ? '' : 's'} · ${logs.length} entr${logs.length === 1 ? 'y' : 'ies'}`;
 
-  list.innerHTML = groups.map((group, i) => {
-    const groupClass = i === 0 ? 'log-group expanded' : 'log-group';
+  list.innerHTML = groups.map((group) => {
     const groupTitle = group.title || 'System';
+    // Default collapsed; expanded only if persisted in the set (UXF-6). This
+    // replaces the old i===0 auto-expand that the 10 s refresh kept re-opening.
+    const key = logGroupKey(groupTitle, group.entries[0].ts);
+    const groupClass = expandedGroups.has(key) ? 'log-group expanded' : 'log-group';
     const outcome = groupOutcome(group.entries);
     // Group meta is just the time — the entry count is internal log bookkeeping,
     // not user-meaningful (UXF-3).
@@ -487,7 +497,7 @@ function renderLogs(logs) {
 
     return `
       <div class="${groupClass}">
-        <div class="log-group-header">
+        <div class="log-group-header" data-group-key="${escapeHtml(key)}">
           <span class="log-dot ${outcome}" title="Capture outcome"></span>
           <span class="log-group-title">${escapeHtml(groupTitle)}</span>
           <span class="log-group-meta">${escapeHtml(meta)}</span>
@@ -958,11 +968,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Collapsible log groups — toggle via event delegation
+  // Collapsible log groups — toggle the DOM and persist the choice (UXF-6) so
+  // the 10 s auto-refresh and future sessions remember it.
   $('log-list').addEventListener('click', (e) => {
     const header = e.target.closest('.log-group-header');
     if (!header) return;
-    header.closest('.log-group').classList.toggle('expanded');
+    const nowExpanded = header.closest('.log-group').classList.toggle('expanded');
+    const key = header.dataset.groupKey;
+    if (!key) return;
+    if (nowExpanded) expandedGroups.add(key);
+    else             expandedGroups.delete(key);
+    save({ mm2c_expanded_groups: [...expandedGroups] });
   });
 
   // Snapshot preview expand/collapse
