@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.1.110] – 2026-06-04 · Configurable Craft space (5.5)
+
+### Added
+- **5.5** — a **Craft Space ID** field in Settings routes notes to a specific Craft space (previously only settable via the `CRAFT_SPACE_ID` env var). The per-meeting value takes precedence over the env fallback. Threaded via `background.js`; 1 new main-flow test asserts `--space-id` reaches the push command.
+
+---
+
 ## [0.1.109] – 2026-06-04 · Slack post after capture (P9-B)
 
 ### Added

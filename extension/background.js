@@ -124,6 +124,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         chrome.storage.local.get([
           'mm2c_output_app',
           'mm2c_craft_folder_id',
+          'mm2c_craft_space_id',
           'mm2c_obsidian_vault_path',
           'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
           'mm2c_webhook_url',
@@ -134,6 +135,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             backupType:          data.mm2c_output_app || 'craft',
             meetingTitle:        title,
             craftFolderId:       data.mm2c_craft_folder_id       || '',
+            craftSpaceId:        data.mm2c_craft_space_id        || '',
             obsidianVaultPath:   data.mm2c_obsidian_vault_path   || '',
             attendees:           Array.isArray(msg.attendees) ? msg.attendees : [],
             durationMin:         msg.durationMin ?? null,
@@ -407,10 +409,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath },
+    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, fileBackupEnabled, fileBackupType, fileBackupPath },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;
