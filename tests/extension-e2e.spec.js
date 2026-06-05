@@ -167,5 +167,17 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#retry-list .retry-btn')).toBeVisible();
       await page.close();
     });
+
+    test('toggling Redact PII persists to storage', async () => {
+      const page = await popupWith({ mm2c_redact_pii: false });
+      await page.click('#tab-settings');
+      // The checkbox is a visually-hidden custom toggle (opacity:0); click its
+      // wrapping label to drive the real change handler.
+      await page.locator('label.toggle-wrap', { has: page.locator('#redact-pii') }).click();
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_redact_pii'])).mm2c_redact_pii
+      ).toBe(true);
+      await page.close();
+    });
   });
 });
