@@ -14,7 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Tests
-- **TEST-1 Layer 1 — extension E2E harness.** Playwright now loads the *real* unpacked extension headlessly (CI-compatible) and exercises `background.js` (message handlers incl. the `MM2C_RESPONSE` send/stats path) and `popup.js` (render via seeded storage), with `chrome.runtime.sendNativeMessage` stubbed at the service-worker boundary as the assertion seam — lifting the two previously-0% files off the floor (12 new E2E tests). `tests/ext-harness.js` owns launch/seed/stub/popup. Foundation for ARCH-7 and for verifying the beta items; the `content_meet` fake-Meet capture flow is Phase 2.
+- **TEST-1 Layer 1 — extension E2E harness.** Playwright now loads the *real* unpacked extension headlessly (runs on GitHub Actions CI) and exercises `background.js` and `popup.js` (the two previously-**0%** files), with `chrome.runtime.sendNativeMessage` stubbed at the service-worker boundary as the assertion seam. `tests/ext-harness.js` owns launch/seed/stub/popup. **18 E2E tests** cover the background handlers — `MM2C_RESPONSE` (forward payload + stats/status/last-note), `MM2C_STAT_JOINED`, `MM2C_CHECK_HOST`, `MM2C_SET_CAPTURE_STATE`, `MM2C_WARNING`/`MM2C_ERROR` (incl. the UXC-3 friendlyError mapping), `MM2C_RETRY`, `MM2C_RECOVER` (RB-1d), `MM2C_GCAL`/`MM2C_SEARCH` relays — and popup render (stats, logs, rules, retry card, crash-recovery card, a settings toggle). Foundation for ARCH-7 and for E2E-verifying the beta items; the `content_meet` fake-Meet capture flow is Phase 2. The remaining uncovered handlers are the `chrome.debugger` CDP paths + the network hotfix fetch (Phase-2/content_meet territory).
 
 ---
 
