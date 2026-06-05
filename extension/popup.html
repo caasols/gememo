@@ -322,7 +322,7 @@
       transition: background 0.3s;
     }
     .host-dot.ok   { background: var(--success); }
-    .host-dot.warn { background: var(--warn-text); }
+    .host-dot.warn { background: var(--warn); }
     .host-dot.err  { background: var(--danger); }
     #host-label { font-size: 11px; color: var(--text-muted); flex: 1; }
 
@@ -536,6 +536,13 @@
       flex-shrink: 0;
     }
 
+    /* Log status-cue vocabulary (UXF-5) — four unambiguous colours, each one
+       meaning, always paired with text (a11y):
+         grey  (default) = informational / no capture outcome
+         green (ok)      = note saved
+         amber (warn)    = partial / needs attention
+         red   (err)     = capture or save failed
+       The old blue 'info' was redundant with grey, so it collapses to grey. */
     .log-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
@@ -543,9 +550,8 @@
       flex-shrink: 0;
       margin-top: 3px;
     }
-    .log-dot.info { background: var(--primary); }
     .log-dot.ok   { background: var(--success); }
-    .log-dot.warn { background: var(--warn-text); }
+    .log-dot.warn { background: var(--warn); }
     .log-dot.err  { background: var(--danger); }
 
     .log-content { flex: 1; min-width: 0; }
