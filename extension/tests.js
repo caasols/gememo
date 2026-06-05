@@ -2133,6 +2133,22 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testFirstRunChecklist() {
+    console.group('firstRunChecklist (RB-7a)');
+    const fresh = firstRunChecklist({ hostOk: false, outputApp: 'none' });
+    assertEq('three steps', fresh.length, 3);
+    assert('host step not done when host missing', fresh[0].ok === false);
+    assert('output step not done when none', fresh[1].ok === false);
+    assert('not ready on a fresh install', firstRunReady(fresh) === false);
+
+    const setUp = firstRunChecklist({ hostOk: true, outputApp: 'craft' });
+    assert('host step done', setUp[0].ok === true);
+    assert('output step done', setUp[1].ok === true);
+    assert('ready once host+output set (capture step excluded)', firstRunReady(setUp) === true);
+    assert('capture step is never auto-done', setUp[2].ok === false);
+    console.groupEnd();
+  }
+
   function testBuildDiagnosticsReport() {
     console.group('buildDiagnosticsReport (RB-7b)');
     const r = buildDiagnosticsReport({
@@ -2624,6 +2640,7 @@ window.MM2C_TESTS = (() => {
     testNormalizeTheme();
     testBucketLogGroupsByDay();
     testLogGroupKey();
+    testFirstRunChecklist();
     testBuildDiagnosticsReport();
     testBuildTaskUrl();
     testBuildMailtoUrl();

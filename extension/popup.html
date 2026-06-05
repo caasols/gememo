@@ -1036,6 +1036,15 @@
       </div>
     </div>
 
+    <!-- First-run setup checklist (RB-7a) — shown until dismissed -->
+    <div class="setup-panel hidden" id="setup-wizard">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="color:var(--text)">Welcome to Gememo</strong>
+        <a class="reset-link" id="setup-wizard-dismiss">Dismiss</a>
+      </div>
+      <div id="setup-wizard-steps"></div>
+    </div>
+
     <!-- Status banner -->
     <div class="status-banner" id="status-banner">
       <span id="status">Not in a meeting</span>

@@ -40,10 +40,31 @@ const GLOBAL_KEYS = [
   'mm2c_inflight',
   'mm2c_my_aliases',
   'mm2c_selector_hotfix_url',
+  'mm2c_setup_done',
 ];
+
+// Render the first-run setup checklist (RB-7a) from live host status + config.
+function renderSetupWizard(hostOk) {
+  const panel = $('setup-wizard');
+  if (!panel) return;
+  chrome.storage.local.get(['mm2c_setup_done', 'mm2c_output_app'], ({ mm2c_setup_done, mm2c_output_app }) => {
+    if (mm2c_setup_done === true) { panel.classList.add('hidden'); return; }
+    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'craft' });
+    $('setup-wizard-steps').innerHTML = steps.map(s =>
+      `<div style="display:flex;gap:7px;align-items:center;margin-top:6px">
+         <span style="color:${s.ok ? 'var(--success)' : 'var(--text-muted)'}">${s.ok ? '✓' : '○'}</span>
+         <span style="color:var(--text)">${escapeHtml(s.label)}</span>
+       </div>`).join('');
+    panel.classList.remove('hidden');
+  });
+}
 
 // The user's name aliases (UXF-7), loaded in applyState; used by renderActionItems.
 let myAliases = '';
+
+// Last known native-host status (RB-7a) so the setup checklist can refresh when
+// the output app changes without re-pinging the host.
+let lastHostOk = false;
 
 // Apply a theme (system|light|dark) to <html> and the segmented control (UXF-8).
 function applyTheme(theme) {
@@ -478,6 +499,8 @@ function applyState(s, tabId, live = null) {
 }
 
 function setHostStatus(ok, error, hostVersion, versionMismatch) {
+  lastHostOk = ok === true;
+  renderSetupWizard(lastHostOk); // refresh the first-run checklist (RB-7a)
   const dot      = $('host-dot');
   const label    = $('host-label');
   const setupBtn = $('setup-btn');
@@ -824,6 +847,12 @@ document.addEventListener('DOMContentLoaded', () => {
     $('setup-panel').classList.toggle('hidden');
   });
 
+  // First-run setup checklist dismiss (RB-7a)
+  $('setup-wizard-dismiss').addEventListener('click', () => {
+    save({ mm2c_setup_done: true });
+    $('setup-wizard').classList.add('hidden');
+  });
+
   $('copy-cmd').addEventListener('click', () => {
     const cmd = $('install-cmd').textContent;
     navigator.clipboard.writeText(cmd).then(() => {
@@ -912,6 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
     syncAlsoSend(app); // never offer the primary as an also-send target (UXF-11)
     save({ mm2c_output_app: app });
+    renderSetupWizard(lastHostOk); // checking off the "choose output app" step (RB-7a)
   });
 
   $('craft-folder-id').addEventListener('input', e => {
