@@ -68,7 +68,10 @@ async function getStorage(sw, keys) {
 }
 
 async function clearStorage(sw) {
-  await sw.evaluate(() => new Promise((res) => chrome.storage.local.clear(res)));
+  await sw.evaluate(() => Promise.all([
+    new Promise((res) => chrome.storage.local.clear(res)),
+    new Promise((res) => (chrome.storage.session ? chrome.storage.session.clear(res) : res())),
+  ]));
 }
 
 async function openPopup(context, extensionId) {
