@@ -22,7 +22,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-HOST_VERSION = '0.2.0'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
+# Resolve through the install symlink so sibling modules (gcal.py) import at
+# runtime whether run directly or via the symlinked wrapper.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
+
+HOST_VERSION = '0.2.1'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -259,6 +264,7 @@ def build_yaml_frontmatter(
     meeting_type: str | None = None,
     recording: bool = False,
     topic_tags: list | None = None,
+    cal_fields: dict | None = None,
 ) -> str:
     """Return a YAML front-matter block for a .md backup file.
 
@@ -290,6 +296,26 @@ def build_yaml_frontmatter(
             lines.append(f"  - {name}")
     if duration_min is not None:
         lines.append(f"duration_min: {duration_min}")
+    if cal_fields:
+        cf = cal_fields
+        if cf.get('recurring_event_id'):
+            lines.append(f"recurring_event_id: {cf['recurring_event_id']}")
+        if cf.get('organizer'):
+            lines.append(f"organizer: {cf['organizer']}")
+        if cf.get('scheduled_start'):
+            lines.append(f"scheduled_start: {cf['scheduled_start']}")
+        if cf.get('scheduled_end'):
+            lines.append(f"scheduled_end: {cf['scheduled_end']}")
+        if cf.get('scheduled_duration_min') is not None:
+            lines.append(f"scheduled_duration_min: {cf['scheduled_duration_min']}")
+        if cf.get('attendee_emails'):
+            lines.append("attendee_emails:")
+            for em in cf['attendee_emails']:
+                lines.append(f"  - {em}")
+        if cf.get('description'):
+            folded = ' '.join(str(cf['description']).split())
+            safe = folded.replace('\\', '\\\\').replace('"', '\\"')
+            lines.append(f'description: "{safe}"')
     all_tags = ['meeting', dt.strftime('%Y/%m')] + [t for t in (topic_tags or []) if t]
     lines.append(f"tags: [{', '.join(all_tags)}]")
     lines.append("---")
@@ -776,6 +802,7 @@ def route_output(
     notify_fn=None,
     send_fn=None,
     open_url_fn=None,
+    cal_fields=None,
 ) -> bool:
     """Handle non-Craft output destinations. Returns True if handled, False to fall through.
 
@@ -803,7 +830,7 @@ def route_output(
                                effective_label.lower().replace(' ', '-'),
                                flags=re.ASCII)[:50]
             note_path = vault / f"{effective_dt.strftime('%Y%m%d-%H%M')}-{slug}.md"
-            fm        = build_yaml_frontmatter(effective_label, effective_dt)
+            fm        = build_yaml_frontmatter(effective_label, effective_dt, cal_fields=cal_fields)
             note_path.write_text(fm + craft_md, encoding='utf-8')
             _note("Meeting Notes → Obsidian", title)
             resp: dict = {"status": "ok", "title": title}
@@ -952,6 +979,25 @@ def main() -> None:
         send_message({"status": "ok", "context": ctx})
         return
 
+    if msg.get("type") == "gcal_status":
+        send_message(gcal.status())
+        return
+
+    if msg.get("type") == "gcal_disconnect":
+        send_message(gcal.disconnect())
+        return
+
+    if msg.get("type") == "gcal_connect":
+        # Run the interactive flow detached so it outlives Chrome's ~30s native-
+        # messaging window; the popup polls gcal_status afterward.
+        try:
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gcal.py"))],
+                             start_new_session=True)
+            send_message({"status": "ok", "started": True})
+        except Exception as exc:
+            send_message({"status": "error", "error": str(exc)})
+        return
+
     transcript = msg.get("transcript", "").strip()
     if not transcript:
         send_message({"status": "error", "error": "transcript is empty"})
@@ -969,6 +1015,15 @@ def main() -> None:
     # Auto-tagging (RB-4c) — pull the trailing 'Tags:' line out of the body and
     # promote it to YAML frontmatter; the line never reaches the rendered note.
     topic_tags, craft_md = extract_tags(craft_md)
+
+    # Google Calendar enrichment (5.3) — best-effort, never blocks capture.
+    cal_fields = {}
+    if msg.get("calendarEnabled") and gcal.GCAL_AVAILABLE:
+        cal_fields, _cal_status = gcal.enrich_frontmatter_fields(
+            msg.get("meetingCode", ""), msg.get("timestamp", ""),
+            msg.get("meetingTitle", ""), bool(msg.get("redactPii")),
+            events_provider=gcal.live_events_provider(msg.get("timestamp", "")),
+        )
 
     # Resolve the timestamp — convert to local timezone so the Craft note title
     # shows wall-clock time rather than UTC (e.g. 09:12 CEST not 07:12 UTC).
@@ -1018,6 +1073,7 @@ def main() -> None:
             meeting_type=msg.get("meetingType") or None,
             recording=bool(msg.get("recording")),
             topic_tags=topic_tags,
+            cal_fields=cal_fields,
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
         # .ics for the Next Steps section (RB-3b), written next to the note.
@@ -1061,7 +1117,7 @@ def main() -> None:
 
     if route_output(back_type, craft_md, title, file_path,
                     obsidian_vault_path=msg.get("obsidianVaultPath", ""),
-                    dt=dt, label=label):
+                    dt=dt, label=label, cal_fields=cal_fields):
         return
 
     # back_type == 'craft' (or anything unrecognised) → fall through to Craft push
