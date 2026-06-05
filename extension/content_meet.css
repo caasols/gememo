@@ -88,7 +88,25 @@
 .mm2c-overlay-btn--primary:hover { background: #1557b0; border-color: transparent; }
 .mm2c-overlay-btn--primary:active { background: #1146a0; }
 
+/* Review-before-send preview (RB-4b) — a scrollable transcript in the card. */
+.mm2c-preview {
+  text-align: left;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #202124;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 16px;
+}
+
 @media (prefers-color-scheme: dark) {
+  .mm2c-preview { color: #e8eaed; background: #292a2d; border-color: #3c4043; }
   .mm2c-overlay-card {
     background: #202124;
     color: #e8eaed;

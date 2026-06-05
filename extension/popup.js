@@ -41,6 +41,7 @@ const GLOBAL_KEYS = [
   'mm2c_my_aliases',
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
+  'mm2c_preview_before_send',
 ];
 
 // Render the first-run setup checklist (RB-7a) from live host status + config.
@@ -425,6 +426,7 @@ function applyState(s, tabId, live = null) {
   $('redact-keywords').value = s.mm2c_redact_keywords || '';
   $('blocklist').value = s.mm2c_blocklist || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
+  $('preview-before-send').checked = s.mm2c_preview_before_send === true;
   $('wikilinks').checked = s.mm2c_wikilinks === true;
   $('task-app').value = s.mm2c_task_app || '';
   myAliases = s.mm2c_my_aliases || '';
@@ -983,6 +985,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('wikilinks').addEventListener('change', e => {
     save({ mm2c_wikilinks: e.target.checked });
+  });
+  $('preview-before-send').addEventListener('change', e => {
+    save({ mm2c_preview_before_send: e.target.checked });
   });
   $('selector-hotfix-url').addEventListener('change', e => {
     const url = e.target.value.trim();

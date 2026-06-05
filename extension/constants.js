@@ -492,6 +492,12 @@ function friendlyError(raw) {
   return 'Something went wrong saving your notes. Check the Logs tab for details.';
 }
 
+// Pure helper — should the capture be shown for review before sending (RB-4b)?
+// Only when the user opted in AND there's a non-trivial transcript to review.
+function shouldPreviewBeforeSend(enabled, transcript) {
+  return !!enabled && typeof transcript === 'string' && transcript.trim().length > 20;
+}
+
 // Pure helper — body copy for the leave-confirmation overlay (UXC-1). Names the
 // user's actual output app instead of a hardcoded "Craft", which was factually
 // wrong for Apple Notes / Obsidian users.

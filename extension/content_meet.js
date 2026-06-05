@@ -50,6 +50,7 @@
   let meetingSnapshotTimer = null;       // setTimeout handle for meeting-anchored snapshot schedule
   let currentOutputApp     = 'craft';    // mirrors mm2c_output_app; updated from storage
   let currentTitleTemplate = '';         // per-rule note-title template, resolved at join (RB-4d)
+  let previewBeforeSend    = false;      // opt-in review-before-send gate (RB-4b)
 
   // ── Meeting state reset ────────────────────────────────────────────────────
   // Zeros all per-meeting flags. Called from the MutationObserver lifecycle block
@@ -114,9 +115,10 @@
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides']).then((data) => {
+  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides', 'mm2c_preview_before_send']).then((data) => {
     enabled = data.mm2c_enabled !== false;
     currentOutputApp = data.mm2c_output_app || 'craft';
+    previewBeforeSend = data.mm2c_preview_before_send === true;
     // Apply any remote selector hotfix overrides (RB-1b) over the bundled registry.
     if (typeof SELECTORS !== 'undefined') {
       effectiveSelectors = mergeSelectorOverrides(SELECTORS, data.mm2c_selector_overrides);
@@ -225,6 +227,9 @@
     }
     if ('mm2c_output_app' in changes) {
       currentOutputApp = changes.mm2c_output_app.newValue || 'craft';
+    }
+    if ('mm2c_preview_before_send' in changes) {
+      previewBeforeSend = changes.mm2c_preview_before_send.newValue === true;
     }
   });
 
@@ -1347,6 +1352,16 @@
         }
       }
 
+      // Optional review-before-send gate (RB-4b).
+      if (shouldPreviewBeforeSend(previewBeforeSend, transcript)) {
+        const choice = await showPreviewOverlay(transcript);
+        if (choice === 'discard') {
+          sendLog('Note discarded from review', 'user');
+          showStatus('Note discarded', 'warn');
+          transcript = null; // skip the send below
+        }
+      }
+
       // Send to Craft only if a transcript was acquired by any path above.
       if (transcript) {
         sendLog(`Sending notes to ${outputAppName(currentOutputApp)}...`);
@@ -1538,6 +1553,31 @@
     //   • <button aria-label*="Gemini"> — star icon shown after Gemini is started
     //   • DIV[role="button"] "Take notes with Gemini" — shown before first activation
     return !!getGeminiTriggerElement();
+  }
+
+  // Review-before-send overlay (RB-4b). Resolves 'send' or 'discard'. Auto-sends
+  // after 15 s so a distracted user is never blocked from leaving. (Regenerate
+  // needs a fresh live Gemini pass and is deferred — 🔴.)
+  function showPreviewOverlay(transcript) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.id = 'mm2c-close-overlay';
+      ov.innerHTML = `
+        <div class="mm2c-overlay-card">
+          <div class="mm2c-overlay-title">Review before saving</div>
+          <div class="mm2c-preview">${transcript.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>
+          <div class="mm2c-overlay-actions">
+            <button id="mm2c-preview-discard" class="mm2c-overlay-btn">Discard</button>
+            <button id="mm2c-preview-send" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save &amp; leave</button>
+          </div>
+        </div>`;
+      document.body.appendChild(ov);
+      let done = false;
+      const finish = (choice) => { if (done) return; done = true; clearTimeout(t); ov.remove(); resolve(choice); };
+      ov.querySelector('#mm2c-preview-send').addEventListener('click', () => finish('send'));
+      ov.querySelector('#mm2c-preview-discard').addEventListener('click', () => finish('discard'));
+      const t = setTimeout(() => finish('send'), 15000); // default to sending
+    });
   }
 
   let closeOverlay = null;

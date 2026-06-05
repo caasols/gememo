@@ -2218,6 +2218,16 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testShouldPreviewBeforeSend() {
+    console.group('shouldPreviewBeforeSend (RB-4b)');
+    assert('enabled + real transcript → preview',
+      shouldPreviewBeforeSend(true, 'A reasonably long captured note here') === true);
+    assert('disabled → no preview', shouldPreviewBeforeSend(false, 'A long note here for review') === false);
+    assert('enabled but trivial transcript → no preview', shouldPreviewBeforeSend(true, 'tiny') === false);
+    assert('enabled but null transcript → no preview', shouldPreviewBeforeSend(true, null) === false);
+    console.groupEnd();
+  }
+
   function testCloseOverlayBody() {
     console.group('closeOverlayBody (UXC-1)');
     assertEq('names Craft', closeOverlayBody('Craft'),
@@ -2645,6 +2655,7 @@ window.MM2C_TESTS = (() => {
     testBuildTaskUrl();
     testBuildMailtoUrl();
     testFriendlyError();
+    testShouldPreviewBeforeSend();
     testCloseOverlayBody();
     testGeminiInactiveMessage();
     testBuildPromptWithExample();
