@@ -797,6 +797,7 @@ def route_output(
     notify_fn=None,
     send_fn=None,
     open_url_fn=None,
+    cal_fields=None,
 ) -> bool:
     """Handle non-Craft output destinations. Returns True if handled, False to fall through.
 
@@ -824,7 +825,7 @@ def route_output(
                                effective_label.lower().replace(' ', '-'),
                                flags=re.ASCII)[:50]
             note_path = vault / f"{effective_dt.strftime('%Y%m%d-%H%M')}-{slug}.md"
-            fm        = build_yaml_frontmatter(effective_label, effective_dt)
+            fm        = build_yaml_frontmatter(effective_label, effective_dt, cal_fields=cal_fields)
             note_path.write_text(fm + craft_md, encoding='utf-8')
             _note("Meeting Notes → Obsidian", title)
             resp: dict = {"status": "ok", "title": title}
