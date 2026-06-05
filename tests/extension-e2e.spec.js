@@ -119,6 +119,69 @@ test.describe('extension E2E harness', () => {
       expect(call.msg.query).toBe('q3');
       expect(call.msg.since).toBe('2026-06-01');
     });
+
+    test('MM2C_SET_CAPTURE_STATE records capturing state + REC tab tracking', async () => {
+      await sendFromPage(popup, { type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const stateKey = Object.keys(s).find(k => k.startsWith('mm2c_capture_state'));
+        return {
+          state: stateKey ? s[stateKey] : undefined,
+          capturing: Array.isArray(s.mm2c_capturing_tabs) && s.mm2c_capturing_tabs.length > 0,
+        };
+      }).toEqual({ state: 'capturing', capturing: true });
+    });
+
+    test('MM2C_WARNING sets a Warning status and logs it', async () => {
+      await sendFromPage(popup, { type: 'MM2C_WARNING', message: 'Meeting too short', meetingTitle: 'X' });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const statusKey = Object.keys(s).find(k => k.startsWith('mm2c_last_status'));
+        return {
+          status: !!(statusKey && String(s[statusKey]).startsWith('Warning: Meeting too short')),
+          logged: (s.mm2c_logs || []).some(e => e.status === 'warn' && e.message === 'Meeting too short'),
+        };
+      }).toEqual({ status: true, logged: true });
+    });
+
+    test('MM2C_ERROR shows a friendly status and logs the raw error (UXC-3)', async () => {
+      await sendFromPage(popup, { type: 'MM2C_ERROR', error: 'Craft is not running — open Craft', meetingTitle: 'X' });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const statusKey = Object.keys(s).find(k => k.startsWith('mm2c_last_status'));
+        return {
+          friendly: !!(statusKey && /Error: Craft isn't running/i.test(String(s[statusKey]))),
+          rawLogged: (s.mm2c_logs || []).some(e => e.status === 'err' && /Craft is not running/.test(e.message)),
+        };
+      }).toEqual({ friendly: true, rawLogged: true });
+    });
+
+    test('MM2C_RETRY removes the failed entry on a successful host retry', async () => {
+      await seedStorage(ext.serviceWorker, {
+        mm2c_failed_list: [{ tabId: null, title: 'Lost', backupPath: '/tmp/lost.md', failedAt: Date.now() }],
+      });
+      await stubNativeMessage(ext.serviceWorker, { retry: { status: 'ok', title: 'Lost', source: 'file' }, __default: { status: 'ok' } });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RETRY', title: 'Lost', backupPath: '/tmp/lost.md' });
+      expect(resp.ok).toBe(true);
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_failed_list'])).mm2c_failed_list?.length
+      ).toBe(0);
+    });
+
+    test('MM2C_RECOVER re-sends the in-flight note and clears it (RB-1d)', async () => {
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'craft',
+        mm2c_inflight: { title: 'Crashed Meeting', text: 'recovered notes body', at: Date.now() },
+      });
+      await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok', title: 'Crashed Meeting' } });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RECOVER' });
+      expect(resp.ok).toBe(true);
+      const sent = await getSent(ext.serviceWorker);
+      expect(sent.some(s => s.msg.transcript === 'recovered notes body')).toBe(true);
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_inflight'])).mm2c_inflight
+      ).toBeUndefined();
+    });
   });
 
   test.describe('popup render', () => {
@@ -177,6 +240,16 @@ test.describe('extension E2E harness', () => {
       await expect.poll(async () =>
         (await getStorage(ext.serviceWorker, ['mm2c_redact_pii'])).mm2c_redact_pii
       ).toBe(true);
+      await page.close();
+    });
+
+    test('Main tab renders the crash-recovery card from an in-flight note (RB-1d)', async () => {
+      const page = await popupWith({
+        // `at` older than the 60s grace window so inflightRecoverable() is true.
+        mm2c_inflight: { title: 'Crashed Meeting', text: 'recovered notes body', at: Date.now() - 70000 },
+      });
+      await expect(page.locator('#recovery-list')).toContainText('unsent note was recovered');
+      await expect(page.locator('#recovery-list #recover-send')).toBeVisible();
       await page.close();
     });
   });
