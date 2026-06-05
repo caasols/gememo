@@ -80,6 +80,23 @@ function loadAndApplyState(tabId, live = null) {
 
 const $ = id => document.getElementById(id);
 
+// Hide the "Also send to" option that matches the current primary output app
+// and uncheck it if it was selected (UXF-11) — a destination must never appear
+// as both primary and also-send.
+function syncAlsoSend(primaryApp) {
+  let changed = false;
+  document.querySelectorAll('.also-send-opt').forEach(cb => {
+    const isPrimary = cb.value === primaryApp;
+    const label = cb.closest('label');
+    if (label) label.classList.toggle('hidden', isPrimary);
+    if (isPrimary && cb.checked) { cb.checked = false; changed = true; }
+  });
+  if (changed) {
+    const selected = [...document.querySelectorAll('.also-send-opt:checked')].map(c => c.value);
+    chrome.storage.local.set({ mm2c_also_send: selected });
+  }
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -373,6 +390,7 @@ function applyState(s, tabId, live = null) {
   applyTheme(s.mm2c_theme);
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
   document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
+  syncAlsoSend(outputApp);
 
   const fileBackupOn = s.mm2c_file_backup_enabled === true;
   $('file-backup-enabled').checked = fileBackupOn;
@@ -867,6 +885,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const app = e.target.value;
     $('craft-sub-options').classList.toggle('hidden', app !== 'craft');
     $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
+    syncAlsoSend(app); // never offer the primary as an also-send target (UXF-11)
     save({ mm2c_output_app: app });
   });
 
