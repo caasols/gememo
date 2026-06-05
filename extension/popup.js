@@ -39,6 +39,7 @@ const GLOBAL_KEYS = [
   'mm2c_task_app',
   'mm2c_inflight',
   'mm2c_my_aliases',
+  'mm2c_selector_hotfix_url',
 ];
 
 // The user's name aliases (UXF-7), loaded in applyState; used by renderActionItems.
@@ -407,6 +408,7 @@ function applyState(s, tabId, live = null) {
   $('task-app').value = s.mm2c_task_app || '';
   myAliases = s.mm2c_my_aliases || '';
   $('my-aliases').value = myAliases;
+  $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -951,6 +953,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('wikilinks').addEventListener('change', e => {
     save({ mm2c_wikilinks: e.target.checked });
+  });
+  $('selector-hotfix-url').addEventListener('change', e => {
+    const url = e.target.value.trim();
+    $('selector-hotfix-url').value = url;
+    save({ mm2c_selector_hotfix_url: url });
+    chrome.runtime.sendMessage({ type: 'MM2C_REFRESH_HOTFIX' }, () => void chrome.runtime.lastError);
   });
   $('my-aliases').addEventListener('change', e => {
     myAliases = e.target.value.trim();

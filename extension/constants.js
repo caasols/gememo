@@ -553,6 +553,39 @@ function selectorHealthCheck(registry, queryFn, critical = CRITICAL_SELECTORS) {
   return { resolved, failed, criticalFailed };
 }
 
+// Pure helper — validate a fetched selectors.json into a safe overrides object
+// (RB-1b). Only known registry keys are kept; each value must be a non-empty
+// string or array of strings. Anything else is dropped — a malformed remote
+// file can never inject arbitrary keys or break the bundled registry.
+function sanitizeSelectorOverrides(json, allowedKeys) {
+  const allowed = Array.isArray(allowedKeys) ? allowedKeys : Object.keys(SELECTORS);
+  const out = {};
+  if (!json || typeof json !== 'object') return out;
+  for (const key of allowed) {
+    const v = json[key];
+    if (Array.isArray(v)) {
+      const clean = v.filter(s => typeof s === 'string' && s.trim()).map(s => s.trim());
+      if (clean.length) out[key] = clean;
+    } else if (typeof v === 'string' && v.trim()) {
+      out[key] = [v.trim()];
+    }
+  }
+  return out;
+}
+
+// Pure helper — overlay validated remote overrides onto the bundled registry
+// (RB-1b). A key present in overrides replaces the bundled fallback list; all
+// other keys are untouched. Returns a new object (inputs not mutated).
+function mergeSelectorOverrides(base, overrides) {
+  const merged = { ...(base || {}) };
+  if (overrides && typeof overrides === 'object') {
+    for (const [k, v] of Object.entries(overrides)) {
+      if (Array.isArray(v) && v.length) merged[k] = v;
+    }
+  }
+  return merged;
+}
+
 // Pure response-extraction logic shared between content_meet.js and tests.js.
 // Takes an element (the Gemini side-panel aside) and returns the last model
 // reply with UI chrome stripped, or null if no response is present.
