@@ -35,6 +35,7 @@ const GLOBAL_KEYS = [
   'mm2c_beta_enabled',
   'mm2c_expanded_groups',
   'mm2c_theme',
+  'mm2c_wikilinks',
 ];
 
 // Apply a theme (system|light|dark) to <html> and the segmented control (UXF-8).
@@ -336,6 +337,7 @@ function applyState(s, tabId, live = null) {
   $('redact-keywords').value = s.mm2c_redact_keywords || '';
   $('blocklist').value = s.mm2c_blocklist || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
+  $('wikilinks').checked = s.mm2c_wikilinks === true;
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -834,6 +836,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('emit-ics').addEventListener('change', e => {
     save({ mm2c_emit_ics: e.target.checked });
+  });
+  $('wikilinks').addEventListener('change', e => {
+    save({ mm2c_wikilinks: e.target.checked });
   });
   $('beta-enabled').addEventListener('change', e => {
     document.body.classList.toggle('beta-enabled', e.target.checked);
