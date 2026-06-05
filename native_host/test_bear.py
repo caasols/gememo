@@ -38,6 +38,16 @@ class TestRouteOutputBear(unittest.TestCase):
         self.assertTrue(opened[0].startswith("bear://x-callback-url/create?"))
         self.assertEqual(sent[0]["status"], "ok")
 
+    def test_includes_backup_file_path_when_present(self):
+        opened, sent = [], []
+        route_output(
+            "bear", "body", "title", "/tmp/notes/20260605-x.md",
+            open_url_fn=lambda u: opened.append(u),
+            notify_fn=lambda *a: None, send_fn=lambda m: sent.append(m),
+        )
+        self.assertEqual(sent[0]["status"], "ok")
+        self.assertEqual(sent[0]["file"], "/tmp/notes/20260605-x.md")
+
     def test_opener_failure_reports_error(self):
         sent = []
 
