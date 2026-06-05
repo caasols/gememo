@@ -223,21 +223,26 @@
       justify-content: space-between;
     }
 
-    .btn-collapse {
+    /* Shared 22×22 icon-button box (UXC-10) — one anatomy for the collapse
+       chevron and the rule up/down/delete actions; per-class tweaks below. */
+    .btn-collapse, .btn-rule-action {
       width: 22px;
       height: 22px;
       border-radius: 6px;
       border: 1px solid var(--border-strong);
       background: var(--surface-subtle);
-      color: var(--text);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      font-size: 13px;
       line-height: 1;
-      transition: background 0.1s, border-color 0.1s, transform 0.2s;
       flex-shrink: 0;
+      font-family: inherit;
+    }
+    .btn-collapse {
+      color: var(--text);
+      font-size: 13px;
+      transition: background 0.1s, border-color 0.1s, transform 0.2s;
     }
     .btn-collapse:hover { background: var(--hover-primary); border-color: var(--focus); }
     .btn-collapse.open { transform: rotate(90deg); }
@@ -725,19 +730,8 @@
     }
     .rule-regex::placeholder { color: var(--text-muted); font-style: italic; }
     .btn-rule-action {
-      width: 22px; height: 22px;
-      border: 1px solid var(--border-strong);
-      border-radius: 6px;
-      background: var(--surface-subtle);
       color: var(--text-muted);
       font-size: 11px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      line-height: 1;
-      font-family: inherit;
     }
     .btn-rule-action:hover { background: var(--border); }
     .btn-rule-action.danger:hover { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
