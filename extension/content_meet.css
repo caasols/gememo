@@ -1,0 +1,107 @@
+/* content_meet.css — styles for Gememo's in-Meet surfaces (UXC-7).
+   Injected into meet.google.com alongside content_meet.js. The colour VALUES
+   mirror design_tokens.js (UXC-0) — CSS can't import the JS module, so
+   tests/tokens.spec.js guards the key values against drift. All selectors are
+   mm2c-prefixed so nothing leaks into Meet's own UI. */
+
+/* ── Status toast ──────────────────────────────────────────────────────────
+   Base only — the per-level fill colour is set in JS via tokenStatusFill so the
+   badge and toast share one source (UXC-5). */
+.mm2c-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99999;
+  padding: 10px 22px;
+  border-radius: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .3);
+}
+
+/* ── Leave-confirmation overlay (UXC-6) — rebuilt on the popup's visual
+   language: light surface, 6px radius, system font, real button states.
+   Dark theme follows the OS (mirrors RB-7f). */
+#mm2c-close-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.mm2c-overlay-card {
+  background: #ffffff;
+  color: #202124;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 24px 28px;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .25);
+  text-align: center;
+}
+.mm2c-overlay-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+}
+.mm2c-overlay-body {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.mm2c-overlay-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.mm2c-overlay-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #1a73e8;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.mm2c-overlay-btn:hover { background: #e8f0fe; border-color: #9ca3af; }
+.mm2c-overlay-btn:focus-visible { outline: 2px solid #9ca3af; outline-offset: 1px; }
+.mm2c-overlay-btn:active { background: #d2e3fc; }
+.mm2c-overlay-btn--primary {
+  border: none;
+  background: #1a73e8;
+  color: #ffffff;
+}
+.mm2c-overlay-btn--primary:hover { background: #1557b0; border-color: transparent; }
+.mm2c-overlay-btn--primary:active { background: #1146a0; }
+
+@media (prefers-color-scheme: dark) {
+  .mm2c-overlay-card {
+    background: #202124;
+    color: #e8eaed;
+    border-color: #3c4043;
+  }
+  .mm2c-overlay-title { color: #f1f3f4; }
+  .mm2c-overlay-body { color: #9aa0a6; }
+  .mm2c-overlay-btn {
+    background: #202124;
+    color: #8ab4f8;
+    border-color: #5f6368;
+  }
+  .mm2c-overlay-btn:hover { background: #2d3a4d; }
+  .mm2c-overlay-btn--primary { background: #8ab4f8; color: #202124; }
+  .mm2c-overlay-btn--primary:hover { background: #aecbfa; }
+}

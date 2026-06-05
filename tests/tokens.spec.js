@@ -78,13 +78,28 @@ test('badge + toast use token colours, not hardcoded hexes (UXC-5)', () => {
   expect(cm).not.toContain("'#e37400'");
 });
 
-test('in-Meet toast uses the shared font stack, not Google Sans (UXC-12)', () => {
+test('in-Meet surfaces use the system font stack, not Google Sans (UXC-12/UXC-7)', () => {
   const cm = fs.readFileSync(path.join(EXT, 'content_meet.js'), 'utf8');
-  // Toast style block uses the token font stack…
-  expect(cm).toMatch(/font-family:\$\{TOKENS\.font\.ui\}/);
-  // …and the toast no longer hardcodes Google Sans with font-size:13px.
-  expect(cm).not.toContain("font-family:'Google Sans',Roboto,sans-serif;font-size:13px;");
-  // (The close overlay's Google Sans stack is reskinned separately by UXC-6.)
+  const css = fs.readFileSync(path.join(EXT, 'content_meet.css'), 'utf8');
+  // Styling moved to the CSS file (UXC-7); no inline Google Sans or cssText left.
+  expect(cm).not.toContain("'Google Sans'");
+  expect(cm).not.toContain('style="background:#202124');
+  // The CSS uses the same system-UI stack as the popup.
+  expect(css).toContain('-apple-system');
+  expect(css).not.toContain("'Google Sans'");
+});
+
+test('content_meet.css is registered and overlay rebuilt on tokens (UXC-7/UXC-6)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
+  expect(manifest.content_scripts[0].css).toContain('content_meet.css');
+  const css = fs.readFileSync(path.join(EXT, 'content_meet.css'), 'utf8');
+  // Overlay rebuilt on the light surface + 6px radius + button states.
+  expect(css).toMatch(/\.mm2c-overlay-card\s*\{[^}]*border-radius:\s*6px/);
+  expect(css).toContain('.mm2c-overlay-btn:hover');
+  expect(css).toContain('.mm2c-overlay-btn:focus-visible');
+  expect(css).toMatch(/prefers-color-scheme: dark/); // overlay themes for dark too
+  // Danger/success/primary values mirror the tokens.
+  expect(css.toLowerCase()).toContain(TOKENS.color.primary.toLowerCase());
 });
 
 test('all three surfaces load design_tokens.js first', () => {
