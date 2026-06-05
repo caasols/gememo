@@ -30,5 +30,22 @@ class TestParsing(unittest.TestCase):
         self.assertIsNone(gcal._event_start({}))
 
 
+class TestMeetCode(unittest.TestCase):
+    def test_from_hangout_link(self):
+        e = {"hangoutLink": "https://meet.google.com/abc-defg-hij"}
+        self.assertEqual(gcal._event_meet_code(e), "abc-defg-hij")
+
+    def test_from_conference_id(self):
+        e = {"conferenceData": {"conferenceId": "abc-defg-hij"}}
+        self.assertEqual(gcal._event_meet_code(e), "abc-defg-hij")
+
+    def test_from_entry_point_uri(self):
+        e = {"conferenceData": {"entryPoints": [{"uri": "https://meet.google.com/xyz-mnop-qrs"}]}}
+        self.assertEqual(gcal._event_meet_code(e), "xyz-mnop-qrs")
+
+    def test_none_when_absent(self):
+        self.assertEqual(gcal._event_meet_code({}), "")
+
+
 if __name__ == "__main__":
     unittest.main()
