@@ -410,6 +410,23 @@ function buildDiagnosticsReport(info = {}) {
   ].join('\n');
 }
 
+// Pure helper — the first-run setup checklist (RB-7a). Given the live host
+// status and chosen output app, returns the ordered steps with their done
+// state. The capture step completes itself in the first meeting.
+function firstRunChecklist({ hostOk = false, outputApp = '' } = {}) {
+  return [
+    { id: 'host',    label: 'Install the native host', ok: !!hostOk },
+    { id: 'output',  label: 'Choose an output app',     ok: !!outputApp && outputApp !== 'none' },
+    { id: 'capture', label: 'Capture your first meeting', ok: false },
+  ];
+}
+
+// Pure helper — is setup ready to capture (RB-7a)? True once the host + output
+// steps are done; the capture step is informational and excluded.
+function firstRunReady(list) {
+  return (Array.isArray(list) ? list : []).filter(s => s.id !== 'capture').every(s => s.ok);
+}
+
 // Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
 function buildIssueUrl(report) {
   const enc = s => encodeURIComponent(String(s == null ? '' : s));
