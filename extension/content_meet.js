@@ -1478,6 +1478,19 @@
       }
       const geminiNote = geminiWasActive ? ', Gemini active' : ', Gemini not yet detected';
       sendLog(`Meeting joined — ready to capture notes${geminiNote}`);
+      // Selector health self-test (RB-1a) — surface a Meet DOM change as an
+      // observable diagnostic instead of a silent capture failure.
+      try {
+        const health = selectorHealthCheck(SELECTORS, sel => document.querySelector(sel));
+        if (health.criticalFailed.length) {
+          sendLog(`Selector health: critical selectors unresolved (${health.criticalFailed.join(', ')}) — Meet may have changed its DOM`, 'user');
+          safeSend({ type: 'MM2C_WARNING', message: 'Meet UI changed — capture may not work. Please report an issue.', meetingTitle: currentMeetingTitle });
+        } else if (health.failed.length) {
+          sendLog(`Selector health: ${health.failed.join(', ')} not present yet (normal pre-activation)`, 'debug');
+        } else {
+          sendLog('Selector health: all resolved', 'debug');
+        }
+      } catch (e) { console.warn('[MM2C] selector health check failed:', e?.message || e); }
       // Auto-open the Gemini panel so note-taking starts immediately.
       // If the button isn't visible yet the function resets its flag so the
       // MutationObserver branch above retries when it appears.

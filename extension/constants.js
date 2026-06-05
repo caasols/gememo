@@ -435,6 +435,50 @@ function depthInstruction(depth) {
   return '';
 }
 
+// ── Selector registry (RB-1a) ───────────────────────────────────────────────
+// Every Meet DOM selector the content script depends on, each an ordered list
+// of fallbacks (first match wins). Centralising them turns a silent capture
+// failure after a Meet UI change into an observable, diagnosable one — and is
+// the foundation for a remote selector hotfix (RB-1b). content_meet.js resolves
+// live elements through this map; selectorHealthCheck() probes them on join.
+const SELECTORS = {
+  leaveButton:  ['button[aria-label="Leave call"]'],
+  micOff:       ['button[aria-label="Turn off microphone"]'],
+  camOff:       ['button[aria-label="Turn off camera"]'],
+  geminiInput:  ['div[aria-label="Ask Gemini"][contenteditable="true"]'],
+  submit:       ['button[aria-label="Submit"]'],
+  sidePanel:    ['aside[aria-label="Side panel"]'],
+  callControls: ['div[aria-label="Call controls"]'],
+};
+
+// Selectors that should always be present once a meeting is joined. Their
+// failure indicates a Meet DOM change that breaks capture; geminiInput / submit
+// / sidePanel appear only after Gemini activation and are excluded here.
+const CRITICAL_SELECTORS = ['leaveButton', 'callControls', 'micOff', 'camOff'];
+
+// Pure helper — return the first selector in `list` for which queryFn yields a
+// truthy element, or null. queryFn is injected so this is unit-testable without
+// a live DOM. Bad selectors are skipped.
+function firstMatchingSelector(list, queryFn) {
+  for (const sel of (Array.isArray(list) ? list : [list])) {
+    try { if (queryFn(sel)) return sel; } catch { /* invalid selector — skip */ }
+  }
+  return null;
+}
+
+// Pure helper — probe a selector registry. Returns { resolved: {name:selector},
+// failed: [names], criticalFailed: [names] }. The caller logs/badges from this.
+function selectorHealthCheck(registry, queryFn, critical = CRITICAL_SELECTORS) {
+  const resolved = {};
+  const failed = [];
+  for (const [name, list] of Object.entries(registry || {})) {
+    const sel = firstMatchingSelector(list, queryFn);
+    if (sel) resolved[name] = sel; else failed.push(name);
+  }
+  const criticalFailed = failed.filter(n => critical.includes(n));
+  return { resolved, failed, criticalFailed };
+}
+
 // Pure response-extraction logic shared between content_meet.js and tests.js.
 // Takes an element (the Gemini side-panel aside) and returns the last model
 // reply with UI chrome stripped, or null if no response is present.
