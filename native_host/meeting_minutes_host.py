@@ -219,6 +219,23 @@ def extract_tags(body: str):
     return tags, cleaned
 
 
+def apply_wikilinks(body: str, attendees: list | None) -> str:
+    """Wrap each attendee's name in [[ ]] throughout the note body (RB-4e), so
+    every meeting note becomes a node in the user's Obsidian/Craft graph.
+
+    Names are wrapped longest-first so 'Bob Martinez' is linked before 'Bob';
+    a negative lookbehind for '[' keeps already-wrapped names from being
+    double-linked. Off by default — only sent when the user enables wikilinks.
+    """
+    names = sorted(
+        {(n or '').strip() for n in (attendees or []) if (n or '').strip()},
+        key=len, reverse=True,
+    )
+    for name in names:
+        body = re.sub(rf'(?<!\[)\b{re.escape(name)}\b(?!\]\])', f'[[{name}]]', body)
+    return body
+
+
 def build_provenance_footer(dt: datetime) -> str:
     """Return the provenance footer appended to every captured note (UXC-22).
 
@@ -941,6 +958,10 @@ def main() -> None:
     # file carries its origin. note_body stays footer-free so the structured
     # webhook payload's section parsing isn't polluted by the footer line.
     note_body = craft_md
+    # Wikilinks (RB-4e) — wrap attendee names in [[ ]] for graph apps, on the
+    # persisted/sent note only (note_body stays plain for structured payloads).
+    if msg.get("wikilinks"):
+        craft_md = apply_wikilinks(craft_md, msg.get("attendees"))
     craft_md = craft_md + build_provenance_footer(dt)
 
     # Title: always YYYYMMDD HH:MM + meeting name (or "Meeting" fallback)
