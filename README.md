@@ -85,6 +85,7 @@ bash native_host/install.sh
 - **Wikilinks** *(opt-in)* — wrap attendee names in `[[double brackets]]` so each note links into your Obsidian/Craft graph
 - **Action items → tasks** — send each captured action item to **Things / Todoist / OmniFocus**, and flag items assigned to you with a "N for you" badge
 - **Private reflection** *(beta)* — optionally run a second Gemini pass with a private prompt and save it to a separate destination
+- **Google Calendar enrichment** *(beta)* — connect a Google account once; each note's frontmatter gains the matching event's attendees, agenda, recurrence, and scheduled time (read-only; one-time setup in [`native_host/CALENDAR_SETUP.md`](native_host/CALENDAR_SETUP.md))
 - **Output apps** — Craft and Apple Notes (tested), plus Obsidian and Bear (untested); pick a primary app and optionally **"Also send to"** others (multi-destination)
 - **Webhooks** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, your own endpoint), plus a dedicated **Slack** option (title, summary, action-item count)
 - **.ics export** — optionally write a calendar file next to each note, one all-day event per **Next Steps** line (no Calendar OAuth)
