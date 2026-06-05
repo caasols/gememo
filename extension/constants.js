@@ -529,6 +529,19 @@ function extractLastResponseFromEl(el) {
     .trim();
 }
 
+// Pure helper — should this send be skipped as a duplicate (D2)? True when the
+// stored fingerprint has the same title and was sent within the dedup window.
+function shouldSkipDuplicate(stored, title, now, windowMs) {
+  return !!(stored && stored.title === title && (now - stored.sentAt) < windowMs);
+}
+
+// Pure helper — do the extension and native host disagree on major version (D2)?
+// Blank/unknown versions are treated as "no mismatch" (don't nag on first run).
+function isVersionMismatch(extVersion, hostVersion) {
+  if (!extVersion || !hostVersion) return false;
+  return String(extVersion).split('.')[0] !== String(hostVersion).split('.')[0];
+}
+
 // Pure helper — produces the tab-scoped storage key name.
 // Used by popup.js and background.js (background.js defines its own
 // one-liner copy since it cannot import constants.js as a service worker).

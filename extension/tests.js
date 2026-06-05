@@ -1975,6 +1975,24 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testHandlerPredicates() {
+    console.group('handler predicates (D2)');
+    const now = 1_000_000, win = 40 * 60 * 1000;
+    assert('dedup: same title within window → skip',
+      shouldSkipDuplicate({ title: 'Sync', sentAt: now - 1000 }, 'Sync', now, win) === true);
+    assert('dedup: same title outside window → send',
+      shouldSkipDuplicate({ title: 'Sync', sentAt: now - win - 1 }, 'Sync', now, win) === false);
+    assert('dedup: different title → send',
+      shouldSkipDuplicate({ title: 'A', sentAt: now }, 'B', now, win) === false);
+    assert('dedup: no stored fingerprint → send',
+      shouldSkipDuplicate(undefined, 'Sync', now, win) === false);
+
+    assert('version: same major → no mismatch', isVersionMismatch('0.1.130', '0.1.99') === false);
+    assert('version: different major → mismatch', isVersionMismatch('1.0.0', '0.9.0') === true);
+    assert('version: blank host → no mismatch (first run)', isVersionMismatch('0.1.130', null) === false);
+    console.groupEnd();
+  }
+
   function testInflightRecoverable() {
     console.group('inflightRecoverable (RB-1d)');
     const now = 1_000_000;
@@ -2524,6 +2542,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testHandlerPredicates();
     testInflightRecoverable();
     testSelectorRegistry();
     testNormalizeTheme();
