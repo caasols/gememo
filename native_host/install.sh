@@ -47,6 +47,20 @@ ln -sf "$HOST_PY" "$INSTALLED_PY"
 ln -sf "$PUSH_PY" "$INSTALL_DIR/push_to_craft.py"
 chmod +x "$INSTALLED_PY"
 
+# 5.3 — Google Calendar enrichment deps in an isolated venv (best-effort; if this
+# fails the optional feature simply stays off and core capture is unaffected).
+VENV_DIR="$INSTALL_DIR/venv"
+if "$PYTHON3" -m venv "$VENV_DIR" 2>/dev/null; then
+  "$VENV_DIR/bin/python3" -m pip install --quiet --upgrade pip 2>/dev/null || true
+  if "$VENV_DIR/bin/python3" -m pip install --quiet google-auth google-auth-oauthlib google-api-python-client 2>/dev/null; then
+    echo "  Google Calendar libraries installed (optional 5.3 feature available)."
+  else
+    echo "  (Optional) Google Calendar libraries not installed — Calendar feature stays off."
+  fi
+else
+  echo "  (Optional) Could not create venv — Google Calendar feature stays off."
+fi
+
 # Detect Craft space ID from the local app cache so notes always land in
 # the right space (Unsorted view). Falls back to empty — Craft then uses
 # whatever space is currently active.
@@ -69,7 +83,10 @@ fi
 cat > "$WRAPPER" <<WRAPPER_EOF
 #!/bin/bash
 export CRAFT_SPACE_ID="$CRAFT_SPACE_ID"
-exec "$PYTHON3" "$INSTALLED_PY"
+# Prefer the venv python (has the optional Google Calendar libs); fall back to system.
+PYBIN="$PYTHON3"
+[ -x "$VENV_DIR/bin/python3" ] && PYBIN="$VENV_DIR/bin/python3"
+exec "\$PYBIN" "$INSTALLED_PY"
 WRAPPER_EOF
 chmod +x "$WRAPPER"
 

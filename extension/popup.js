@@ -41,6 +41,7 @@ const GLOBAL_KEYS = [
   'mm2c_my_aliases',
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
+  'mm2c_calendar_enabled',
   'mm2c_preview_before_send',
   'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
 ];
@@ -1275,6 +1276,50 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy report'; btn.classList.remove('copied'); }, 2000);
+    });
+  });
+
+  // Google Calendar connect/disconnect/status (5.3, beta)
+  function renderGcalStatus() {
+    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gcal_status' }, (r) => {
+      if (chrome.runtime.lastError || !r) return;
+      const label = $('gcal-status');
+      const btn = $('gcal-connect');
+      if (r.connected) {
+        label.textContent = r.email ? `Connected as ${r.email}` : 'Connected';
+        btn.textContent = 'Disconnect';
+        btn.dataset.action = 'disconnect';
+      } else if (r.needs_reconnect) {
+        label.textContent = 'Session expired';
+        btn.textContent = 'Reconnect';
+        btn.dataset.action = 'connect';
+      } else {
+        label.textContent = r.available === false ? 'Not installed (re-run install.sh)' : 'Not connected';
+        btn.textContent = 'Connect';
+        btn.dataset.action = 'connect';
+      }
+    });
+  }
+  renderGcalStatus();
+  $('gcal-connect').addEventListener('click', () => {
+    const action = $('gcal-connect').dataset.action || 'connect';
+    if (action === 'disconnect') {
+      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gcal_disconnect' }, () => {
+        save({ mm2c_calendar_enabled: false });
+        renderGcalStatus();
+      });
+      return;
+    }
+    $('gcal-status').textContent = 'Opening browser — approve access, then return…';
+    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gcal_connect' }, () => {
+      save({ mm2c_calendar_enabled: true });
+      // The flow runs detached; poll status until it flips to connected.
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+        renderGcalStatus();
+        if (tries > 30) clearInterval(timer);
+      }, 2000);
     });
   });
 
