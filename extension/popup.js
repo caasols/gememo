@@ -188,6 +188,10 @@ function renderRules(rules) {
     item.dataset.index = i;
     item.innerHTML = `
       <div class="rule-header">
+        <label class="toggle-wrap" title="${rule.enabled === false ? 'Rule disabled' : 'Rule enabled'}" style="transform:scale(0.85)">
+          <input type="checkbox" class="rule-enabled" ${rule.enabled === false ? '' : 'checked'}>
+          <span class="toggle-track"></span>
+        </label>
         <input class="rule-regex" type="text" placeholder="e.g. DAILY" value="${escapeHtml(rule.regex || '')}">
         <button class="btn-rule-action" data-action="up" data-index="${i}" title="Move up" aria-label="Move rule up">↑</button>
         <button class="btn-rule-action" data-action="down" data-index="${i}" title="Move down" aria-label="Move rule down">↓</button>
@@ -235,10 +239,12 @@ function readRuleFromItem(item) {
   );
   const depth = item.querySelector('.rule-depth')?.value || '';
   const titleTemplate = item.querySelector('.rule-title-template')?.value.trim() || '';
+  const enabled = item.querySelector('.rule-enabled')?.checked !== false;
   const rule = { regex, prompt };
   if (condition) rule.condition = condition;
   if (depth) rule.depth = depth;
   if (titleTemplate) rule.titleTemplate = titleTemplate;
+  if (!enabled) rule.enabled = false; // only persist when off (default on)
   return rule;
 }
 
@@ -926,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('rules-list').addEventListener('blur', saveRuleFromEvent, true);
   // Day checkboxes + depth select fire 'change', not 'blur' — capture those too.
   $('rules-list').addEventListener('change', (e) => {
-    if (e.target.classList.contains('rule-day') || e.target.classList.contains('rule-depth')) saveRuleFromEvent(e);
+    if (e.target.classList.contains('rule-day') || e.target.classList.contains('rule-depth') || e.target.classList.contains('rule-enabled')) saveRuleFromEvent(e);
   });
 
   $('prompt').addEventListener('change', e => {

@@ -1118,6 +1118,16 @@ window.MM2C_TESTS = (() => {
     assert('findPromptRule ignores duration when ctx omitted (back-compat)',
       findPromptRule([{ condition: { maxMinutes: 10 }, prompt: 'short' }], 'Any') === null);
 
+    // UXF-9: a disabled rule is skipped; enabled (or unset) rules still match.
+    assert('disabled rule is skipped',
+      findPromptRule([{ regex: 'daily', prompt: 'x', enabled: false }], 'Daily Standup') === null);
+    assert('explicitly enabled rule matches',
+      findPromptRule([{ regex: 'daily', prompt: 'x', enabled: true }], 'Daily Standup')?.prompt === 'x');
+    assert('rule with no enabled flag still matches (default on)',
+      findPromptRule([{ regex: 'daily', prompt: 'x' }], 'Daily Standup')?.prompt === 'x');
+    assert('disabled rule is skipped so a later rule can win',
+      findPromptRule([{ regex: 'daily', prompt: 'off', enabled: false }, { regex: 'daily', prompt: 'on' }], 'Daily')?.prompt === 'on');
+
     // Case 5: built-in templates match their meeting types (P5-K)
     assert('Case 5a: standup title matches a built-in',
       typeof matchPromptRule(BUILT_IN_RULES, 'Daily Standup') === 'string');
