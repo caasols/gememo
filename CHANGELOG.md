@@ -11,6 +11,13 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [Unreleased]
+
+### Tests
+- **TEST-1 Layer 1 — extension E2E harness.** Playwright now loads the *real* unpacked extension headlessly (CI-compatible) and exercises `background.js` (message handlers incl. the `MM2C_RESPONSE` send/stats path) and `popup.js` (render via seeded storage), with `chrome.runtime.sendNativeMessage` stubbed at the service-worker boundary as the assertion seam — lifting the two previously-0% files off the floor (12 new E2E tests). `tests/ext-harness.js` owns launch/seed/stub/popup. Foundation for ARCH-7 and for verifying the beta items; the `content_meet` fake-Meet capture flow is Phase 2.
+
+---
+
 ## [0.2.1] – 2026-06-06 · Google Calendar enrichment (5.3, beta)
 
 ### Added
