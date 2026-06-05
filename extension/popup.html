@@ -1016,13 +1016,14 @@
     </label>
   </div>
 
-  <!-- Tab bar — 5 tabs -->
+  <!-- Tab bar — 6 tabs (Beta is hidden unless experimental features are on) -->
   <div class="tab-bar" role="tablist" aria-label="Sections">
     <button class="tab active" id="tab-main" role="tab" aria-selected="true" aria-controls="main-panel">Main</button>
     <button class="tab" id="tab-rules" role="tab" aria-selected="false" aria-controls="rules-panel">Rules</button>
     <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="settings-panel">Settings</button>
     <button class="tab" id="tab-logs" role="tab" aria-selected="false" aria-controls="logs-panel">Logs</button>
     <button class="tab" id="tab-about" role="tab" aria-selected="false" aria-controls="about-panel">About</button>
+    <button class="tab beta" id="tab-beta" role="tab" aria-selected="false" aria-controls="beta-panel">Beta</button>
   </div>
 
   <!-- ── Main panel ─────────────────────────────────────────────── -->
@@ -1335,32 +1336,6 @@
       <p class="hint">When you leave a call, show the captured notes for a quick review (15s) with Discard / Save before they're sent.</p>
     </div>
 
-    <!-- Dual output: private reflection (P9-H) — beta -->
-    <div class="widget beta">
-      <div class="widget-title">Private reflection <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Enable</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="dual-output">
-          <span class="toggle-track"></span>
-        </label>
-      </div>
-      <div id="dual-output-sub" class="sub-options hidden">
-        <textarea id="private-prompt" rows="3" placeholder="A private prompt — e.g. summarise my own takeaways and follow-ups, just for me."></textarea>
-        <div class="row">
-          <span class="label">Send private note to</span>
-          <select id="private-app">
-            <option value="">Same as primary</option>
-            <option value="craft">Craft</option>
-            <option value="apple_notes">Apple Notes</option>
-            <option value="obsidian">Obsidian</option>
-            <option value="bear">Bear</option>
-          </select>
-        </div>
-        <p class="hint">After the shared note is saved, runs a second Gemini pass with your private prompt and saves it separately. Adds time at leave; experimental.</p>
-      </div>
-    </div>
-
     <!-- Generic webhook (P9-D) -->
     <div class="widget">
       <div class="widget-title">Webhook</div>
@@ -1400,16 +1375,6 @@
       <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
     </div>
 
-    <!-- Google Calendar enrichment (5.3) — beta -->
-    <div class="widget beta">
-      <div class="widget-title">Google Calendar <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label" id="gcal-status">Not connected</span>
-        <button class="btn" id="gcal-connect">Connect</button>
-      </div>
-      <p class="hint">Adds the matching event's attendees, agenda, recurrence, and scheduled time to each note's frontmatter. Needs one-time setup (see native_host/CALENDAR_SETUP.md).</p>
-    </div>
-
     <!-- Experimental features toggle (UXF-1) -->
     <div class="widget">
       <div class="widget-title">Experimental</div>
@@ -1421,11 +1386,6 @@
         </label>
       </div>
       <p class="hint">Reveal in-progress features marked Beta. They may change or disappear.</p>
-      <div class="row beta" style="margin-top:8px">
-        <span class="label">Selector hotfix URL</span>
-        <input type="text" id="selector-hotfix-url" class="ltr" placeholder="https://…/selectors.json">
-      </div>
-      <p class="hint beta">Advanced: fetch a selectors.json override at startup so a Meet DOM change can be patched without a release (RB-1b). Leave blank to use the bundled selectors.</p>
     </div>
 
   </div><!-- /settings-panel -->
@@ -1524,6 +1484,61 @@
     </div>
 
   </div><!-- /about-panel -->
+
+  <!-- ── Beta panel (UXF-14) ────────────────────────────────────────
+       Gathers the experimental feature widgets in one place. The tab and
+       this panel are hidden unless "Show experimental features" is on. -->
+  <div class="panel hidden" id="beta-panel" role="tabpanel" aria-labelledby="tab-beta">
+
+    <p class="hint">These features are experimental and may change or disappear in a future release.</p>
+
+    <!-- Dual output: private reflection (P9-H) — beta -->
+    <div class="widget beta">
+      <div class="widget-title">Private reflection <span class="beta-pill">Beta</span></div>
+      <div class="row">
+        <span class="label">Enable</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="dual-output">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div id="dual-output-sub" class="sub-options hidden">
+        <textarea id="private-prompt" rows="3" placeholder="A private prompt — e.g. summarise my own takeaways and follow-ups, just for me."></textarea>
+        <div class="row">
+          <span class="label">Send private note to</span>
+          <select id="private-app">
+            <option value="">Same as primary</option>
+            <option value="craft">Craft</option>
+            <option value="apple_notes">Apple Notes</option>
+            <option value="obsidian">Obsidian</option>
+            <option value="bear">Bear</option>
+          </select>
+        </div>
+        <p class="hint">After the shared note is saved, runs a second Gemini pass with your private prompt and saves it separately. Adds time at leave; experimental.</p>
+      </div>
+    </div>
+
+    <!-- Google Calendar enrichment (5.3) — beta -->
+    <div class="widget beta">
+      <div class="widget-title">Google Calendar <span class="beta-pill">Beta</span></div>
+      <div class="row">
+        <span class="label" id="gcal-status">Not connected</span>
+        <button class="btn" id="gcal-connect">Connect</button>
+      </div>
+      <p class="hint">Adds the matching event's attendees, agenda, recurrence, and scheduled time to each note's frontmatter. Needs one-time setup (see native_host/CALENDAR_SETUP.md).</p>
+    </div>
+
+    <!-- Selector hotfix (RB-1b) — beta -->
+    <div class="widget">
+      <div class="widget-title">Selector hotfix</div>
+      <div class="row">
+        <span class="label">Selector hotfix URL</span>
+        <input type="text" id="selector-hotfix-url" class="ltr" placeholder="https://…/selectors.json">
+      </div>
+      <p class="hint">Advanced: fetch a selectors.json override at startup so a Meet DOM change can be patched without a release (RB-1b). Leave blank to use the bundled selectors.</p>
+    </div>
+
+  </div><!-- /beta-panel -->
 
   <!-- Spacer so scrollable content is not hidden behind the fixed footer -->
   <div id="capture-footer-spacer" class="hidden"></div>
