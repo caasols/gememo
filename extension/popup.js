@@ -494,6 +494,20 @@ function formatLogTime(ts) {
   return `${date} ${time}`;
 }
 
+// Just the HH:MM time — used for the group meta under a date section (UXF-4).
+function formatTimeOnly(ts) {
+  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Friendly day-section label: Today / Yesterday / "5 Jun" (UXF-4).
+function dayLabel(ts) {
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 function renderLogs(logs) {
   const list = $('log-list');
   const countEl = $('logs-count');
@@ -509,20 +523,18 @@ function renderLogs(logs) {
   const groups = groupLogs(logs);
   countEl.textContent = `${groups.length} meeting${groups.length === 1 ? '' : 's'} · ${logs.length} entr${logs.length === 1 ? 'y' : 'ies'}`;
 
-  list.innerHTML = groups.map((group) => {
+  const renderGroup = (group) => {
     const groupTitle = group.title || 'System';
-    // Default collapsed; expanded only if persisted in the set (UXF-6). This
-    // replaces the old i===0 auto-expand that the 10 s refresh kept re-opening.
+    // Default collapsed; expanded only if persisted in the set (UXF-6).
     const key = logGroupKey(groupTitle, group.entries[0].ts);
     const groupClass = expandedGroups.has(key) ? 'log-group expanded' : 'log-group';
     const outcome = groupOutcome(group.entries);
-    // Group meta is just the time — the entry count is internal log bookkeeping,
-    // not user-meaningful (UXF-3).
-    const meta = formatLogTime(group.entries[0].ts);
+    // Meta is just the time — the date lives in the day section header (UXF-4).
+    const meta = formatTimeOnly(group.entries[0].ts);
 
     const entriesHtml = group.entries.map(entry => {
       const dotClass = entry.status === 'ok' ? 'ok' : entry.status === 'warn' ? 'warn' : entry.status === 'err' ? 'err' : 'info';
-      const time = formatLogTime(entry.ts);
+      const time = formatTimeOnly(entry.ts);
       const message = entry.message || '';
       const backupMatch = entry.status === 'err' ? message.match(/backup at (.+)$/) : null;
       const retryChip = backupMatch
@@ -551,7 +563,14 @@ function renderLogs(logs) {
         </div>
         <div class="log-group-entries">${entriesHtml}</div>
       </div>`;
-  }).join('');
+  };
+
+  // Date → meeting → entries hierarchy (UXF-4): one section per calendar day.
+  list.innerHTML = bucketLogGroupsByDay(groups).map(bucket => `
+    <div class="log-day">
+      <div class="log-day-header">${escapeHtml(dayLabel(bucket.ts))}</div>
+      ${bucket.groups.map(renderGroup).join('')}
+    </div>`).join('');
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
