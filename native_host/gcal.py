@@ -171,3 +171,101 @@ def enrich_frontmatter_fields(meeting_code, timestamp_iso, title, redact_emails,
         return extract_calendar_fields(event, redact_emails), 'ok'
     except Exception as exc:
         return {}, f'error: {exc}'
+
+
+# ── OAuth / token / API (live; require the google libs; not unit-tested) ──────
+
+def _save_token(creds):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    TOKEN_PATH.write_text(creds.to_json())
+
+
+def _load_creds():
+    """Load + refresh stored creds, or None. Requires the google libs."""
+    if not GCAL_AVAILABLE or not TOKEN_PATH.exists():
+        return None
+    try:
+        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    except Exception:
+        return None
+    if creds and not creds.valid and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            _save_token(creds)
+        except Exception:
+            return None
+    return creds
+
+
+def _fetch_primary_email(creds):
+    try:
+        svc = build('calendar', 'v3', credentials=creds, cache_discovery=False)
+        return svc.calendarList().get(calendarId='primary').execute().get('id', '')
+    except Exception:
+        return ''
+
+
+def connect():
+    """Run the interactive loopback OAuth flow (opens the browser). Blocking;
+    invoked detached by the host so it can outlive the native-messaging window."""
+    if not GCAL_AVAILABLE:
+        return {'ok': False, 'error': 'Google libraries not installed — re-run install.sh'}
+    if not CREDENTIALS_PATH.exists():
+        return {'ok': False, 'error': f'No credentials.json at {CREDENTIALS_PATH} — see CALENDAR_SETUP.md'}
+    flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
+    creds = flow.run_local_server(port=0)
+    _save_token(creds)
+    email = _fetch_primary_email(creds)
+    if email:
+        import json
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        ACCOUNT_PATH.write_text(json.dumps({'email': email}))
+    return {'ok': True, 'email': email}
+
+
+def status():
+    if not GCAL_AVAILABLE:
+        return {'connected': False, 'available': False}
+    creds = _load_creds()
+    if not creds:
+        return {'connected': False, 'available': True}
+    if not creds.valid:
+        return {'connected': False, 'available': True, 'needs_reconnect': True}
+    email = ''
+    if ACCOUNT_PATH.exists():
+        try:
+            import json
+            email = json.loads(ACCOUNT_PATH.read_text()).get('email', '')
+        except Exception:
+            email = ''
+    return {'connected': True, 'available': True, 'email': email}
+
+
+def disconnect():
+    for p in (TOKEN_PATH, ACCOUNT_PATH):
+        try:
+            p.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return {'ok': True}
+
+
+def live_events_provider(timestamp_iso):
+    """Returns a callable () -> list|None for enrich_frontmatter_fields. None when
+    not connected/unavailable; a live Calendar query otherwise."""
+    def provider():
+        creds = _load_creds()
+        if not creds or not creds.valid:
+            return None
+        tmin, tmax = _window_around(timestamp_iso)
+        svc = build('calendar', 'v3', credentials=creds, cache_discovery=False)
+        resp = svc.events().list(calendarId='primary', timeMin=tmin, timeMax=tmax,
+                                 singleEvents=True, orderBy='startTime',
+                                 conferenceDataVersion=1).execute()
+        return resp.get('items', [])
+    return provider
+
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(0 if connect().get('ok') else 1)
