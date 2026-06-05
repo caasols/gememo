@@ -175,6 +175,30 @@ function buildTaskUrl(app, item = {}) {
   }
 }
 
+// Pure helper — split a comma-separated alias string into a clean list (UXF-7).
+function parseAliases(str) {
+  return String(str || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// Pure helper — does an action-item owner match any of the user's aliases
+// (UXF-7)? Whole-word, case-insensitive, so "James R" matches the alias "James"
+// but "Jameson" does not. Identity is user-confirmed (the aliases field), never
+// silently inferred. `aliases` may be an array or a comma-separated string.
+function ownerMatchesAliases(owner, aliases) {
+  const o = String(owner || '').trim();
+  if (!o) return false;
+  return parseAliases(Array.isArray(aliases) ? aliases.join(',') : aliases).some(a => {
+    if (!a) return false;
+    try { return new RegExp(`\\b${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(o); }
+    catch { return false; }
+  });
+}
+
+// Pure helper — count action items owned by the user (UXF-7).
+function countMyActionItems(items, aliases) {
+  return (Array.isArray(items) ? items : []).filter(it => ownerMatchesAliases(it.owner, aliases)).length;
+}
+
 // Pure helper — render action items as Markdown task list lines (P6-B).
 function formatActionItemsMarkdown(items) {
   return (Array.isArray(items) ? items : []).map(it => {

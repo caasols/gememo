@@ -1975,6 +1975,21 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testMyActionItems() {
+    console.group('owner/alias matching (UXF-7)');
+    assertEq('parseAliases trims + drops blanks',
+      JSON.stringify(parseAliases('James, , James R ,JR')), JSON.stringify(['James', 'James R', 'JR']));
+    assert('whole-word match', ownerMatchesAliases('James R', 'James, JR') === true);
+    assert('no partial-word match (Jameson)', ownerMatchesAliases('Jameson', 'James') === false);
+    assert('case-insensitive', ownerMatchesAliases('james', 'James') === true);
+    assert('empty owner → false', ownerMatchesAliases('', 'James') === false);
+    assert('empty aliases → false', ownerMatchesAliases('James', '') === false);
+    const items = [{ owner: 'James R' }, { owner: 'Alice' }, { owner: 'JR' }];
+    assertEq('counts my items across aliases', countMyActionItems(items, 'James, JR'), 2);
+    assertEq('no aliases → 0', countMyActionItems(items, ''), 0);
+    console.groupEnd();
+  }
+
   function testHandlerPredicates() {
     console.group('handler predicates (D2)');
     const now = 1_000_000, win = 40 * 60 * 1000;
@@ -2561,6 +2576,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testMyActionItems();
     testHandlerPredicates();
     testInflightRecoverable();
     testSelectorRegistry();

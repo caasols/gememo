@@ -38,7 +38,11 @@ const GLOBAL_KEYS = [
   'mm2c_wikilinks',
   'mm2c_task_app',
   'mm2c_inflight',
+  'mm2c_my_aliases',
 ];
+
+// The user's name aliases (UXF-7), loaded in applyState; used by renderActionItems.
+let myAliases = '';
 
 // Apply a theme (system|light|dark) to <html> and the segmented control (UXF-8).
 function applyTheme(theme) {
@@ -253,6 +257,13 @@ function renderActionItems(noteBody) {
   // Show "Send to tasks" only when a task app is configured (RB-3a).
   const sendBtn = $('send-to-tasks');
   if (sendBtn) sendBtn.classList.toggle('hidden', !$('task-app')?.value);
+  // "N for you" badge — action items assigned to the user's aliases (UXF-7).
+  const badge = $('my-items-badge');
+  if (badge) {
+    const mine = countMyActionItems(items, myAliases);
+    badge.textContent = mine ? `${mine} for you` : '';
+    badge.classList.toggle('hidden', !mine);
+  }
   list.innerHTML = items.map(it => {
     const meta = [it.owner, it.deadline].filter(Boolean).join(' · ');
     return `
@@ -384,6 +395,8 @@ function applyState(s, tabId, live = null) {
   $('emit-ics').checked = s.mm2c_emit_ics === true;
   $('wikilinks').checked = s.mm2c_wikilinks === true;
   $('task-app').value = s.mm2c_task_app || '';
+  myAliases = s.mm2c_my_aliases || '';
+  $('my-aliases').value = myAliases;
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -928,6 +941,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('wikilinks').addEventListener('change', e => {
     save({ mm2c_wikilinks: e.target.checked });
+  });
+  $('my-aliases').addEventListener('change', e => {
+    myAliases = e.target.value.trim();
+    save({ mm2c_my_aliases: myAliases });
+    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => renderActionItems(mm2c_last_note));
   });
   $('task-app').addEventListener('change', e => {
     save({ mm2c_task_app: e.target.value });

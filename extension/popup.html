@@ -1088,7 +1088,7 @@
     <!-- Action items from the most recent capture (P6-B) -->
     <div class="widget hidden" id="action-items-widget">
       <div class="widget-header">
-        <div class="widget-title">Action items</div>
+        <div class="widget-title">Action items <span id="my-items-badge" class="beta-pill hidden" style="color:var(--primary);background:var(--hover-primary);border-color:var(--primary)"></span></div>
         <div style="display:flex;gap:6px">
           <button class="btn hidden" id="send-to-tasks">Send to tasks</button>
           <button class="btn" id="copy-action-items">Copy as tasks</button>
@@ -1141,6 +1141,16 @@
 
   <!-- ── Settings panel ─────────────────────────────────────────── -->
   <div class="panel hidden" id="settings-panel" role="tabpanel" aria-labelledby="tab-settings">
+
+    <!-- Identity — flag action items assigned to me (UXF-7) -->
+    <div class="widget">
+      <div class="widget-title">Your name</div>
+      <div class="row">
+        <span class="label">Name &amp; aliases</span>
+        <input type="text" id="my-aliases" class="text-normal" placeholder="James, James R, JR">
+      </div>
+      <p class="hint">Comma-separated. Action items assigned to any of these are flagged as yours on the captured note.</p>
+    </div>
 
     <!-- Appearance (UXF-8) -->
     <div class="widget">
