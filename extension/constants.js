@@ -26,7 +26,10 @@ const DEFAULT_PROMPT =
   'Do not use vague filler phrases like "the team discussed" or "various topics were covered". ' +
   'Do not invent facts, names, dates, or commitments not in the transcript. ' +
   'If a section has no content, omit the heading entirely. ' +
-  'Format everything as plain text. Do not use asterisks, underscores, backticks, or any other markdown formatting characters.';
+  'Format everything as plain text. Do not use asterisks, underscores, backticks, or any other markdown formatting characters.\n\n' +
+  // Auto-tagging (RB-4c) — a final machine-parseable line; stripped from the
+  // body and promoted to YAML tags: by the native host.
+  'Finally, end with a single line starting with "Tags:" followed by 3–5 short lowercase topic tags (single words or hyphenated-words), comma-separated — for example: Tags: payments, kafka, q3-planning.';
 
 // Few-shot example prepended to every prompt so Gemini has a concrete format anchor.
 // Shows: 4 attendees, 2 decisions with rationale, 3 action items with owner names + deadlines,
@@ -58,7 +61,8 @@ const EXAMPLE_NOTES =
   'Open Questions\n' +
   'What is the fallback if Kafka is unavailable during a payments spike? No decision reached.\n' +
   'Risk: the Q4 migration window may conflict with the holiday freeze. ' +
-  'Carlos to confirm dates with the infrastructure team.';
+  'Carlos to confirm dates with the infrastructure team.\n\n' +
+  'Tags: payments, kafka, database-migration';
 
 // ── Usage stats (UX-8) ───────────────────────────────────────────────────────
 // Lifetime cumulative stats shown in the About tab as a donation driver.
