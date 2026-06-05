@@ -1400,6 +1400,16 @@
       <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
     </div>
 
+    <!-- Google Calendar enrichment (5.3) — beta -->
+    <div class="widget beta">
+      <div class="widget-title">Google Calendar <span class="beta-pill">Beta</span></div>
+      <div class="row">
+        <span class="label" id="gcal-status">Not connected</span>
+        <button class="btn" id="gcal-connect">Connect</button>
+      </div>
+      <p class="hint">Adds the matching event's attendees, agenda, recurrence, and scheduled time to each note's frontmatter. Needs one-time setup (see native_host/CALENDAR_SETUP.md).</p>
+    </div>
+
     <!-- Experimental features toggle (UXF-1) -->
     <div class="widget">
       <div class="widget-title">Experimental</div>
