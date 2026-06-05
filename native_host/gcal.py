@@ -142,3 +142,32 @@ def extract_calendar_fields(event, redact_emails=False):
     if dur is not None:
         out['scheduled_duration_min'] = dur
     return out
+
+
+def _window_around(timestamp_iso, before_h=3, after_h=1):
+    """[timestamp - before_h, timestamp + after_h] as ISO-Z strings. Falls back to
+    'now' when the timestamp is unparseable."""
+    t = _parse_iso(timestamp_iso) or datetime.now(timezone.utc)
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+
+    def fmt(d):
+        return d.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    return fmt(t - timedelta(hours=before_h)), fmt(t + timedelta(hours=after_h))
+
+
+def enrich_frontmatter_fields(meeting_code, timestamp_iso, title, redact_emails, *, events_provider):
+    """Pure orchestration over an injected events_provider() -> list | None.
+    Returns (fields_dict, status). Never raises — capture must never be blocked.
+    The host wires events_provider to the live API (or None when not connected)."""
+    try:
+        events = events_provider()
+        if events is None:
+            return {}, 'not_connected'
+        event = match_calendar_event(events, meeting_code, timestamp_iso, title)
+        if not event:
+            return {}, 'no_match'
+        return extract_calendar_fields(event, redact_emails), 'ok'
+    except Exception as exc:
+        return {}, f'error: {exc}'
