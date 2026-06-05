@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="system">
 <head>
   <meta charset="utf-8">
   <style>
@@ -17,9 +17,11 @@
       --success-text:   #137333;
       --success-bg:     #f0fdf4;
       --success-border: #bbf7d0;
+      --warn:           #e8710a;
       --warn-text:      #92400e;
       --warn-bg:        #fffbeb;
       --warn-border:    #fde68a;
+      --info:           #1a73e8;
       --danger:         #ea4335;
       --danger-text:    #b91c1c;
       --danger-bg:      #fef2f2;
@@ -29,12 +31,47 @@
       --widget-py:      10px;
       --widget-px:      12px;
       --gap:            8px;
+      --space-3:        6px;
     }
 
-    /* Dark mode — follows the OS theme (RB-7f). Only the colour tokens flip; the
-       spacing tokens above are inherited unchanged. */
+    /* Dark tokens (RB-7f + UXF-8). Light tokens in :root are the default.
+       Applied when the user forces Dark (data-theme="dark") OR chooses System
+       (data-theme="system") and the OS is dark. Only colour tokens flip; the
+       spacing tokens are inherited unchanged. The two blocks share one custom
+       property called --mm-dark so the values are written once. */
+    html[data-theme="dark"],
+    html[data-theme="system"] { color-scheme: light dark; }
+
+    html[data-theme="dark"] {
+      --surface:        #202124;
+      --surface-subtle: #292a2d;
+      --border:         #3c4043;
+      --border-strong:  #5f6368;
+      --text:           #e8eaed;
+      --text-muted:     #9aa0a6;
+      --text-strong:    #f1f3f4;
+      --primary:        #8ab4f8;
+      --primary-dark:   #aecbfa;
+      --success:        #81c995;
+      --success-text:   #81c995;
+      --success-bg:     #1e3328;
+      --success-border: #2d5a3d;
+      --warn:           #fa903e;
+      --warn-text:      #fdd663;
+      --warn-bg:        #332b16;
+      --warn-border:    #5c4a1f;
+      --info:           #8ab4f8;
+      --danger:         #f28b82;
+      --danger-text:    #f28b82;
+      --danger-bg:      #33211f;
+      --danger-border:  #5c2f2a;
+      --focus:          #5f6368;
+      --hover-primary:  #2d3a4d;
+      color-scheme: dark;
+    }
+
     @media (prefers-color-scheme: dark) {
-      :root {
+      html[data-theme="system"] {
         --surface:        #202124;
         --surface-subtle: #292a2d;
         --border:         #3c4043;
@@ -48,24 +85,28 @@
         --success-text:   #81c995;
         --success-bg:     #1e3328;
         --success-border: #2d5a3d;
+        --warn:           #fa903e;
         --warn-text:      #fdd663;
         --warn-bg:        #332b16;
         --warn-border:    #5c4a1f;
+        --info:           #8ab4f8;
         --danger:         #f28b82;
         --danger-text:    #f28b82;
         --danger-bg:      #33211f;
         --danger-border:  #5c2f2a;
         --focus:          #5f6368;
         --hover-primary:  #2d3a4d;
+        color-scheme: dark;
       }
-      input, textarea, select { color-scheme: dark; }
     }
 
     *, *::before, *::after { box-sizing: border-box; }
 
     body {
       width: 340px;
-      height: 580px;
+      /* Content-driven height capped at Chrome's popup ceiling (UXF-12) — short
+         panels shrink, tall panels cap and scroll instead of silently clipping. */
+      max-height: 600px;
       overflow: hidden;
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -82,10 +123,18 @@
       display: flex;
       flex-direction: column;
       gap: var(--gap);
-      scrollbar-width: none;
+      /* Thin, subtle scrollbar — signal "there's more" instead of hiding it (UXF-12). */
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
       min-height: 0;
     }
-    #main-content::-webkit-scrollbar { display: none; }
+    #main-content::-webkit-scrollbar { width: 8px; }
+    #main-content::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 6px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
 
     #capture-footer-spacer { height: 52px; }
 
@@ -174,24 +223,29 @@
       justify-content: space-between;
     }
 
-    .btn-collapse {
+    /* Shared 22×22 icon-button box (UXC-10) — one anatomy for the collapse
+       chevron and the rule up/down/delete actions; per-class tweaks below. */
+    .btn-collapse, .btn-rule-action {
       width: 22px;
       height: 22px;
-      border-radius: 4px;
+      border-radius: 6px;
       border: 1px solid var(--border-strong);
       background: var(--surface-subtle);
-      color: var(--text);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      font-size: 13px;
       line-height: 1;
-      transition: background 0.1s, border-color 0.1s, transform 0.2s;
       flex-shrink: 0;
+      font-family: inherit;
+    }
+    .btn-collapse {
+      color: var(--text);
+      font-size: 13px;
+      transition: background 0.1s, border-color 0.1s, transform 0.2s;
     }
     .btn-collapse:hover { background: var(--hover-primary); border-color: var(--focus); }
-    .btn-collapse.open { transform: rotate(180deg); }
+    .btn-collapse.open { transform: rotate(90deg); }
 
     /* Row */
     .row {
@@ -263,7 +317,7 @@
     .host-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-3);
     }
     .host-dot {
       width: 7px; height: 7px;
@@ -273,7 +327,7 @@
       transition: background 0.3s;
     }
     .host-dot.ok   { background: var(--success); }
-    .host-dot.warn { background: var(--warn-text); }
+    .host-dot.warn { background: var(--warn); }
     .host-dot.err  { background: var(--danger); }
     #host-label { font-size: 11px; color: var(--text-muted); flex: 1; }
 
@@ -290,14 +344,14 @@
       color: var(--text-muted);
       line-height: 1.4;
     }
-    .id-row { display: flex; align-items: center; gap: 6px; }
+    .id-row { display: flex; align-items: center; gap: var(--space-3); }
     .id-box {
       flex: 1;
       font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
       font-size: 11px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 6px;
       padding: 3px 6px;
       white-space: nowrap;
       overflow: hidden;
@@ -413,11 +467,14 @@
     }
     .field-error { display:block; font-size:11px; color: var(--danger-text); min-height:0; }
     .field-error:empty { display:none; }
+    /* Control-height scale (UXC-8): icon/compact S=22 · button M=24–30 · CTA
+       L=36 · text-input baseline=24. Snap orphan controls to it. */
     .note-search {
       width: 100%;
       box-sizing: border-box;
       margin-bottom: 8px;
-      padding: 6px 8px;
+      height: 24px;            /* input baseline — aligns with sibling inputs/selects */
+      padding: 0 8px;
       font-size: 12px;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -425,7 +482,7 @@
       color: var(--text);
     }
     #search-results:not(:empty) { margin-bottom: 8px; }
-    .search-filters { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .search-filters { display: flex; gap: var(--space-3); margin-bottom: 8px; flex-wrap: wrap; }
     .search-filters input { font-size: 11px; padding: 3px 5px; }
     .search-filters input[type="text"] { flex: 1; min-width: 80px; }
     .search-result {
@@ -472,17 +529,25 @@
     .log-entry {
       display: flex;
       gap: var(--gap);
-      padding: 9px 0;
+      padding: 8px 0;
       border-bottom: 1px solid var(--border);
     }
     .log-entry:last-child { border-bottom: none; }
     .log-retry-btn {
+      height: 22px;            /* S tier — compact inline action (UXC-8) */
       font-size: 11px;
-      padding: 1px 6px;
+      padding: 0 6px;
       margin-left: auto;
       flex-shrink: 0;
     }
 
+    /* Log status-cue vocabulary (UXF-5) — four unambiguous colours, each one
+       meaning, always paired with text (a11y):
+         grey  (default) = informational / no capture outcome
+         green (ok)      = note saved
+         amber (warn)    = partial / needs attention
+         red   (err)     = capture or save failed
+       The old blue 'info' was redundant with grey, so it collapses to grey. */
     .log-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
@@ -490,9 +555,8 @@
       flex-shrink: 0;
       margin-top: 3px;
     }
-    .log-dot.info { background: var(--primary); }
     .log-dot.ok   { background: var(--success); }
-    .log-dot.warn { background: var(--warn-text); }
+    .log-dot.warn { background: var(--warn); }
     .log-dot.err  { background: var(--danger); }
 
     .log-content { flex: 1; min-width: 0; }
@@ -501,17 +565,8 @@
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      gap: 6px;
+      gap: var(--space-3);
       margin-bottom: 2px;
-    }
-    .log-title {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-strong);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      min-width: 0;
     }
     .log-time {
       font-size: 10px;
@@ -534,10 +589,25 @@
       line-height: 1.5;
     }
 
+    /* Day section header (UXF-4) — sticky so the date stays visible while scrolling */
+    .log-day-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 6px var(--widget-px);
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
     .log-group-header {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-3);
       padding: 8px var(--widget-px);
       cursor: pointer;
       user-select: none;
@@ -640,7 +710,7 @@
       padding-top: 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-3);
     }
     .rule-item:first-child { border-top: none; padding-top: 0; }
     .rule-header {
@@ -653,26 +723,15 @@
       font-size: 12px;
       font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 6px;
       padding: 3px 6px;
       background: var(--surface);
       color: var(--text);
     }
     .rule-regex::placeholder { color: var(--text-muted); font-style: italic; }
     .btn-rule-action {
-      width: 22px; height: 22px;
-      border: 1px solid var(--border-strong);
-      border-radius: 4px;
-      background: var(--surface-subtle);
       color: var(--text-muted);
       font-size: 11px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      line-height: 1;
-      font-family: inherit;
     }
     .btn-rule-action:hover { background: var(--border); }
     .btn-rule-action.danger:hover { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
@@ -681,7 +740,7 @@
       font-size: 11px;
       font-family: inherit;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 6px;
       padding: 6px;
       resize: vertical;
       min-height: 60px;
@@ -691,6 +750,17 @@
       box-sizing: border-box;
     }
     .rule-prompt:focus { border-color: var(--primary); outline: none; }
+    /* Per-rule title template input (RB-4d) — full-width, normal text, LTR */
+    .rule-title-template {
+      width: 100%;
+      box-sizing: border-box;
+      height: 24px;
+      font-family: inherit;
+      direction: ltr;
+      text-align: left;
+      cursor: text;
+      font-size: 11px;
+    }
     .rules-empty {
       font-size: 12px;
       color: var(--text-muted);
@@ -701,7 +771,7 @@
       width: 100%;
       height: 28px;
       border: 1px dashed var(--border-strong);
-      border-radius: 4px;
+      border-radius: 6px;
       background: none;
       color: var(--primary);
       font-size: 12px;
@@ -750,7 +820,7 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-3);
       margin-top: 5px;
       font-size: 11px;
       color: var(--text-muted);
@@ -760,17 +830,19 @@
     .rule-hours input { width: 38px; padding: 2px 4px; font-size: 11px; }
 
     /* Built-in templates (read-only) */
+    /* Section label — same type as .widget-title (UXC-12), just with vertical
+       margin since it sits inline within the Rules panel. */
     .rules-subhead {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.6px;
       margin: 10px 0 4px;
     }
     .builtin-rule {
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 6px;
       padding: 6px 8px;
       margin-bottom: 6px;
       background: var(--surface-subtle);
@@ -779,7 +851,7 @@
       cursor: pointer;
       font-size: 12px;
       display: flex;
-      gap: 6px;
+      gap: var(--space-3);
       align-items: baseline;
     }
     .builtin-rule summary .bi-name { font-weight: 600; }
@@ -803,7 +875,93 @@
       user-select: none;
     }
 
+    /* Keyboard focus rings (UXC-9, extends RB-7c) — one consistent ring via
+       --focus on every interactive control that lacked one. */
+    .tab:focus-visible,
+    .btn-collapse:focus-visible,
+    .btn-rule-action:focus-visible,
+    .btn-capture-now:focus-visible,
+    #add-rule-btn:focus-visible,
+    .note-search:focus-visible,
+    .reset-link:focus-visible,
+    .logs-debug-toggle:focus-visible,
+    .snapshot-header:focus-visible,
+    .log-group-header:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 1px;
+    }
+    .toggle-wrap input:focus-visible + .toggle-track {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    /* Beta-features gating (UXF-1) — .beta elements are hidden unless the user
+       opts in via the Experimental toggle (body.beta-enabled). When shown they
+       keep their natural display, so this works on rows, widgets, and buttons. */
+    body:not(.beta-enabled) .beta { display: none !important; }
+    .beta-pill {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--warn-text);
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 6px;
+      padding: 0 4px;
+      margin-left: 6px;
+    }
+
+    /* Segmented control — tri-state appearance switcher (UXF-8) */
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .segmented button {
+      border: none;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: inherit;
+      height: 24px;
+      padding: 0 10px;
+      cursor: pointer;
+    }
+    .segmented button:last-child { border-right: none; }
+    .segmented button.active { background: var(--primary); color: var(--surface); }
+    .segmented button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+    /* Diagnostics report (RB-7b) */
+    .diag-output {
+      font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
     .hidden { display: none !important; }
+
+    /* Ko-fi inline tip panel (MON-1) */
+    .kofi-frame {
+      width: 100%;
+      height: 360px;
+      border: none;
+      border-radius: 6px;
+      margin-top: 8px;
+      background: var(--surface-subtle);
+    }
 
     /* Retry cards — one per failed meeting capture */
     .retry-card {
@@ -838,7 +996,7 @@
     }
     .retry-card-actions {
       display: flex;
-      gap: 6px;
+      gap: var(--space-3);
       margin-top: 4px;
     }
     .retry-card-actions .btn { flex: 1; justify-content: center; }
@@ -872,16 +1030,28 @@
 
     <!-- Meeting picker — shown when 2+ Meet tabs open and none is focused -->
     <div id="meeting-picker" class="hidden">
-      <div class="row" style="gap:6px">
+      <div class="row" style="gap:var(--space-3)">
         <span class="label" style="font-size:12px;color:var(--text-muted)">Viewing:</span>
         <select id="meeting-tab-select" style="flex:1;max-width:200px"></select>
       </div>
     </div>
 
+    <!-- First-run setup checklist (RB-7a) — shown until dismissed -->
+    <div class="setup-panel hidden" id="setup-wizard">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="color:var(--text)">Welcome to Gememo</strong>
+        <a class="reset-link" id="setup-wizard-dismiss">Dismiss</a>
+      </div>
+      <div id="setup-wizard-steps"></div>
+    </div>
+
     <!-- Status banner -->
     <div class="status-banner" id="status-banner">
-      <span id="status">Not in a meeting.</span>
+      <span id="status">Not in a meeting</span>
     </div>
+
+    <!-- Recovery card — an in-flight note that never confirmed saving (RB-1d) -->
+    <div id="recovery-list"></div>
 
     <!-- Retry list — one card per mm2c_failed_list entry; populated by popup.js -->
     <div id="retry-list"></div>
@@ -916,11 +1086,22 @@
       <div class="snapshot-preview hidden" id="snapshot-preview"></div>
     </div>
 
+    <!-- Email this note (RB-3c, beta) — zero-config mailto destination -->
+    <div class="widget beta hidden" id="email-note-widget">
+      <div class="row">
+        <span class="label">Email this note <span class="beta-pill">Beta</span></span>
+        <button class="btn" id="email-note-btn">Email note</button>
+      </div>
+    </div>
+
     <!-- Action items from the most recent capture (P6-B) -->
     <div class="widget hidden" id="action-items-widget">
       <div class="widget-header">
-        <div class="widget-title">Action items</div>
-        <button class="btn" id="copy-action-items">Copy as tasks</button>
+        <div class="widget-title">Action items <span id="my-items-badge" class="beta-pill hidden" style="color:var(--primary);background:var(--hover-primary);border-color:var(--primary)"></span></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn hidden" id="send-to-tasks">Send to tasks</button>
+          <button class="btn" id="copy-action-items">Copy as tasks</button>
+        </div>
       </div>
       <div id="action-items-list"></div>
     </div>
@@ -934,7 +1115,7 @@
     <div class="widget">
       <div class="widget-header">
         <div class="widget-title">Default prompt</div>
-        <button class="btn-collapse" id="prompt-toggle">▾</button>
+        <button class="btn-collapse" id="prompt-toggle">▶</button>
       </div>
       <div id="prompt-body" class="sub-options hidden">
         <textarea id="prompt" rows="5"></textarea>
@@ -953,7 +1134,7 @@
     <div class="widget">
       <div class="widget-header">
         <div class="widget-title">Meeting rules</div>
-        <button class="btn-collapse" id="rules-toggle">▾</button>
+        <button class="btn-collapse" id="rules-toggle">▶</button>
       </div>
       <p class="hint">Match meeting titles with a regex to apply a custom prompt instead of the default.</p>
       <div id="rules-body" class="sub-options hidden">
@@ -970,16 +1151,40 @@
   <!-- ── Settings panel ─────────────────────────────────────────── -->
   <div class="panel hidden" id="settings-panel" role="tabpanel" aria-labelledby="tab-settings">
 
+    <!-- Identity — flag action items assigned to me (UXF-7) -->
+    <div class="widget">
+      <div class="widget-title">Your name</div>
+      <div class="row">
+        <span class="label">Name &amp; aliases</span>
+        <input type="text" id="my-aliases" class="text-normal" placeholder="James, James R, JR">
+      </div>
+      <p class="hint">Comma-separated. Action items assigned to any of these are flagged as yours on the captured note.</p>
+    </div>
+
+    <!-- Appearance (UXF-8) -->
+    <div class="widget">
+      <div class="widget-title">Appearance</div>
+      <div class="row">
+        <span class="label">Theme</span>
+        <div class="segmented" id="theme-control" role="group" aria-label="Theme">
+          <button type="button" data-theme-value="system">System</button>
+          <button type="button" data-theme-value="light">Light</button>
+          <button type="button" data-theme-value="dark">Dark</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Snapshot frequency -->
     <div class="widget">
       <div class="widget-title">Snapshot frequency</div>
       <div class="row">
         <span class="label">Every</span>
-        <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:flex;align-items:center;gap:var(--space-3)">
           <input type="number" id="snapshot-interval" min="3" max="30" value="8">
           <span class="unit-label">min (3–30)</span>
         </div>
       </div>
+      <p class="hint">How often to snapshot the running Gemini summary mid-meeting, so nothing is lost if capture fails when you leave.</p>
     </div>
 
     <!-- Note language -->
@@ -1009,16 +1214,16 @@
     <div class="widget">
       <div class="widget-title">Output app</div>
       <div class="row">
-        <span class="label">Destination</span>
+        <span class="label">App</span>
         <select id="output-app">
           <option value="none">None</option>
           <option value="craft">Craft</option>
           <option value="apple_notes">Apple Notes</option>
-          <option value="obsidian">Obsidian</option>
+          <option value="obsidian">Obsidian (untested)</option>
+          <option value="bear">Bear (untested)</option>
           <optgroup label="Coming soon">
             <option disabled>Notion</option>
             <option disabled>Google Docs</option>
-            <option disabled>Bear Notes</option>
             <option disabled>Evernote</option>
           </optgroup>
         </select>
@@ -1030,11 +1235,12 @@
           <span class="label">Inbox folder ID</span>
           <input type="text" id="craft-folder-id" class="ltr" placeholder="">
         </div>
+        <span class="field-error" id="craft-folder-error" role="alert"></span>
         <div class="row">
           <span class="label">Space ID</span>
-          <input type="text" id="craft-space-id" class="ltr" placeholder="(blank = default space)">
+          <input type="text" id="craft-space-id" class="ltr" placeholder="">
         </div>
-        <p class="hint">Leave blank to save to Unsorted. For a specific folder, paste its Craft deeplink docId here.</p>
+        <p class="hint">Leave both blank to save to Unsorted in your default space. For a specific folder or space, paste its Craft deeplink ID here.</p>
       </div>
 
       <!-- Obsidian sub-options — shown only when Obsidian is selected -->
@@ -1043,6 +1249,7 @@
           <span class="label">Vault folder</span>
           <input type="text" id="obsidian-vault-path" class="ltr" placeholder="Select vault…" readonly>
         </div>
+        <span class="field-error" id="obsidian-vault-error" role="alert"></span>
         <p class="hint">Click the field to open a folder picker and select your Obsidian vault.</p>
       </div>
 
@@ -1053,7 +1260,31 @@
         <label><input type="checkbox" class="also-send-opt" value="apple_notes"> Apple Notes</label>
         <label><input type="checkbox" class="also-send-opt" value="obsidian"> Obsidian</label>
       </div>
-      <p class="hint">Send each note to these in addition to the primary app above. The primary app is ignored here.</p>
+      <p class="hint">Each note also goes to the apps checked here, in addition to your primary output app above.</p>
+
+      <div class="row" style="margin-top:8px">
+        <span class="label">Wikilinks for graph apps</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="wikilinks">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <p class="hint">Wrap attendee names in [[double brackets]] so each note links into your Obsidian/Craft graph. Best left off for non-graph apps.</p>
+    </div>
+
+    <!-- Action items → task manager (RB-3a) -->
+    <div class="widget">
+      <div class="widget-title">Action items</div>
+      <div class="row">
+        <span class="label">Send to</span>
+        <select id="task-app">
+          <option value="">Off</option>
+          <option value="things">Things</option>
+          <option value="todoist">Todoist</option>
+          <option value="omnifocus">OmniFocus</option>
+        </select>
+      </div>
+      <p class="hint">Adds a "Send to tasks" button to the captured action items, opening each as a task in your chosen app (via its URL scheme — no account needed).</p>
     </div>
 
     <!-- File backup -->
@@ -1091,6 +1322,45 @@
 
     </div>
 
+    <!-- Review before send (RB-4b) -->
+    <div class="widget">
+      <div class="widget-title">Review</div>
+      <div class="row">
+        <span class="label">Review notes before saving</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="preview-before-send">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <p class="hint">When you leave a call, show the captured notes for a quick review (15s) with Discard / Save before they're sent.</p>
+    </div>
+
+    <!-- Dual output: private reflection (P9-H) — beta -->
+    <div class="widget beta">
+      <div class="widget-title">Private reflection <span class="beta-pill">Beta</span></div>
+      <div class="row">
+        <span class="label">Enable</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="dual-output">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div id="dual-output-sub" class="sub-options hidden">
+        <textarea id="private-prompt" rows="3" placeholder="A private prompt — e.g. summarise my own takeaways and follow-ups, just for me."></textarea>
+        <div class="row">
+          <span class="label">Send private note to</span>
+          <select id="private-app">
+            <option value="">Same as primary</option>
+            <option value="craft">Craft</option>
+            <option value="apple_notes">Apple Notes</option>
+            <option value="obsidian">Obsidian</option>
+            <option value="bear">Bear</option>
+          </select>
+        </div>
+        <p class="hint">After the shared note is saved, runs a second Gemini pass with your private prompt and saves it separately. Adds time at leave; experimental.</p>
+      </div>
+    </div>
+
     <!-- Generic webhook (P9-D) -->
     <div class="widget">
       <div class="widget-title">Webhook</div>
@@ -1105,7 +1375,7 @@
         <input type="text" id="slack-webhook-url" placeholder="https://hooks.slack.com/services/...">
       </div>
       <span class="field-error" id="slack-error" role="alert"></span>
-      <p class="hint">Slack: posts the title, summary, and action-item count to an incoming webhook.</p>
+      <p class="hint">Posts the title, summary, and action-item count to a Slack incoming webhook.</p>
     </div>
 
     <!-- Privacy: PII redaction (RB-5b) -->
@@ -1128,6 +1398,24 @@
         <textarea id="blocklist" rows="2" placeholder="interview, 1:1 with HR, /salary/i"></textarea>
       </div>
       <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
+    </div>
+
+    <!-- Experimental features toggle (UXF-1) -->
+    <div class="widget">
+      <div class="widget-title">Experimental</div>
+      <div class="row">
+        <span class="label">Show experimental features</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="beta-enabled">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <p class="hint">Reveal in-progress features marked Beta. They may change or disappear.</p>
+      <div class="row beta" style="margin-top:8px">
+        <span class="label">Selector hotfix URL</span>
+        <input type="text" id="selector-hotfix-url" class="ltr" placeholder="https://…/selectors.json">
+      </div>
+      <p class="hint beta">Advanced: fetch a selectors.json override at startup so a Meet DOM change can be patched without a release (RB-1b). Leave blank to use the bundled selectors.</p>
     </div>
 
   </div><!-- /settings-panel -->
@@ -1165,7 +1453,7 @@
     <div class="widget">
       <div class="widget-header">
         <div>
-          <div style="font-size:15px;font-weight:600;color:var(--text-strong)">Gememo</div>
+          <h1>Gememo</h1>
           <div class="hint" id="about-version" style="margin-top:2px"></div>
         </div>
       </div>
@@ -1183,28 +1471,46 @@
     <div class="widget">
       <div class="row">
         <span class="label">GitHub</span>
-        <a href="https://github.com/caasols/gememo" target="_blank" rel="noopener" class="btn">Open ↗</a>
+        <a href="https://github.com/caasols/gememo" target="_blank" rel="noopener" class="btn">View on GitHub</a>
       </div>
       <div class="row">
         <span class="label">Report an issue</span>
-        <a id="report-issue" href="https://github.com/caasols/gememo/issues/new" target="_blank" rel="noopener" class="btn">Report ↗</a>
+        <a id="report-issue" href="https://github.com/caasols/gememo/issues/new" target="_blank" rel="noopener" class="btn">Report issue</a>
       </div>
+    </div>
+
+    <!-- Diagnostics (RB-7b) -->
+    <div class="widget">
+      <div class="widget-header">
+        <div class="widget-title">Diagnostics</div>
+        <button class="btn" id="run-diagnostics">Run diagnostics</button>
+      </div>
+      <pre id="diag-output" class="diag-output hidden"></pre>
+      <button class="btn hidden" id="copy-diagnostics" style="align-self:flex-start">Copy report</button>
     </div>
 
     <!-- Extension ID -->
     <div class="widget">
       <div class="widget-title">Extension ID</div>
-      <div class="row" style="gap:6px;margin-top:4px">
+      <div class="row" style="gap:var(--space-3);margin-top:4px">
         <span id="about-ext-id" style="font-family:Monaco,Menlo,'Ubuntu Mono',monospace;font-size:11px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="btn" id="copy-ext-id">Copy</button>
       </div>
     </div>
 
-    <!-- Support development -->
+    <!-- Support development (MON-1) — inline Ko-fi panel, lazy-loaded only when
+         the About tab is first opened (never during capture). The floating Ko-fi
+         JS widget is blocked by MV3 CSP (script-src 'self'); the iframe embed is
+         allowed. Verify-needed (🟡): if Ko-fi refuses framing from the
+         chrome-extension:// origin the iframe stays blank and the link below
+         remains the working fallback. -->
     <div class="widget">
       <div class="widget-title">Support development</div>
-      <!-- TODO: confirm the Ko-fi handle below matches your account -->
-      <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener" class="btn kofi-btn" style="margin-top:4px">☕ Support on Ko-fi</a>
+      <p class="hint" style="margin:0">If Gememo saves you time, a small tip keeps it maintained.</p>
+      <iframe id="kofi-frame" title="Support Gememo on Ko-fi"
+              data-src="https://ko-fi.com/caasols/?hidefeed=true&widget=true&embed=true&preview=true"
+              class="kofi-frame hidden" loading="lazy"></iframe>
+      <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener" class="btn kofi-btn" style="margin-top:8px">Support on Ko-fi ☕</a>
     </div>
 
   </div><!-- /about-panel -->
@@ -1214,6 +1520,7 @@
 
   </div><!-- /main-content -->
 
+  <script src="design_tokens.js"></script>
   <script src="constants.js"></script>
   <script src="popup.js"></script>
 

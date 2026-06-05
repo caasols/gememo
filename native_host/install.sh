@@ -10,6 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOST_PY="$SCRIPT_DIR/meeting_minutes_host.py"
 PUSH_PY="$SCRIPT_DIR/../scripts/push_to_craft.py"
 CHROME_HOSTS="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+EDGE_BASE="$HOME/Library/Application Support/Microsoft Edge"
+EDGE_HOSTS="$EDGE_BASE/NativeMessagingHosts"
 HOST_NAME="io.gememo.host"
 
 # Install the host to ~/Library/Application Support/Gememo so Chrome can
@@ -97,10 +99,20 @@ fi
 echo ""
 echo "Writing native messaging manifest..."
 
-mkdir -p "$CHROME_HOSTS"
+# Register with every Chromium browser present (RB-2b). Edge (Chromium) uses
+# the same MV3 + chrome-extension:// native-messaging contract as Chrome — only
+# the NativeMessagingHosts directory differs. Chrome is always written; Edge is
+# written when Edge is installed.
+HOST_DIRS=("$CHROME_HOSTS")
+if [[ -d "$EDGE_BASE" ]]; then
+  HOST_DIRS+=("$EDGE_HOSTS")
+  echo "  Microsoft Edge detected — registering for Edge too."
+fi
 
-python3 - <<PYEOF
-import json, pathlib
+for HOSTS_DIR in "${HOST_DIRS[@]}"; do
+  mkdir -p "$HOSTS_DIR"
+  python3 - "$HOSTS_DIR" <<PYEOF
+import json, pathlib, sys
 
 manifest = {
     "name": "$HOST_NAME",
@@ -110,13 +122,14 @@ manifest = {
     "allowed_origins": ["chrome-extension://$EXT_ID/"]
 }
 
-out = pathlib.Path("$CHROME_HOSTS") / "$HOST_NAME.json"
+out = pathlib.Path(sys.argv[1]) / "$HOST_NAME.json"
 out.write_text(json.dumps(manifest, indent=2) + "\n")
 print(f"  Written: {out}")
 PYEOF
+done
 
 echo ""
-echo "Done. Reload the extension in chrome://extensions, then open a Google Meet."
+echo "Done. Reload the extension in chrome://extensions (or edge://extensions), then open a Google Meet."
 echo "When you leave a call, your meeting notes will be saved to Craft automatically."
 echo ""
 echo "Optional — pin notes to a specific Craft space:"

@@ -26,7 +26,10 @@ const DEFAULT_PROMPT =
   'Do not use vague filler phrases like "the team discussed" or "various topics were covered". ' +
   'Do not invent facts, names, dates, or commitments not in the transcript. ' +
   'If a section has no content, omit the heading entirely. ' +
-  'Format everything as plain text. Do not use asterisks, underscores, backticks, or any other markdown formatting characters.';
+  'Format everything as plain text. Do not use asterisks, underscores, backticks, or any other markdown formatting characters.\n\n' +
+  // Auto-tagging (RB-4c) — a final machine-parseable line; stripped from the
+  // body and promoted to YAML tags: by the native host.
+  'Finally, end with a single line starting with "Tags:" followed by 3–5 short lowercase topic tags (single words or hyphenated-words), comma-separated — for example: Tags: payments, kafka, q3-planning.';
 
 // Few-shot example prepended to every prompt so Gemini has a concrete format anchor.
 // Shows: 4 attendees, 2 decisions with rationale, 3 action items with owner names + deadlines,
@@ -58,7 +61,8 @@ const EXAMPLE_NOTES =
   'Open Questions\n' +
   'What is the fallback if Kafka is unavailable during a payments spike? No decision reached.\n' +
   'Risk: the Q4 migration window may conflict with the holiday freeze. ' +
-  'Carlos to confirm dates with the infrastructure team.';
+  'Carlos to confirm dates with the infrastructure team.\n\n' +
+  'Tags: payments, kafka, database-migration';
 
 // ── Usage stats (UX-8) ───────────────────────────────────────────────────────
 // Lifetime cumulative stats shown in the About tab as a donation driver.
@@ -146,6 +150,55 @@ function parseActionItems(body) {
   return items;
 }
 
+// Task managers Gememo can route action items to via their URL schemes (RB-3a).
+// No OAuth — the same x-callback-url pattern as the Craft/Bear push.
+const TASK_APPS = {
+  things:    'Things',
+  todoist:   'Todoist',
+  omnifocus: 'OmniFocus',
+};
+
+// Pure helper — build a task-manager URL for one action item (RB-3a). Owner +
+// deadline become the task note. Returns '' for an unknown app or empty task.
+function buildTaskUrl(app, item = {}) {
+  const title = String(item.task || '').trim();
+  if (!title) return '';
+  const notes = [item.owner ? `Owner: ${item.owner}` : '', item.deadline ? `Due: ${item.deadline}` : '']
+    .filter(Boolean).join(' · ');
+  const t = encodeURIComponent(title);
+  const n = encodeURIComponent(notes);
+  switch (app) {
+    case 'things':    return `things:///add?title=${t}${notes ? `&notes=${n}` : ''}`;
+    case 'todoist':   return `todoist://addtask?content=${t}${notes ? `&description=${n}` : ''}`;
+    case 'omnifocus': return `omnifocus:///add?name=${t}${notes ? `&note=${n}` : ''}`;
+    default:          return '';
+  }
+}
+
+// Pure helper — split a comma-separated alias string into a clean list (UXF-7).
+function parseAliases(str) {
+  return String(str || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// Pure helper — does an action-item owner match any of the user's aliases
+// (UXF-7)? Whole-word, case-insensitive, so "James R" matches the alias "James"
+// but "Jameson" does not. Identity is user-confirmed (the aliases field), never
+// silently inferred. `aliases` may be an array or a comma-separated string.
+function ownerMatchesAliases(owner, aliases) {
+  const o = String(owner || '').trim();
+  if (!o) return false;
+  return parseAliases(Array.isArray(aliases) ? aliases.join(',') : aliases).some(a => {
+    if (!a) return false;
+    try { return new RegExp(`\\b${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(o); }
+    catch { return false; }
+  });
+}
+
+// Pure helper — count action items owned by the user (UXF-7).
+function countMyActionItems(items, aliases) {
+  return (Array.isArray(items) ? items : []).filter(it => ownerMatchesAliases(it.owner, aliases)).length;
+}
+
 // Pure helper — render action items as Markdown task list lines (P6-B).
 function formatActionItemsMarkdown(items) {
   return (Array.isArray(items) ? items : []).map(it => {
@@ -204,7 +257,9 @@ const BUILT_IN_RULES = [
 
 // Pure helper — normalise Rules-tab inputs into a rule `condition` object, or
 // null when nothing usable was entered (P5-L2). Hours require BOTH bounds.
-function buildCondition(days, startHour, endHour) {
+// minMinutes/maxMinutes (UXF-10) add a "time actually spent" range; either bound
+// is optional. Extra args are optional so existing 3-arg callers are unchanged.
+function buildCondition(days, startHour, endHour, minMinutes, maxMinutes) {
   const out = {};
   const validDays = (Array.isArray(days) ? days : []).filter(d => Number.isInteger(d) && d >= 1 && d <= 7);
   if (validDays.length) out.days = validDays;
@@ -213,7 +268,22 @@ function buildCondition(days, startHour, endHour) {
     out.startHour = startHour;
     out.endHour = endHour;
   }
+  if (Number.isInteger(minMinutes) && minMinutes >= 0) out.minMinutes = minMinutes;
+  if (Number.isInteger(maxMinutes) && maxMinutes >= 0) out.maxMinutes = maxMinutes;
   return Object.keys(out).length ? out : null;
+}
+
+// Pure helper — does a rule's duration condition match the time actually spent
+// (UXF-10)? minMinutes/maxMinutes form an inclusive range; either is optional.
+// Returns false when no duration bounds are set or durationMin is unknown.
+function ruleDurationMatches(condition, durationMin) {
+  if (!condition || !Number.isFinite(durationMin)) return false;
+  const hasMin = Number.isInteger(condition.minMinutes);
+  const hasMax = Number.isInteger(condition.maxMinutes);
+  if (!hasMin && !hasMax) return false;
+  if (hasMin && durationMin < condition.minMinutes) return false;
+  if (hasMax && durationMin > condition.maxMinutes) return false;
+  return true;
 }
 
 // Pure helper — does a rule's time condition match the given moment (P5-L2)?
@@ -238,16 +308,21 @@ function ruleTimeMatches(condition, date) {
 // Pure helper — return the first rule that matches, or null. A rule matches when
 // its regex matches the title OR its time condition matches `now` (P5-L2).
 // Shared by content_meet.js and tests.js; invalid regexes are skipped.
-function findPromptRule(rules, meetingTitle, now = new Date()) {
+function findPromptRule(rules, meetingTitle, now = new Date(), ctx = {}) {
   if (!Array.isArray(rules)) return null;
   const title = meetingTitle || '';
   for (const r of rules) {
     if (!r) continue;
+    if (r.enabled === false) continue; // UXF-9 — a disabled rule is skipped (default on)
     let matched = false;
     if (r.regex) {
       try { matched = new RegExp(r.regex, 'i').test(title); } catch { /* skip bad regex */ }
     }
     if (!matched && r.condition) matched = ruleTimeMatches(r.condition, now);
+    // Time-actually-spent condition (UXF-10) — ctx.durationMin from the live meeting.
+    if (!matched && r.condition && Number.isFinite(ctx.durationMin)) {
+      matched = ruleDurationMatches(r.condition, ctx.durationMin);
+    }
     if (matched) return r;
   }
   return null;
@@ -277,6 +352,80 @@ function webhookUrlError(url) {
   if (!u) return '';
   if (!/^https?:\/\/\S+$/i.test(u)) return 'Enter a full http:// or https:// URL';
   return '';
+}
+
+// Pure helper — validate a Craft inbox folder / doc ID (A4). Blank = use the
+// default (Unsorted); otherwise it must be a bare deeplink docId — never a full
+// URL and never containing whitespace. Returns '' when valid, else an error.
+function craftFolderIdError(id) {
+  const v = String(id || '').trim();
+  if (!v) return '';
+  if (/\s/.test(v)) return 'Paste just the Craft doc ID — no spaces';
+  if (/:\/\/|craftdocs:|\//.test(v)) return 'Paste just the Craft doc ID, not a URL';
+  return '';
+}
+
+// Pure helper — validate an Obsidian vault folder path (A4). Blank = not set;
+// otherwise it must be an absolute path (starts with / or ~). Returns '' when
+// valid, else an error string.
+function obsidianVaultPathError(path) {
+  const v = String(path || '').trim();
+  if (!v) return '';
+  if (!/^(\/|~)/.test(v)) return 'Enter an absolute folder path (starting with / or ~)';
+  return '';
+}
+
+// Pure helper — build a mailto: URL for emailing a captured note (RB-3c, beta).
+// Zero-config "just email me the summary" destination. The body is truncated to
+// keep the URL within mail-client length limits; the full note stays in the
+// saved file/output app.
+function buildMailtoUrl({ title = '', body = '', maxBody = 1500 } = {}) {
+  const subject = encodeURIComponent(title ? String(title) : 'Meeting notes');
+  let b = String(body || '');
+  if (b.length > maxBody) {
+    b = b.slice(0, maxBody) + '\n\n…(truncated — open the saved note for the full text)';
+  }
+  return `mailto:?subject=${subject}&body=${encodeURIComponent(b)}`;
+}
+
+// Pure helper — assemble a shareable plain-text diagnostics report (RB-7b) from
+// already-gathered facts. Keeping the formatting pure makes it unit-testable;
+// popup.js gathers the inputs (host ping, storage, manifest) and renders this.
+function buildDiagnosticsReport(info = {}) {
+  const alsoSend = Array.isArray(info.alsoSend) && info.alsoSend.length ? info.alsoSend.join(', ') : 'none';
+  const perms = Array.isArray(info.permissions) && info.permissions.length ? info.permissions.join(', ') : 'none';
+  const host = info.hostOk
+    ? `ready (v${info.hostVersion || '?'})${info.hostMismatch ? ' — version mismatch' : ''}`
+    : 'not found';
+  return [
+    'Gememo diagnostics',
+    `Version: ${info.version || '?'}`,
+    `Extension ID: ${info.extensionId || '?'}`,
+    `Native host: ${host}`,
+    `Output app: ${info.outputApp || 'craft'}`,
+    `Also send to: ${alsoSend}`,
+    `File backup: ${info.fileBackup ? 'on' : 'off'}`,
+    `Permissions: ${perms}`,
+    `Platform: ${info.platform || '?'}`,
+    `Generated: ${info.generatedAt || new Date().toISOString()}`,
+  ].join('\n');
+}
+
+// Pure helper — the first-run setup checklist (RB-7a). Given the live host
+// status and chosen output app, returns the ordered steps with their done
+// state. The capture step completes itself in the first meeting.
+function firstRunChecklist({ hostOk = false, outputApp = '' } = {}) {
+  return [
+    { id: 'host',    label: 'Install the native host', ok: !!hostOk },
+    { id: 'output',  label: 'Choose an output app',     ok: !!outputApp && outputApp !== 'none' },
+    { id: 'capture', label: 'Capture your first meeting', ok: false },
+  ];
+}
+
+// Pure helper — is setup ready to capture (RB-7a)? True once the host + output
+// steps are done; the capture step is informational and excluded.
+function firstRunReady(list) {
+  return (Array.isArray(list) ? list : []).filter(s => s.id !== 'capture').every(s => s.ok);
 }
 
 // Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
@@ -326,6 +475,45 @@ function assemblePrompt({ title = '', priorContext = '', glossary = '', language
     + effectiveBase;
 }
 
+// Pure helper — map a raw error string to friendly "what happened + what to do"
+// copy for the in-page toast and popup banner (UXC-3). The raw text is kept only
+// in the debug log; the user never sees a bare JS / native-messaging string.
+function friendlyError(raw) {
+  const s = String(raw == null ? '' : raw);
+  if (/native (messaging )?host not found|not found.*host|host.*not found|forbidden|not allowed|access to the specified native messaging host is forbidden/i.test(s))
+    return 'Native host not found — open the Set up panel to install it.';
+  if (/Craft is not running/i.test(s))
+    return "Craft isn't running — open Craft and click Retry.";
+  if (/context invalidated|Extension context/i.test(s))
+    return 'The extension reloaded mid-capture — reload the Meet tab and try again.';
+  if (/timed out|timeout/i.test(s))
+    return 'Saving timed out — your notes are backed up; click Retry.';
+  if (/transcript is empty|appears empty|Response extracted|Submit button not found/i.test(s))
+    return 'No notes were captured — Gemini may not have produced a summary.';
+  return 'Something went wrong saving your notes. Check the Logs tab for details.';
+}
+
+// Pure helper — should the capture be shown for review before sending (RB-4b)?
+// Only when the user opted in AND there's a non-trivial transcript to review.
+function shouldPreviewBeforeSend(enabled, transcript) {
+  return !!enabled && typeof transcript === 'string' && transcript.trim().length > 20;
+}
+
+// Pure helper — body copy for the leave-confirmation overlay (UXC-1). Names the
+// user's actual output app instead of a hardcoded "Craft", which was factually
+// wrong for Apple Notes / Obsidian users.
+function closeOverlayBody(appName) {
+  return `Gemini notes are active. Save a summary to ${appName} before leaving?`;
+}
+
+// Canonical user-facing copy for "Gemini wasn't active in this meeting" (UXC-2).
+// One string routed to every surface — the in-page toast, the popup status
+// banner (via MM2C_WARNING → mm2c_last_status), and the GeminiNotActiveError
+// path — so the wording and grammar stay in sync. Previously three different
+// strings existed, one with a subject-verb agreement error ("Gemini notes was
+// not active").
+const GEMINI_INACTIVE_MESSAGE = "Gemini wasn't active in this meeting — no notes were saved.";
+
 // Pure helper — custom vocabulary/glossary → a prompt prefix (RB-4a). Terms are
 // comma- or newline-separated; the model is told to keep them verbatim.
 function glossaryPrefix(glossary) {
@@ -343,6 +531,83 @@ function depthInstruction(depth) {
     return 'Be especially thorough and detailed: capture full context, rationale, owners, and nuance for every point.';
   }
   return '';
+}
+
+// ── Selector registry (RB-1a) ───────────────────────────────────────────────
+// Every Meet DOM selector the content script depends on, each an ordered list
+// of fallbacks (first match wins). Centralising them turns a silent capture
+// failure after a Meet UI change into an observable, diagnosable one — and is
+// the foundation for a remote selector hotfix (RB-1b). content_meet.js resolves
+// live elements through this map; selectorHealthCheck() probes them on join.
+const SELECTORS = {
+  leaveButton:  ['button[aria-label="Leave call"]'],
+  micOff:       ['button[aria-label="Turn off microphone"]'],
+  camOff:       ['button[aria-label="Turn off camera"]'],
+  geminiInput:  ['div[aria-label="Ask Gemini"][contenteditable="true"]'],
+  submit:       ['button[aria-label="Submit"]'],
+  sidePanel:    ['aside[aria-label="Side panel"]'],
+  callControls: ['div[aria-label="Call controls"]'],
+};
+
+// Selectors that should always be present once a meeting is joined. Their
+// failure indicates a Meet DOM change that breaks capture; geminiInput / submit
+// / sidePanel appear only after Gemini activation and are excluded here.
+const CRITICAL_SELECTORS = ['leaveButton', 'callControls', 'micOff', 'camOff'];
+
+// Pure helper — return the first selector in `list` for which queryFn yields a
+// truthy element, or null. queryFn is injected so this is unit-testable without
+// a live DOM. Bad selectors are skipped.
+function firstMatchingSelector(list, queryFn) {
+  for (const sel of (Array.isArray(list) ? list : [list])) {
+    try { if (queryFn(sel)) return sel; } catch { /* invalid selector — skip */ }
+  }
+  return null;
+}
+
+// Pure helper — probe a selector registry. Returns { resolved: {name:selector},
+// failed: [names], criticalFailed: [names] }. The caller logs/badges from this.
+function selectorHealthCheck(registry, queryFn, critical = CRITICAL_SELECTORS) {
+  const resolved = {};
+  const failed = [];
+  for (const [name, list] of Object.entries(registry || {})) {
+    const sel = firstMatchingSelector(list, queryFn);
+    if (sel) resolved[name] = sel; else failed.push(name);
+  }
+  const criticalFailed = failed.filter(n => critical.includes(n));
+  return { resolved, failed, criticalFailed };
+}
+
+// Pure helper — validate a fetched selectors.json into a safe overrides object
+// (RB-1b). Only known registry keys are kept; each value must be a non-empty
+// string or array of strings. Anything else is dropped — a malformed remote
+// file can never inject arbitrary keys or break the bundled registry.
+function sanitizeSelectorOverrides(json, allowedKeys) {
+  const allowed = Array.isArray(allowedKeys) ? allowedKeys : Object.keys(SELECTORS);
+  const out = {};
+  if (!json || typeof json !== 'object') return out;
+  for (const key of allowed) {
+    const v = json[key];
+    if (Array.isArray(v)) {
+      const clean = v.filter(s => typeof s === 'string' && s.trim()).map(s => s.trim());
+      if (clean.length) out[key] = clean;
+    } else if (typeof v === 'string' && v.trim()) {
+      out[key] = [v.trim()];
+    }
+  }
+  return out;
+}
+
+// Pure helper — overlay validated remote overrides onto the bundled registry
+// (RB-1b). A key present in overrides replaces the bundled fallback list; all
+// other keys are untouched. Returns a new object (inputs not mutated).
+function mergeSelectorOverrides(base, overrides) {
+  const merged = { ...(base || {}) };
+  if (overrides && typeof overrides === 'object') {
+    for (const [k, v] of Object.entries(overrides)) {
+      if (Array.isArray(v) && v.length) merged[k] = v;
+    }
+  }
+  return merged;
 }
 
 // Pure response-extraction logic shared between content_meet.js and tests.js.
@@ -364,6 +629,19 @@ function extractLastResponseFromEl(el) {
     // Uses single-digit [1-9] to avoid corrupting "Python 3.11" (digit precedes digit → no match)
     .replace(/(?<=[a-zA-Z"'])([1-9])(?=[\s\n]|$)/gm, '')
     .trim();
+}
+
+// Pure helper — should this send be skipped as a duplicate (D2)? True when the
+// stored fingerprint has the same title and was sent within the dedup window.
+function shouldSkipDuplicate(stored, title, now, windowMs) {
+  return !!(stored && stored.title === title && (now - stored.sentAt) < windowMs);
+}
+
+// Pure helper — do the extension and native host disagree on major version (D2)?
+// Blank/unknown versions are treated as "no mismatch" (don't nag on first run).
+function isVersionMismatch(extVersion, hostVersion) {
+  if (!extVersion || !hostVersion) return false;
+  return String(extVersion).split('.')[0] !== String(hostVersion).split('.')[0];
 }
 
 // Pure helper — produces the tab-scoped storage key name.
@@ -420,6 +698,39 @@ function inferMeetingType(title) {
   return 'calendar';
 }
 
+// Pure helper — normalise a stored theme value to one of system|light|dark
+// (UXF-8). Anything unrecognised (including undefined) falls back to 'system'.
+function normalizeTheme(v) {
+  return (v === 'light' || v === 'dark') ? v : 'system';
+}
+
+// Pure helper — bucket already-built log groups by calendar day (UXF-4) for the
+// Date → meeting → entries hierarchy. Preserves the input order (newest first),
+// so the newest day floats to the top. Each bucket: { day, ts, groups }.
+function bucketLogGroupsByDay(groups) {
+  const buckets = [];
+  const byDay = new Map();
+  for (const g of (Array.isArray(groups) ? groups : [])) {
+    const ts = (g.entries && g.entries[0] && g.entries[0].ts) || 0;
+    const day = new Date(ts).toDateString();
+    if (!byDay.has(day)) {
+      const b = { day, ts, groups: [] };
+      byDay.set(day, b);
+      buckets.push(b);
+    }
+    byDay.get(day).groups.push(g);
+  }
+  return buckets;
+}
+
+// Pure helper — a stable key for a log/meeting group (UXF-6), used to persist
+// which groups the user expanded across re-renders and the 10 s auto-refresh.
+// Keyed by calendar day + title so the same meeting keeps its disclosure state.
+function logGroupKey(title, ts) {
+  const day = new Date(ts).toDateString();
+  return `${day}|${title || 'System'}`;
+}
+
 // Pure helper — best-outcome status for a log group's entries (UX-7), shown as
 // a dot on the collapsed group header. Precedence by severity-of-interest:
 // a successful send (ok) wins; else any error; else any warning; else info.
@@ -447,6 +758,17 @@ function snapshotFreshEnough(cachedTranscriptAt, intervalMs, now = Date.now()) {
   return (now - cachedTranscriptAt) < intervalMs / 2;
 }
 
+// Pure helper — should the popup offer to recover an in-flight note (RB-1d)?
+// content_meet persists the formatted note to mm2c_inflight just before sending
+// and clears it on confirmed save. If it's still present and older than the
+// grace window when the popup opens, the send never completed (e.g. a crash) —
+// offer recovery. The grace window avoids flashing the card during a normal
+// in-progress send that will clear within seconds.
+function inflightRecoverable(inflight, now = Date.now(), graceMs = 60000) {
+  return !!(inflight && typeof inflight.text === 'string' && inflight.text.trim()
+            && Number.isFinite(inflight.at) && (now - inflight.at) > graceMs);
+}
+
 // Pure helper — the single source of truth for the popup status-banner text and
 // CSS class. Centralising this removes the dual-writer race where onTabSelected
 // and applyState both wrote #status from independent async callbacks (BUG-C).
@@ -464,5 +786,5 @@ function resolveBanner({ capturing = false, inMeeting = false, geminiActive = fa
       : lastStatus.startsWith('Warning') ? 'warn' : 'ok';
     return { text: lastStatus, cls };
   }
-  return { text: 'Not in a meeting.', cls: '' };
+  return { text: 'Not in a meeting', cls: '' };
 }

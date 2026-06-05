@@ -6,9 +6,28 @@
 // removeFailureByPath, countWords, updateStats, …) from the single source of
 // truth. A classic MV3 service worker can importScripts, and constants.js is
 // DOM-free — this replaces the hand-copied helpers that used to drift (ARCH-1).
-importScripts('constants.js');
+importScripts('design_tokens.js', 'constants.js');
 
 const NATIVE_HOST = 'io.gememo.host';
+
+// Remote selector hotfix (RB-1b) — opt-in. When the user has set a hotfix URL,
+// fetch selectors.json on service-worker startup, sanitise it against the known
+// registry keys, and cache the overrides for content_meet to overlay. A failed
+// or malformed fetch is ignored, leaving the bundled selectors in force.
+function refreshSelectorHotfix() {
+  chrome.storage.local.get(['mm2c_selector_hotfix_url'], ({ mm2c_selector_hotfix_url }) => {
+    const url = (mm2c_selector_hotfix_url || '').trim();
+    if (!url) return;
+    fetch(url, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(json => {
+        const overrides = sanitizeSelectorOverrides(json);
+        chrome.storage.local.set({ mm2c_selector_overrides: overrides });
+      })
+      .catch(e => console.warn('[MM2C] selector hotfix fetch failed:', e?.message || e));
+  });
+}
+refreshSelectorHotfix();
 
 const _tabKey = tabKey; // alias kept for existing mm2c_last_status_<tabId> call sites
 
@@ -99,9 +118,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const hostVersion = response?.version || null;
         let versionMismatch = false;
         if (ok && hostVersion) {
-          const extMajor  = chrome.runtime.getManifest().version.split('.')[0];
-          const hostMajor = String(hostVersion).split('.')[0];
-          versionMismatch = extMajor !== hostMajor;
+          versionMismatch = isVersionMismatch(chrome.runtime.getManifest().version, hostVersion);
         }
         if (versionMismatch) {
           const extVersion = chrome.runtime.getManifest().version;
@@ -126,9 +143,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           'mm2c_also_send',
           'mm2c_redact_pii', 'mm2c_redact_keywords',
           'mm2c_emit_ics',
+          'mm2c_wikilinks',
         ], (data) => {
           forwardToNativeHost(msg.text, {
-            backupType:          data.mm2c_output_app || 'craft',
+            // P9-H private pass overrides the destination; primary uses output_app.
+            backupType:          msg.privateApp || data.mm2c_output_app || 'craft',
             meetingTitle:        title,
             craftFolderId:       data.mm2c_craft_folder_id       || '',
             craftSpaceId:        data.mm2c_craft_space_id        || '',
@@ -137,6 +156,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             durationMin:         msg.durationMin ?? null,
             meetingCode:         msg.meetingCode || '',
             meetingType:         msg.meetingType || '',
+            titleTemplate:       msg.titleTemplate || '',
             recording:           msg.recording === true,
             webhookUrl:          data.mm2c_webhook_url || '',
             slackWebhookUrl:     data.mm2c_slack_webhook_url || '',
@@ -144,6 +164,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             redactPii:           data.mm2c_redact_pii === true,
             redactKeywords:      data.mm2c_redact_keywords || '',
             emitIcs:             data.mm2c_emit_ics === true,
+            wikilinks:           data.mm2c_wikilinks === true,
             fileBackupEnabled:   data.mm2c_file_backup_enabled === true,
             fileBackupType:      data.mm2c_file_backup_type      || 'markdown',
             fileBackupPath:      data.mm2c_file_backup_path      || '~/Downloads/meeting-notes',
@@ -162,7 +183,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       chrome.storage.session.get([fpKey], (fpData) => {
         const stored = fpData[fpKey];
         const now = Date.now();
-        if (stored && stored.title === title && (now - stored.sentAt) < DEDUP_WINDOW_MS) {
+        if (shouldSkipDuplicate(stored, title, now, DEDUP_WINDOW_MS)) {
           appendLog('warn', title, 'Duplicate send skipped — notes already sent for this meeting within the last 40 minutes');
           sendResponse({ ok: true });
           return;
@@ -202,7 +223,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           else        chrome.storage.local.set({ mm2c_last_status: statusLabel });
           appendLog('ok', title, `Retry succeeded — sent to Craft (from ${response.source || 'file'})`);
           chrome.action.setBadgeText({ text: 'OK' });
-          chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+          chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
           setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
         } else {
           appendLog('err', title, `Retry failed: ${response?.error || 'unknown'}`);
@@ -211,6 +232,46 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
       return true; // async response
     }
+
+    case 'MM2C_REFRESH_HOTFIX':
+      refreshSelectorHotfix();
+      break;
+
+    case 'MM2C_RECOVER':
+      // Re-send a note that was persisted in-flight but never confirmed (RB-1d).
+      chrome.storage.local.get([
+        'mm2c_inflight',
+        'mm2c_output_app', 'mm2c_craft_folder_id', 'mm2c_craft_space_id', 'mm2c_obsidian_vault_path',
+        'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
+        'mm2c_webhook_url', 'mm2c_slack_webhook_url', 'mm2c_also_send',
+        'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_emit_ics', 'mm2c_wikilinks',
+      ], (data) => {
+        const note = data.mm2c_inflight;
+        if (!note?.text) { sendResponse({ ok: false, error: 'nothing to recover' }); return; }
+        forwardToNativeHost(note.text, {
+          backupType:        data.mm2c_output_app || 'craft',
+          meetingTitle:      note.title || '',
+          craftFolderId:     data.mm2c_craft_folder_id || '',
+          craftSpaceId:      data.mm2c_craft_space_id || '',
+          obsidianVaultPath: data.mm2c_obsidian_vault_path || '',
+          attendees: [], durationMin: null, meetingCode: '', meetingType: '', titleTemplate: '', recording: false,
+          webhookUrl:        data.mm2c_webhook_url || '',
+          slackWebhookUrl:   data.mm2c_slack_webhook_url || '',
+          alsoSend:          Array.isArray(data.mm2c_also_send) ? data.mm2c_also_send : [],
+          redactPii:         data.mm2c_redact_pii === true,
+          redactKeywords:    data.mm2c_redact_keywords || '',
+          emitIcs:           data.mm2c_emit_ics === true,
+          wikilinks:         data.mm2c_wikilinks === true,
+          fileBackupEnabled: data.mm2c_file_backup_enabled === true,
+          fileBackupType:    data.mm2c_file_backup_type || 'markdown',
+          fileBackupPath:    data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
+          tabId: null,
+        }, (r) => {
+          if (r?.ok) chrome.storage.local.remove('mm2c_inflight');
+          sendResponse(r);
+        });
+      });
+      return true; // async
 
     case 'MM2C_SNAPSHOT':
       chrome.storage.local.get([
@@ -242,7 +303,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case 'MM2C_WARNING':
       chrome.action.setBadgeText({ text: '!' });
-      chrome.action.setBadgeBackgroundColor({ color: '#e37400' });
+      chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.warn });
       { const wTabId = _sender.tab?.id;
         const wStatus = `Warning: ${msg.message}`;
         if (wTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', wTabId)]: wStatus });
@@ -254,9 +315,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case 'MM2C_ERROR':
       console.error('[MM2C] Error from content script:', msg.error);
       chrome.action.setBadgeText({ text: '!' });
-      chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
+      chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
       { const eTabId = _sender.tab?.id;
-        const eStatus = `Error: ${msg.error}`;
+        // Banner shows friendly copy (UXC-3); the 'Error:' prefix keeps
+        // resolveBanner classifying it as an error. Raw text → the log below.
+        const eStatus = `Error: ${friendlyError(msg.error)}`;
         if (eTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', eTabId)]: eStatus });
         else         chrome.storage.local.set({ mm2c_last_status: eStatus }); }
       appendLog('err', msg.meetingTitle || '', msg.error || '');
@@ -343,7 +406,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           chrome.storage.local.set({ mm2c_capturing_tabs: tabs });
           if (tabs.length) {
             chrome.action.setBadgeText({ text: 'REC' });
-            chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+            chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
           } else {
             chrome.action.setBadgeText({ text: '' });
           }
@@ -427,26 +490,26 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, fileBackupEnabled, fileBackupType, fileBackupPath },
+    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, fileBackupEnabled, fileBackupType, fileBackupPath },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;
         console.error('[MM2C] Native messaging error:', err);
         chrome.action.setBadgeText({ text: '!' });
-        chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
-        const errStatus = `Native host error: ${err}`;
+        chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
+        const errStatus = `Error: ${friendlyError(err)}`;  // friendly banner (UXC-3)
         if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: errStatus });
         else        chrome.storage.local.set({ mm2c_last_status: errStatus });
-        appendLog('err', meetingTitle, errStatus);
+        appendLog('err', meetingTitle, `Native host error: ${err}`);  // raw in the log
         if (callback) callback({ ok: false, error: err });
         return;
       }
 
       if (response?.status === 'ok') {
-        const APP_LABELS = { craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian' };
+        const APP_LABELS = { craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' };
         const dest       = APP_LABELS[backupType] || backupType;
         const filePart  = fileBackupEnabled && response.file ? ` + ${response.file}` : '';
         const retryNote = response.retried ? ' (via snapshot retry)' : '';
@@ -454,7 +517,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
           ? `Saved to ${dest}: ${response.title}${filePart}${retryNote}`
           : `Saved to ${dest}.${filePart}${retryNote}`;
         chrome.action.setBadgeText({ text: 'OK' });
-        chrome.action.setBadgeBackgroundColor({ color: '#137333' });
+        chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
         // Store the note so the popup can surface its action items (P6-B).
         chrome.storage.local.set({ mm2c_last_note: transcript || '' });
         // Update lifetime usage stats (UX-8).
@@ -471,12 +534,13 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
       } else {
         const detail = response?.error || 'unknown';
         const backup = response?.backupPath ? ` — backup at ${response.backupPath}` : '';
-        const label  = `Host error: ${detail}${backup}`;
+        const rawLabel = `Host error: ${detail}${backup}`;     // log keeps "backup at" for the retry chip
+        const banner   = `Error: ${friendlyError(detail)}`;    // friendly banner (UXC-3)
         chrome.action.setBadgeText({ text: '!' });
-        chrome.action.setBadgeBackgroundColor({ color: '#c5221f' });
-        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
-        else        chrome.storage.local.set({ mm2c_last_status: label });
-        appendLog('err', meetingTitle, label);
+        chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
+        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: banner });
+        else        chrome.storage.local.set({ mm2c_last_status: banner });
+        appendLog('err', meetingTitle, rawLabel);
         // Store for retry widget — only when a backup path exists to retry from
         if (response?.backupPath) {
           chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {

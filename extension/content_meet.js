@@ -49,6 +49,11 @@
   let lastSnapshotAt       = 0;          // Date.now() of most recent snapshot; 0 before first snapshot
   let meetingSnapshotTimer = null;       // setTimeout handle for meeting-anchored snapshot schedule
   let currentOutputApp     = 'craft';    // mirrors mm2c_output_app; updated from storage
+  let currentTitleTemplate = '';         // per-rule note-title template, resolved at join (RB-4d)
+  let previewBeforeSend    = false;      // opt-in review-before-send gate (RB-4b)
+  let dualOutput           = false;      // P9-H — also run a private reflection pass
+  let privatePrompt        = '';         // P9-H — prompt for the private pass
+  let privateApp           = '';         // P9-H — destination for the private note
 
   // ── Meeting state reset ────────────────────────────────────────────────────
   // Zeros all per-meeting flags. Called from the MutationObserver lifecycle block
@@ -81,12 +86,13 @@
     currentMeetingTitle         = '';
     currentMeetingCode          = '';
     currentMeetingType          = '';
+    currentTitleTemplate        = '';
     meetingRecording            = false;
     priorContext                = '';
     meetingBlocked              = false;
     captureProactivelyAttempted = false;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
-    try { chrome.runtime.sendMessage({ type: 'MM2C_SET_SNAPSHOT', snapshot: null }); } catch {}
+    safeSend({ type: 'MM2C_SET_SNAPSHOT', snapshot: null });
     sendLog('Meeting state reset for new meeting');
   }
 
@@ -112,14 +118,22 @@
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app']).then((data) => {
+  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides', 'mm2c_preview_before_send', 'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app']).then((data) => {
     enabled = data.mm2c_enabled !== false;
     currentOutputApp = data.mm2c_output_app || 'craft';
+    previewBeforeSend = data.mm2c_preview_before_send === true;
+    dualOutput = data.mm2c_dual_output === true;
+    privatePrompt = data.mm2c_private_prompt || '';
+    privateApp = data.mm2c_private_app || '';
+    // Apply any remote selector hotfix overrides (RB-1b) over the bundled registry.
+    if (typeof SELECTORS !== 'undefined') {
+      effectiveSelectors = mergeSelectorOverrides(SELECTORS, data.mm2c_selector_overrides);
+    }
     // Reset capture state for a fresh meeting. (The popup reads the tab-keyed
     // mm2c_last_status_<tabId>, written by background.js — there is no global
     // status key to clear here.)
     if (enabled) {
-      try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' }); } catch {}
+      safeSend({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' });
     }
     // ── Meeting lifecycle variables ──────────────────────────────────────────
     // Closure-scoped (not module-level) because they only need to survive across
@@ -220,6 +234,12 @@
     if ('mm2c_output_app' in changes) {
       currentOutputApp = changes.mm2c_output_app.newValue || 'craft';
     }
+    if ('mm2c_preview_before_send' in changes) {
+      previewBeforeSend = changes.mm2c_preview_before_send.newValue === true;
+    }
+    if ('mm2c_dual_output' in changes) dualOutput = changes.mm2c_dual_output.newValue === true;
+    if ('mm2c_private_prompt' in changes) privatePrompt = changes.mm2c_private_prompt.newValue || '';
+    if ('mm2c_private_app' in changes) privateApp = changes.mm2c_private_app.newValue || '';
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -259,8 +279,17 @@
     });
   }
 
+  // Effective selector registry (RB-1a) = bundled SELECTORS overlaid with any
+  // remote hotfix overrides (RB-1b), loaded from storage at startup. Defaults to
+  // the bundled set so the linchpin selectors work before overrides load.
+  let effectiveSelectors = (typeof SELECTORS !== 'undefined') ? SELECTORS : {};
+  function firstSel(name, fallback) {
+    const list = effectiveSelectors[name];
+    return (Array.isArray(list) && list[0]) ? list[0] : fallback;
+  }
+
   function getLeaveButton() {
-    return document.querySelector('button[aria-label="Leave call"]');
+    return document.querySelector(firstSel('leaveButton', 'button[aria-label="Leave call"]'));
   }
 
   // Returns the "Start now" button that Meet shows when Gemini has not been
@@ -504,15 +533,16 @@
     });
   }
 
-  // Resolves with the Gemini trigger element as soon as it appears in the DOM,
-  // or with null after timeoutMs. Replaces the fixed delay(2500) in
-  // autoActivateGemini — if the button is already present this resolves on the
-  // first tick; if it appears at 300 ms we're done at 300 ms, not at 2500 ms.
-  function waitForGeminiTrigger(timeoutMs) {
+  // Generic observe→check→timeout→disconnect helper (ARCH-5). Resolves with the
+  // first truthy result of check() — immediately if already truthy, otherwise as
+  // soon as a mutation on `target` makes it truthy — or with null on timeout.
+  // The three appearance waiters below are thin wrappers; the bespoke waiters
+  // (response-complete, panel-visible, foreground) keep their own logic.
+  function waitForCondition(check, timeoutMs, target = document.body,
+                            observeOptions = { childList: true, subtree: true }) {
     return new Promise((resolve) => {
-      const found = getGeminiTriggerElement();
-      if (found) return resolve(found);
-
+      const immediate = check();
+      if (immediate) return resolve(immediate);
       let done = false;
       const finish = (result) => {
         if (done) return;
@@ -521,43 +551,25 @@
         clearTimeout(deadlineTimer);
         resolve(result);
       };
-
       const observer = new MutationObserver(() => {
-        const el = getGeminiTriggerElement();
-        if (el) finish(el);
+        const r = check();
+        if (r) finish(r);
       });
-      observer.observe(document.body, { childList: true, subtree: true });
-
+      observer.observe(target, observeOptions);
       const deadlineTimer = setTimeout(() => finish(null), timeoutMs);
     });
   }
 
-  // Resolves with the "Start now" button as soon as it appears, or with null
-  // after timeoutMs. Null is the normal case — Gemini was already active, so
-  // the card never appeared. Caller's existing `if (startNowBtn)` guard is
-  // unchanged.
+  // Resolves with the Gemini trigger element as soon as it appears in the DOM,
+  // or with null after timeoutMs (ARCH-5: wraps waitForCondition).
+  function waitForGeminiTrigger(timeoutMs) {
+    return waitForCondition(getGeminiTriggerElement, timeoutMs);
+  }
+
+  // Resolves with the "Start now" button as soon as it appears, or null after
+  // timeoutMs (null is the normal case — Gemini was already active).
   function waitForStartNowButton(timeoutMs) {
-    return new Promise((resolve) => {
-      const found = getGeminiStartNowButton();
-      if (found) return resolve(found);
-
-      let done = false;
-      const finish = (result) => {
-        if (done) return;
-        done = true;
-        observer.disconnect();
-        clearTimeout(deadlineTimer);
-        resolve(result);
-      };
-
-      const observer = new MutationObserver(() => {
-        const el = getGeminiStartNowButton();
-        if (el) finish(el);
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-
-      const deadlineTimer = setTimeout(() => finish(null), timeoutMs);
-    });
+    return waitForCondition(getGeminiStartNowButton, timeoutMs);
   }
 
   // Injects `prompt` into the Gemini contenteditable input.
@@ -635,21 +647,21 @@
 
   // ── Gemini panel flow ──────────────────────────────────────────────────────
 
-  async function runGeminiFlow(timeoutMs = 120000) {
+  async function runGeminiFlow(timeoutMs = 120000, promptOverride = null) {
     if (geminiFlowPromise) throw new Error('Another Gemini capture is already running');
     let releaseLock;
     geminiFlowPromise = new Promise(resolve => { releaseLock = resolve; });
-    try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' }); } catch {}
+    safeSend({ type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' });
     try {
-      return await _runGeminiFlowInner(timeoutMs);
+      return await _runGeminiFlowInner(timeoutMs, promptOverride);
     } finally {
       releaseLock();            // unblocks any onLeaveClick awaiting this promise
       geminiFlowPromise = null; // null so guard check passes for the next caller
-      try { chrome.runtime.sendMessage({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' }); } catch {}
+      safeSend({ type: 'MM2C_SET_CAPTURE_STATE', state: 'idle' });
     }
   }
 
-  async function _runGeminiFlowInner(timeoutMs = 120000) {
+  async function _runGeminiFlowInner(timeoutMs = 120000, promptOverride = null) {
     const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules, mm2c_glossary } = isContextValid()
       ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules', 'mm2c_glossary'])
       : {};
@@ -657,12 +669,14 @@
 
     // Rule matching: user rules win first, then built-in templates, then default.
     const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
+    const durMin = meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : NaN;
     const matchedRule =
-      findPromptRule(rules, currentMeetingTitle) ||
+      findPromptRule(rules, currentMeetingTitle, new Date(), { durationMin: durMin }) ||
       findPromptRule(BUILT_IN_RULES, currentMeetingTitle);
 
     // Full prompt construction lives in the (unit-tested) assemblePrompt helper.
-    const prompt = assemblePrompt({
+    // promptOverride bypasses rule matching (used by the P9-H private pass).
+    const prompt = promptOverride || assemblePrompt({
       title:       currentMeetingTitle,
       priorContext,                                  // recurring-meeting context (P9-C)
       glossary:    mm2c_glossary,                     // custom vocabulary (RB-4a)
@@ -710,7 +724,7 @@
     // 3. If the input still isn't in the viewport, Gemini was never started.
     if (!input) {
       throw new GeminiNotActiveError(
-        'Gemini notes was not active during this meeting. ' +
+        "Gemini wasn't active during this meeting. " +
         'Start Gemini at the beginning of your next meeting to get a summary.'
       );
     }
@@ -754,7 +768,7 @@
     // the two methods always lands.
     await delay(150);
     if (!submit.disabled) submit.click();
-    showStatus('Waiting for Gemini...');
+    showStatus('Waiting for Gemini…');
 
     // 6. Wait for response to finish
     // Periodic snapshots pass a shorter timeout (90 s) so a slow response
@@ -799,25 +813,8 @@
   // creates the active-state Gemini toggle (which can then be clicked to open
   // the panel). Distinguished from the no-aria-label "Geminispark_off" button.
   function waitForActiveGeminiButton(timeoutMs) {
-    const SELECTOR = 'button[aria-label*="Gemini" i]';
-    return new Promise((resolve) => {
-      const found = document.querySelector(SELECTOR);
-      if (found) { resolve(found); return; }
-      let done = false;
-      const finish = (el) => {
-        if (done) return;
-        done = true;
-        obs.disconnect();
-        clearTimeout(t);
-        resolve(el);
-      };
-      const obs = new MutationObserver(() => {
-        const el = document.querySelector(SELECTOR);
-        if (el) finish(el);
-      });
-      obs.observe(document.body, { childList: true, subtree: true });
-      const t = setTimeout(() => finish(null), timeoutMs);
-    });
+    return waitForCondition(
+      () => document.querySelector('button[aria-label*="Gemini" i]'), timeoutMs);
   }
 
   // ── Auto-activation state machine ─────────────────────────────────────────
@@ -1017,24 +1014,20 @@
       sendLog(`Periodic snapshot saved (${transcript.length} chars)`);
       showStatus('✓ Notes snapshot saved', 'ok'); // auto-dismisses in 5 s
       // Store a short preview so the popup can show "Last snapshot: N min ago ▸"
-      try {
-        chrome.runtime.sendMessage({
-          type: 'MM2C_SET_SNAPSHOT',
-          snapshot: { ts: Date.now(), preview: transcript.slice(0, 300) },
-        });
-      } catch {}
+      safeSend({
+        type: 'MM2C_SET_SNAPSHOT',
+        snapshot: { ts: Date.now(), preview: transcript.slice(0, 300) },
+      });
       refreshRecordingState(); // re-check: recording may have started after join (P9-A3c)
       // Back up this snapshot to disk (fire-and-forget — no callback needed).
       // background.js checks mm2c_file_backup_enabled before writing.
       if (isContextValid()) {
-        try {
-          chrome.runtime.sendMessage({
-            type: 'MM2C_SNAPSHOT',
-            text: transcript,
-            meetingTitle: currentMeetingTitle || getMeetingTitle() || '',
-            timestamp: new Date().toISOString(),
-          });
-        } catch {}
+        safeSend({
+          type: 'MM2C_SNAPSHOT',
+          text: transcript,
+          meetingTitle: currentMeetingTitle || getMeetingTitle() || '',
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (err) {
       sendLog(`Periodic snapshot skipped: ${err instanceof GeminiNotActiveError ? 'Gemini not accessible' : err.message}`);
@@ -1061,7 +1054,7 @@
           const n = (el.textContent || el.dataset?.selfName || '').trim();
           if (n.length > 1 && n.length < 80 && !/^\d+$/.test(n)) names.add(n);
         });
-      } catch {}
+      } catch { /* selector unsupported in this Meet build — try the next one */ }
     }
     return [...names];
   }
@@ -1109,7 +1102,7 @@
       '[aria-label*="is being recorded" i]',
     ];
     for (const s of selectors) {
-      try { if (document.querySelector(s)) return true; } catch {}
+      try { if (document.querySelector(s)) return true; } catch { /* bad selector for this build — skip */ }
     }
     return false;
   }
@@ -1143,7 +1136,7 @@
       // intercepting blocks onLeaveClick from starting a concurrent flow.
       intercepting = true;
       sendLog('Gemini deactivated — no snapshot yet, attempting live capture (60 s)...');
-      showStatus('Meeting ended — capturing notes...');
+      showStatus('Meeting ended — capturing notes…');
       try {
         const transcript = await runGeminiFlow(60_000);
         cachedTranscript   = transcript;
@@ -1154,12 +1147,12 @@
         intercepting = false; // release so Leave button can still fire normally
         if (err instanceof GeminiNotActiveError) {
           sendLog('Proactive live capture: Gemini not active — meeting too short for notes');
-          showStatus('Meeting ended — Gemini was not active, no notes saved', 'warn');
-          try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: 'Meeting too short — Gemini was not active', meetingTitle }); } catch {}
+          showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
+          safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
         } else {
-          sendLog(`Proactive live capture failed: ${err.message}`);
-          showStatus(`Capture failed: ${err.message}`, 'err');
-          try { chrome.runtime.sendMessage({ type: 'MM2C_ERROR', error: err.message, meetingTitle }); } catch {}
+          sendLog(`Proactive live capture failed: ${err.message}`, 'debug');
+          showStatus(friendlyError(err.message), 'err');
+          safeSend({ type: 'MM2C_ERROR', error: err.message, meetingTitle });
         }
         return;
       }
@@ -1169,7 +1162,7 @@
     intercepting        = true; // ensure set (may already be from live attempt branch)
     capturedProactively = true;
     sendLog('Gemini deactivated — sending notes to Craft');
-    showStatus(`Saving notes to ${outputAppName(currentOutputApp)}...`);
+    showStatus(`Saving notes to ${outputAppName(currentOutputApp)}…`);
 
     chrome.runtime.sendMessage({
       type: 'MM2C_RESPONSE',
@@ -1179,13 +1172,14 @@
       durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
       meetingCode: currentMeetingCode,
       meetingType: currentMeetingType,
+      titleTemplate: currentTitleTemplate,
       recording: meetingRecording,
     }, (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
         const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
-        sendLog(`Proactive capture failed: ${err}`);
-        try { chrome.runtime.sendMessage({ type: 'MM2C_ERROR', error: err, meetingTitle }); } catch {}
-        showStatus(`Error: ${err}`, 'err');
+        sendLog(`Proactive capture failed: ${err}`, 'debug');
+        safeSend({ type: 'MM2C_ERROR', error: err, meetingTitle });
+        showStatus(friendlyError(err), 'err');
         capturedProactively         = false;
         captureProactivelyAttempted = false;
         intercepting                = false;
@@ -1199,11 +1193,37 @@
   // ── Leave button interceptor ───────────────────────────────────────────────
 
   function outputAppName(appKey) {
-    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian' })[appKey] || appKey;
+    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
   }
 
   function isContextValid() {
     try { return !!chrome?.runtime?.id; } catch { return false; }
+  }
+
+  // Fire-and-forget chrome.runtime.sendMessage that doesn't blindly swallow (A3).
+  // A dead extension context (expected after a reload) is the one benign failure
+  // and stays silent; any OTHER failure is surfaced via console.warn instead of
+  // vanishing into an empty catch.
+  function safeSend(msg) {
+    try {
+      chrome.runtime.sendMessage(msg);
+    } catch (e) {
+      if (isContextValid()) console.warn('[MM2C] sendMessage failed:', msg?.type, e?.message || e);
+    }
+  }
+
+  // Durable in-flight note (RB-1d). Persist the formatted note to storage just
+  // before sending so a mid-flow crash can be recovered from the popup; clear it
+  // on a confirmed save (or handled error). cachedTranscript itself is RAM-only
+  // and disk snapshots are raw transcripts, so this is the only durable copy of
+  // the FORMATTED note.
+  function setInflightNote(title, text) {
+    if (!isContextValid()) return;
+    try { chrome.storage.local.set({ mm2c_inflight: { title: title || '', text: text || '', at: Date.now() } }); } catch {}
+  }
+  function clearInflightNote() {
+    if (!isContextValid()) return;
+    try { chrome.storage.local.remove('mm2c_inflight'); } catch {}
   }
 
   // ── Persistent log helper ──────────────────────────────────────────────────
@@ -1219,7 +1239,11 @@
         meetingTitle: getMeetingTitle() || '',
         level,
       });
-    } catch {}
+    } catch (e) {
+      // Context was valid above but the send still failed — never swallow a
+      // logger failure silently (A3). Use console directly (sendLog can't recurse).
+      console.warn('[MM2C] sendLog failed:', e?.message || e);
+    }
   }
 
   async function onLeaveClick(e) {
@@ -1244,7 +1268,7 @@
 
     sendLog('Leave clicked — capturing meeting notes');
     muteAll();
-    showStatus('Capturing notes...');
+    showStatus('Capturing notes…');
 
     try {
       let transcript = null;
@@ -1288,7 +1312,7 @@
         // Fresh flow failed or Gemini was not active — use last periodic snapshot.
         sendLog(`Using cached snapshot as fallback (${cachedTranscript.length} chars${ageSuffix})`);
         if (ageMin !== null && ageMin > 15) {
-          showStatus(`⚠️ Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
+          showStatus(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
         }
         transcript = cachedTranscript;
       } else if (!transcript) {
@@ -1311,11 +1335,11 @@
             if (flowErr instanceof InjectionTimeoutError) {
               // Tab never came to the foreground during the inject window.
               sendLog(`Prompt injection timed out: ${flowErr.message}`);
-              try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: flowErr.message, meetingTitle }); } catch {}
+              safeSend({ type: 'MM2C_WARNING', message: flowErr.message, meetingTitle });
               if (cachedTranscript) {
                 sendLog(`Falling back to cached snapshot (${cachedTranscript.length} chars${ageSuffix})`);
                 if (ageMin !== null && ageMin > 15) {
-                  showStatus(`⚠️ Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
+                  showStatus(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
                 }
                 transcript = cachedTranscript;
               } else {
@@ -1338,14 +1362,27 @@
         }
       }
 
+      // Optional review-before-send gate (RB-4b).
+      if (shouldPreviewBeforeSend(previewBeforeSend, transcript)) {
+        const choice = await showPreviewOverlay(transcript);
+        if (choice === 'discard') {
+          sendLog('Note discarded from review', 'user');
+          showStatus('Note discarded', 'warn');
+          transcript = null; // skip the send below
+        }
+      }
+
       // Send to Craft only if a transcript was acquired by any path above.
       if (transcript) {
         sendLog(`Sending notes to ${outputAppName(currentOutputApp)}...`);
-        showStatus(`Sending to ${outputAppName(currentOutputApp)}...`);
+        showStatus(`Sending to ${outputAppName(currentOutputApp)}…`);
 
         // Await the Craft send before clicking Leave — the native host (Python)
         // needs 2-10 s to respond; leaving immediately would race the response
         // and risk silent data loss. A 20 s timeout ensures we always leave.
+        // Persist the formatted note before sending so a crash mid-send is
+        // recoverable from the popup (RB-1d); cleared once the send resolves.
+        setInflightNote(meetingTitle, transcript);
         await new Promise((resolve) => {
           const giveUp = setTimeout(() => {
             sendLog('Craft send timed out — leaving anyway');
@@ -1359,29 +1396,55 @@
             durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
             meetingCode: currentMeetingCode,
             meetingType: currentMeetingType,
+            titleTemplate: currentTitleTemplate,
             recording: meetingRecording,
           }, (response) => {
             clearTimeout(giveUp);
+            clearInflightNote(); // send completed (ok or handled error) — no longer stuck
             if (chrome.runtime.lastError || !response?.ok) {
               const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
-              showStatus(`Error: ${err}`, 'err');
+              sendLog(`Send failed: ${err}`, 'debug');
+              showStatus(friendlyError(err), 'err');
             } else {
               showStatus(`✓ Saved to ${outputAppName(currentOutputApp)}`, 'ok');
             }
             resolve();
           });
         });
+
+        // P9-H — best-effort private reflection pass. Opt-in; a second Gemini
+        // run with the user's private prompt, routed to a separate destination.
+        // Never blocks leaving on failure. (Adds latency by design; verify in a
+        // live meeting — the second pass needs the Gemini panel still present.)
+        if (dualOutput && privatePrompt.trim()) {
+          try {
+            sendLog('Running private reflection pass (P9-H)…', 'debug');
+            const reflection = await runGeminiFlow(45_000, assemblePrompt({
+              title: currentMeetingTitle, base: privatePrompt.trim(), example: '',
+            }));
+            if (reflection && reflection.length > 20) {
+              safeSend({
+                type: 'MM2C_RESPONSE',
+                text: reflection,
+                meetingTitle: currentMeetingTitle ? `${currentMeetingTitle} (private)` : 'Private reflection',
+                privateApp: privateApp || currentOutputApp,
+              });
+            }
+          } catch (e) {
+            sendLog(`Private reflection pass skipped: ${e.message}`, 'debug');
+          }
+        }
       }
 
     } catch (err) {
       if (err instanceof GeminiNotActiveError) {
         console.info('[MM2C] Gemini not active, skipping summary.');
-        showStatus('Gemini notes were not active in this meeting', 'warn');
-        try { chrome.runtime.sendMessage({ type: 'MM2C_WARNING', message: err.message, meetingTitle }); } catch {}
+        showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
+        safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
       } else {
         console.error('[MM2C]', err);
-        try { chrome.runtime.sendMessage({ type: 'MM2C_ERROR', error: err.message, meetingTitle }); } catch {}
-        showStatus(`Error: ${err.message}`, 'err');
+        safeSend({ type: 'MM2C_ERROR', error: err.message, meetingTitle });
+        showStatus(friendlyError(err.message), 'err');
       }
     } finally {
       // Always leave the call
@@ -1394,22 +1457,7 @@
   // ── Status toast ───────────────────────────────────────────────────────────
 
   function showStatus(msg, type = 'info') {
-    // Inject base CSS class once — avoids re-setting all styles on every call
-    if (!document.getElementById('mm2c-toast-styles')) {
-      const s = document.createElement('style');
-      s.id = 'mm2c-toast-styles';
-      s.textContent = [
-        '.mm2c-toast{',
-          'position:fixed;left:50%;transform:translateX(-50%);',
-          'z-index:99999;padding:10px 22px;border-radius:20px;',
-          "font-family:'Google Sans',Roboto,sans-serif;font-size:13px;",
-          'font-weight:500;color:#fff;pointer-events:none;',
-          'box-shadow:0 2px 10px rgba(0,0,0,.3)',
-        '}',
-      ].join('');
-      document.head.appendChild(s);
-    }
-
+    // Base .mm2c-toast styling lives in content_meet.css (UXC-7).
     let el = document.getElementById('mm2c-status');
     if (!el) {
       el           = document.createElement('div');
@@ -1421,10 +1469,9 @@
       document.body.appendChild(el);
     }
     el.textContent      = msg;
-    el.style.background = type === 'err'  ? '#c5221f'
-                        : type === 'warn' ? '#e37400'
-                        : type === 'ok'   ? '#137333'
-                        :                   '#1a73e8';
+    // Toast fill from the shared token map (UXC-5) — same palette as the badge.
+    el.style.background = tokenStatusFill(type);
+    el.style.color      = TOKENS.color.onColor;
     if (type === 'err')  setTimeout(() => el.remove(), 8000);
     if (type === 'warn') setTimeout(() => el.remove(), 6000);
     if (type === 'ok')   setTimeout(() => el.remove(), 5000);
@@ -1467,14 +1514,17 @@
       currentMeetingCode  = extractMeetingCode(window.location.pathname);
       currentMeetingType  = inferMeetingType(currentMeetingTitle);
       refreshRecordingState();
-      // Capture blocklist (RB-5a) — exclude sensitive meetings entirely.
+      // Capture blocklist (RB-5a) + per-rule title template (RB-4d) — resolved
+      // once at join against the cached meeting title.
       if (currentMeetingTitle && isContextValid()) {
-        chrome.storage.local.get(['mm2c_blocklist']).then(({ mm2c_blocklist }) => {
+        chrome.storage.local.get(['mm2c_blocklist', 'mm2c_prompt_rules']).then(({ mm2c_blocklist, mm2c_prompt_rules }) => {
           meetingBlocked = titleBlocked(currentMeetingTitle, mm2c_blocklist || '');
           if (meetingBlocked) sendLog('Meeting excluded by blocklist — capture disabled for this meeting', 'user');
+          const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
+          currentTitleTemplate = findPromptRule(rules, currentMeetingTitle)?.titleTemplate?.trim() || '';
         }).catch(() => {});
       }
-      try { chrome.runtime.sendMessage({ type: 'MM2C_STAT_JOINED' }); } catch {} // UX-8 stats
+      safeSend({ type: 'MM2C_STAT_JOINED' }); // UX-8 stats
       // Fetch prior-session context for recurring meetings (P9-C) — fire-and-forget.
       if (currentMeetingTitle) {
         try {
@@ -1486,10 +1536,25 @@
               if (priorContext) sendLog('Loaded context from a previous session of this meeting', 'debug');
             },
           );
-        } catch {}
+        } catch (e) {
+          if (isContextValid()) console.warn('[MM2C] prior-context request failed:', e?.message || e);
+        }
       }
       const geminiNote = geminiWasActive ? ', Gemini active' : ', Gemini not yet detected';
       sendLog(`Meeting joined — ready to capture notes${geminiNote}`);
+      // Selector health self-test (RB-1a) — surface a Meet DOM change as an
+      // observable diagnostic instead of a silent capture failure.
+      try {
+        const health = selectorHealthCheck(effectiveSelectors, sel => document.querySelector(sel));
+        if (health.criticalFailed.length) {
+          sendLog(`Selector health: critical selectors unresolved (${health.criticalFailed.join(', ')}) — Meet may have changed its DOM`, 'user');
+          safeSend({ type: 'MM2C_WARNING', message: 'Meet UI changed — capture may not work. Please report an issue.', meetingTitle: currentMeetingTitle });
+        } else if (health.failed.length) {
+          sendLog(`Selector health: ${health.failed.join(', ')} not present yet (normal pre-activation)`, 'debug');
+        } else {
+          sendLog('Selector health: all resolved', 'debug');
+        }
+      } catch (e) { console.warn('[MM2C] selector health check failed:', e?.message || e); }
       // Auto-open the Gemini panel so note-taking starts immediately.
       // If the button isn't visible yet the function resets its flag so the
       // MutationObserver branch above retries when it appears.
@@ -1523,40 +1588,48 @@
     return !!getGeminiTriggerElement();
   }
 
+  // Review-before-send overlay (RB-4b). Resolves 'send' or 'discard'. Auto-sends
+  // after 15 s so a distracted user is never blocked from leaving. (Regenerate
+  // needs a fresh live Gemini pass and is deferred — 🔴.)
+  function showPreviewOverlay(transcript) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.id = 'mm2c-close-overlay';
+      ov.innerHTML = `
+        <div class="mm2c-overlay-card">
+          <div class="mm2c-overlay-title">Review before saving</div>
+          <div class="mm2c-preview">${transcript.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>
+          <div class="mm2c-overlay-actions">
+            <button id="mm2c-preview-discard" class="mm2c-overlay-btn">Discard</button>
+            <button id="mm2c-preview-send" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save &amp; leave</button>
+          </div>
+        </div>`;
+      document.body.appendChild(ov);
+      let done = false;
+      const finish = (choice) => { if (done) return; done = true; clearTimeout(t); ov.remove(); resolve(choice); };
+      ov.querySelector('#mm2c-preview-send').addEventListener('click', () => finish('send'));
+      ov.querySelector('#mm2c-preview-discard').addEventListener('click', () => finish('discard'));
+      const t = setTimeout(() => finish('send'), 15000); // default to sending
+    });
+  }
+
   let closeOverlay = null;
 
   function showCloseOverlay() {
     if (closeOverlay) return;
 
+    // Styling lives in content_meet.css (UXC-7); rebuilt on the popup's visual
+    // language with real button states + dark mode (UXC-6). Parallel button
+    // labels (UXC-18): "Leave without saving" / "Save and leave".
     closeOverlay = document.createElement('div');
     closeOverlay.id = 'mm2c-close-overlay';
-    closeOverlay.style.cssText = [
-      'position:fixed', 'inset:0', 'z-index:2147483647',
-      'display:flex', 'align-items:center', 'justify-content:center',
-      'background:rgba(0,0,0,0.55)', 'backdrop-filter:blur(3px)',
-    ].join(';');
-
     closeOverlay.innerHTML = `
-      <div style="background:#202124;border-radius:12px;padding:28px 32px;max-width:380px;
-                  width:90%;box-shadow:0 8px 30px rgba(0,0,0,.5);
-                  font-family:'Google Sans',Roboto,sans-serif;color:#e8eaed;text-align:center;">
-        <div style="font-size:18px;font-weight:500;margin-bottom:10px;">
-          Leaving without notes?
-        </div>
-        <div style="font-size:13px;color:#9aa0a6;margin-bottom:24px;line-height:1.5;">
-          Gemini notes are active. Save a summary to Craft before leaving?
-        </div>
-        <div style="display:flex;gap:12px;justify-content:center;">
-          <button id="mm2c-close-leave"
-            style="flex:1;height:36px;border-radius:18px;border:1px solid #5f6368;
-                   background:transparent;color:#e8eaed;font-size:13px;cursor:pointer;">
-            Leave without notes
-          </button>
-          <button id="mm2c-close-save"
-            style="flex:1;height:36px;border-radius:18px;border:none;
-                   background:#1a73e8;color:#fff;font-size:13px;font-weight:500;cursor:pointer;">
-            Save &amp; leave
-          </button>
+      <div class="mm2c-overlay-card">
+        <div class="mm2c-overlay-title">Leaving without notes?</div>
+        <div class="mm2c-overlay-body">${closeOverlayBody(outputAppName(currentOutputApp))}</div>
+        <div class="mm2c-overlay-actions">
+          <button id="mm2c-close-leave" class="mm2c-overlay-btn">Leave without saving</button>
+          <button id="mm2c-close-save" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save and leave</button>
         </div>
       </div>`;
 
