@@ -93,5 +93,31 @@ test.describe('extension E2E harness', () => {
         };
       }).toEqual({ notes: 1, words: 5, mins: 25, status: true, note: 'one two three four five' });
     });
+
+    test('MM2C_GCAL relays the action to the host', async () => {
+      await stubNativeMessage(ext.serviceWorker, {
+        gcal_status: { connected: true, available: true, email: 'me@x.com' },
+        __default: { status: 'ok' },
+      });
+      const resp = await sendFromPage(popup, { type: 'MM2C_GCAL', action: 'gcal_status' });
+      expect(resp.connected).toBe(true);
+      expect(resp.email).toBe('me@x.com');
+      const sent = await getSent(ext.serviceWorker);
+      expect(sent.some(s => s.msg.type === 'gcal_status')).toBe(true);
+    });
+
+    test('MM2C_SEARCH relays query + filters to the host', async () => {
+      await stubNativeMessage(ext.serviceWorker, {
+        search: { status: 'ok', results: [{ title: 'Q3 Sync', date: '2026-06-05', snippet: '…' }] },
+        __default: { status: 'ok' },
+      });
+      const resp = await sendFromPage(popup, { type: 'MM2C_SEARCH', query: 'q3', since: '2026-06-01' });
+      expect(resp.ok).toBe(true);
+      expect(resp.results[0].title).toBe('Q3 Sync');
+      const sent = await getSent(ext.serviceWorker);
+      const call = sent.find(s => s.msg.type === 'search');
+      expect(call.msg.query).toBe('q3');
+      expect(call.msg.since).toBe('2026-06-01');
+    });
   });
 });
