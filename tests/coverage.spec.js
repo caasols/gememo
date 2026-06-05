@@ -55,8 +55,10 @@ test('JS coverage — content_meet.js via DOM fixture (informational)', async ({
   const cm = cov['content_meet.js'];
   const pct = cm ? (cm.ratio * 100).toFixed(1) : 'n/a (not loaded)';
   console.log(`\ncontent_meet.js: ${pct}% executed by the DOM fixture suite`);
-  console.log('NOTE: popup.js and background.js load in NO unit fixture → 0% unit coverage.');
-  console.log('      Their handlers/render/flow are exercised only by the live extension.');
-  // Informational — no hard threshold (content_meet is DOM/flow-bound; see ARCH-7).
+  console.log('NOTE: popup.js and background.js are NOT loaded by any unit fixture, so the');
+  console.log('      tool measures 0 bytes for them — this is "not measured here", NOT untested.');
+  console.log('      Their pure logic is extracted into constants.js (≈99%); what remains is');
+  console.log('      chrome.* + DOM glue that only runs in the live extension / TEST-1 E2E harness.');
+  // Informational — no hard threshold (content_meet is DOM/flow-bound; see ARCH-7/ARCH-9).
   expect(true).toBe(true);
 });
