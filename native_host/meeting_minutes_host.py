@@ -979,6 +979,25 @@ def main() -> None:
         send_message({"status": "ok", "context": ctx})
         return
 
+    if msg.get("type") == "gcal_status":
+        send_message(gcal.status())
+        return
+
+    if msg.get("type") == "gcal_disconnect":
+        send_message(gcal.disconnect())
+        return
+
+    if msg.get("type") == "gcal_connect":
+        # Run the interactive flow detached so it outlives Chrome's ~30s native-
+        # messaging window; the popup polls gcal_status afterward.
+        try:
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gcal.py"))],
+                             start_new_session=True)
+            send_message({"status": "ok", "started": True})
+        except Exception as exc:
+            send_message({"status": "error", "error": str(exc)})
+        return
+
     transcript = msg.get("transcript", "").strip()
     if not transcript:
         send_message({"status": "error", "error": "transcript is empty"})
