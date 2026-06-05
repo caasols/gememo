@@ -60,3 +60,42 @@ def _event_meet_code(event):
         if m:
             return m.group(1)
     return ''
+
+
+def _nearest_by_time(events, timestamp_iso):
+    if not events:
+        return None
+    target = _parse_iso(timestamp_iso)
+    if target is None:
+        return events[0]
+
+    def dist(e):
+        st = _event_start(e)
+        return abs((st - target).total_seconds()) if st else float('inf')
+
+    return min(events, key=dist)
+
+
+def match_calendar_event(events, meeting_code, timestamp_iso='', title=''):
+    """Find the calendar event for the captured meeting.
+    1) exact Meet-code match (nearest time if duplicates);
+    2) fallback: events whose title contains `title`, nearest by time;
+    3) else nearest by time over all events. Returns the event dict or None.
+    """
+    events = events or []
+    if not events:
+        return None
+    code = (meeting_code or '').strip().lower()
+    if code:
+        coded = [e for e in events if _event_meet_code(e).lower() == code]
+        if len(coded) == 1:
+            return coded[0]
+        if len(coded) > 1:
+            return _nearest_by_time(coded, timestamp_iso)
+    candidates = events
+    t = (title or '').strip().lower()
+    if t:
+        titled = [e for e in events if t in (e.get('summary') or '').lower()]
+        if titled:
+            candidates = titled
+    return _nearest_by_time(candidates, timestamp_iso)
