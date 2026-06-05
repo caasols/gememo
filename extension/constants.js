@@ -313,6 +313,7 @@ function findPromptRule(rules, meetingTitle, now = new Date(), ctx = {}) {
   const title = meetingTitle || '';
   for (const r of rules) {
     if (!r) continue;
+    if (r.enabled === false) continue; // UXF-9 — a disabled rule is skipped (default on)
     let matched = false;
     if (r.regex) {
       try { matched = new RegExp(r.regex, 'i').test(title); } catch { /* skip bad regex */ }
