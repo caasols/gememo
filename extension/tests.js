@@ -1975,6 +1975,21 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testInflightRecoverable() {
+    console.group('inflightRecoverable (RB-1d)');
+    const now = 1_000_000;
+    assert('recoverable when text present and older than grace',
+      inflightRecoverable({ text: 'notes', at: now - 70000 }, now) === true);
+    assert('not recoverable while still within grace (in-progress send)',
+      inflightRecoverable({ text: 'notes', at: now - 5000 }, now) === false);
+    assert('not recoverable when empty text',
+      inflightRecoverable({ text: '   ', at: now - 70000 }, now) === false);
+    assert('not recoverable when undefined', inflightRecoverable(undefined, now) === false);
+    assert('not recoverable without a timestamp',
+      inflightRecoverable({ text: 'x' }, now) === false);
+    console.groupEnd();
+  }
+
   function testSelectorRegistry() {
     console.group('selector registry + health check (RB-1a)');
     assert('SELECTORS has the core entries',
@@ -2509,6 +2524,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testInflightRecoverable();
     testSelectorRegistry();
     testNormalizeTheme();
     testLogGroupKey();

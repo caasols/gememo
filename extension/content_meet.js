@@ -1183,6 +1183,20 @@
     }
   }
 
+  // Durable in-flight note (RB-1d). Persist the formatted note to storage just
+  // before sending so a mid-flow crash can be recovered from the popup; clear it
+  // on a confirmed save (or handled error). cachedTranscript itself is RAM-only
+  // and disk snapshots are raw transcripts, so this is the only durable copy of
+  // the FORMATTED note.
+  function setInflightNote(title, text) {
+    if (!isContextValid()) return;
+    try { chrome.storage.local.set({ mm2c_inflight: { title: title || '', text: text || '', at: Date.now() } }); } catch {}
+  }
+  function clearInflightNote() {
+    if (!isContextValid()) return;
+    try { chrome.storage.local.remove('mm2c_inflight'); } catch {}
+  }
+
   // ── Persistent log helper ──────────────────────────────────────────────────
   // Sends a log entry to background.js which stores it in mm2c_logs.
   // Silently ignored if the runtime context is dead.
@@ -1327,6 +1341,9 @@
         // Await the Craft send before clicking Leave — the native host (Python)
         // needs 2-10 s to respond; leaving immediately would race the response
         // and risk silent data loss. A 20 s timeout ensures we always leave.
+        // Persist the formatted note before sending so a crash mid-send is
+        // recoverable from the popup (RB-1d); cleared once the send resolves.
+        setInflightNote(meetingTitle, transcript);
         await new Promise((resolve) => {
           const giveUp = setTimeout(() => {
             sendLog('Craft send timed out — leaving anyway');
@@ -1344,6 +1361,7 @@
             recording: meetingRecording,
           }, (response) => {
             clearTimeout(giveUp);
+            clearInflightNote(); // send completed (ok or handled error) — no longer stuck
             if (chrome.runtime.lastError || !response?.ok) {
               const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
               sendLog(`Send failed: ${err}`, 'debug');

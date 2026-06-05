@@ -37,6 +37,7 @@ const GLOBAL_KEYS = [
   'mm2c_theme',
   'mm2c_wikilinks',
   'mm2c_task_app',
+  'mm2c_inflight',
 ];
 
 // Apply a theme (system|light|dark) to <html> and the segmented control (UXF-8).
@@ -277,6 +278,29 @@ function renderBuiltInRules() {
     </details>`).join('');
 }
 
+// Render the crash-recovery card from a persisted in-flight note (RB-1d).
+function renderRecovery(inflight) {
+  const container = $('recovery-list');
+  if (!container) return;
+  if (!inflightRecoverable(inflight)) { container.innerHTML = ''; return; }
+  const title = inflight.title
+    ? (inflight.title.length > 45 ? inflight.title.slice(0, 45) + '…' : inflight.title)
+    : 'Untitled meeting';
+  container.innerHTML = `
+    <div class="retry-card">
+      <div class="retry-card-header">
+        <div>
+          <div class="retry-card-title">${escapeHtml(title)}</div>
+          <div class="retry-card-hint">An unsent note was recovered after an interrupted capture.</div>
+        </div>
+      </div>
+      <div class="retry-card-actions">
+        <button class="btn" id="recover-send">Send now</button>
+        <button class="btn retry-dismiss-btn" id="recover-dismiss" title="Dismiss">✕</button>
+      </div>
+    </div>`;
+}
+
 function renderRetryList(list) {
   const container = $('retry-list');
   if (!container) return;
@@ -405,6 +429,7 @@ function applyState(s, tabId, live = null) {
   renderLogs(s.mm2c_logs);
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
+  renderRecovery(s.mm2c_inflight);
   renderActionItems(s.mm2c_last_note);
   renderStats(s.mm2c_stats);
 }
@@ -606,6 +631,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const updated = removeFailureByPath(mm2c_failed_list, backupPath);
         chrome.storage.local.set({ mm2c_failed_list: updated }, () => renderRetryList(updated));
       });
+    }
+  });
+
+  // Crash-recovery card actions (RB-1d)
+  $('recovery-list').addEventListener('click', (e) => {
+    const sendBtn = e.target.closest('#recover-send');
+    const dismissBtn = e.target.closest('#recover-dismiss');
+    if (sendBtn) {
+      sendBtn.textContent = 'Sending…';
+      sendBtn.disabled = true;
+      chrome.runtime.sendMessage({ type: 'MM2C_RECOVER' }, (resp) => {
+        if (resp?.ok) {
+          $('recovery-list').innerHTML = '';
+        } else {
+          sendBtn.textContent = 'Failed';
+          sendBtn.disabled = false;
+        }
+      });
+    }
+    if (dismissBtn) {
+      chrome.storage.local.remove('mm2c_inflight', () => { $('recovery-list').innerHTML = ''; });
     }
   });
 
