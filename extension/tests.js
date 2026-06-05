@@ -2047,6 +2047,25 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testBucketLogGroupsByDay() {
+    console.group('bucketLogGroupsByDay (UXF-4)');
+    const t1 = new Date('2026-06-05T10:00:00').getTime();
+    const t1b = new Date('2026-06-05T14:00:00').getTime();
+    const t2 = new Date('2026-06-04T09:00:00').getTime();
+    const groups = [
+      { title: 'A', entries: [{ ts: t1 }] },
+      { title: 'B', entries: [{ ts: t1b }] },
+      { title: 'C', entries: [{ ts: t2 }] },
+    ];
+    const buckets = bucketLogGroupsByDay(groups);
+    assertEq('two day buckets', buckets.length, 2);
+    assertEq('first bucket has both same-day groups', buckets[0].groups.length, 2);
+    assertEq('second bucket has the other day', buckets[1].groups.length, 1);
+    assert('input order preserved (newest day first)', buckets[0].ts === t1);
+    assertEq('empty input → empty', bucketLogGroupsByDay([]).length, 0);
+    console.groupEnd();
+  }
+
   function testLogGroupKey() {
     console.group('logGroupKey (UXF-6)');
     const ts = new Date('2026-06-05T10:00:00').getTime();
@@ -2546,6 +2565,7 @@ window.MM2C_TESTS = (() => {
     testInflightRecoverable();
     testSelectorRegistry();
     testNormalizeTheme();
+    testBucketLogGroupsByDay();
     testLogGroupKey();
     testBuildDiagnosticsReport();
     testBuildTaskUrl();

@@ -602,6 +602,25 @@ function normalizeTheme(v) {
   return (v === 'light' || v === 'dark') ? v : 'system';
 }
 
+// Pure helper — bucket already-built log groups by calendar day (UXF-4) for the
+// Date → meeting → entries hierarchy. Preserves the input order (newest first),
+// so the newest day floats to the top. Each bucket: { day, ts, groups }.
+function bucketLogGroupsByDay(groups) {
+  const buckets = [];
+  const byDay = new Map();
+  for (const g of (Array.isArray(groups) ? groups : [])) {
+    const ts = (g.entries && g.entries[0] && g.entries[0].ts) || 0;
+    const day = new Date(ts).toDateString();
+    if (!byDay.has(day)) {
+      const b = { day, ts, groups: [] };
+      byDay.set(day, b);
+      buckets.push(b);
+    }
+    byDay.get(day).groups.push(g);
+  }
+  return buckets;
+}
+
 // Pure helper — a stable key for a log/meeting group (UXF-6), used to persist
 // which groups the user expanded across re-renders and the 10 s auto-refresh.
 // Keyed by calendar day + title so the same meeting keeps its disclosure state.

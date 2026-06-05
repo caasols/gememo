@@ -584,6 +584,21 @@
       line-height: 1.5;
     }
 
+    /* Day section header (UXF-4) — sticky so the date stays visible while scrolling */
+    .log-day-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 6px var(--widget-px);
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
     .log-group-header {
       display: flex;
       align-items: center;
