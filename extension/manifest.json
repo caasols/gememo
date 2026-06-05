@@ -19,6 +19,7 @@
     {
       "matches": ["https://meet.google.com/*"],
       "js": ["design_tokens.js", "constants.js", "content_meet.js"],
+      "css": ["content_meet.css"],
       "run_at": "document_idle"
     }
   ],

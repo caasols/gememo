@@ -1409,23 +1409,7 @@
   // ── Status toast ───────────────────────────────────────────────────────────
 
   function showStatus(msg, type = 'info') {
-    // Inject base CSS class once — avoids re-setting all styles on every call
-    if (!document.getElementById('mm2c-toast-styles')) {
-      const s = document.createElement('style');
-      s.id = 'mm2c-toast-styles';
-      s.textContent = [
-        '.mm2c-toast{',
-          'position:fixed;left:50%;transform:translateX(-50%);',
-          'z-index:99999;padding:10px 22px;border-radius:20px;',
-          // Shared font stack (UXC-12) — same system-UI family as the popup.
-          `font-family:${TOKENS.font.ui};font-size:13px;`,
-          'font-weight:500;color:#fff;pointer-events:none;',
-          'box-shadow:0 2px 10px rgba(0,0,0,.3)',
-        '}',
-      ].join('');
-      document.head.appendChild(s);
-    }
-
+    // Base .mm2c-toast styling lives in content_meet.css (UXC-7).
     let el = document.getElementById('mm2c-status');
     if (!el) {
       el           = document.createElement('div');
@@ -1561,35 +1545,18 @@
   function showCloseOverlay() {
     if (closeOverlay) return;
 
+    // Styling lives in content_meet.css (UXC-7); rebuilt on the popup's visual
+    // language with real button states + dark mode (UXC-6). Parallel button
+    // labels (UXC-18): "Leave without saving" / "Save and leave".
     closeOverlay = document.createElement('div');
     closeOverlay.id = 'mm2c-close-overlay';
-    closeOverlay.style.cssText = [
-      'position:fixed', 'inset:0', 'z-index:2147483647',
-      'display:flex', 'align-items:center', 'justify-content:center',
-      'background:rgba(0,0,0,0.55)', 'backdrop-filter:blur(3px)',
-    ].join(';');
-
     closeOverlay.innerHTML = `
-      <div style="background:#202124;border-radius:12px;padding:28px 32px;max-width:380px;
-                  width:90%;box-shadow:0 8px 30px rgba(0,0,0,.5);
-                  font-family:'Google Sans',Roboto,sans-serif;color:#e8eaed;text-align:center;">
-        <div style="font-size:18px;font-weight:500;margin-bottom:10px;">
-          Leaving without notes?
-        </div>
-        <div style="font-size:13px;color:#9aa0a6;margin-bottom:24px;line-height:1.5;">
-          ${closeOverlayBody(outputAppName(currentOutputApp))}
-        </div>
-        <div style="display:flex;gap:12px;justify-content:center;">
-          <button id="mm2c-close-leave"
-            style="flex:1;height:36px;border-radius:18px;border:1px solid #5f6368;
-                   background:transparent;color:#e8eaed;font-size:13px;cursor:pointer;">
-            Leave without notes
-          </button>
-          <button id="mm2c-close-save"
-            style="flex:1;height:36px;border-radius:18px;border:none;
-                   background:#1a73e8;color:#fff;font-size:13px;font-weight:500;cursor:pointer;">
-            Save &amp; leave
-          </button>
+      <div class="mm2c-overlay-card">
+        <div class="mm2c-overlay-title">Leaving without notes?</div>
+        <div class="mm2c-overlay-body">${closeOverlayBody(outputAppName(currentOutputApp))}</div>
+        <div class="mm2c-overlay-actions">
+          <button id="mm2c-close-leave" class="mm2c-overlay-btn">Leave without saving</button>
+          <button id="mm2c-close-save" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save and leave</button>
         </div>
       </div>`;
 
