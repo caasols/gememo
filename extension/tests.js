@@ -1974,6 +1974,35 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testSelectorRegistry() {
+    console.group('selector registry + health check (RB-1a)');
+    assert('SELECTORS has the core entries',
+      SELECTORS.leaveButton && SELECTORS.geminiInput && SELECTORS.submit && SELECTORS.sidePanel);
+    assert('each entry is an ordered fallback list',
+      Object.values(SELECTORS).every(v => Array.isArray(v) && v.length >= 1));
+
+    // firstMatchingSelector returns the first selector queryFn matches.
+    const present = new Set(['button[aria-label="Leave call"]']);
+    const q = sel => present.has(sel) ? {} : null;
+    assertEq('firstMatchingSelector finds the present one',
+      firstMatchingSelector(SELECTORS.leaveButton, q), 'button[aria-label="Leave call"]');
+    assertEq('firstMatchingSelector → null when none match',
+      firstMatchingSelector(['x', 'y'], q), null);
+
+    // All resolve → no failures.
+    const allOk = selectorHealthCheck(SELECTORS, () => ({}));
+    assertEq('all resolved → no failures', allOk.failed.length, 0);
+    assertEq('all resolved → no critical failures', allOk.criticalFailed.length, 0);
+
+    // None resolve → everything failed, criticals flagged.
+    const allBad = selectorHealthCheck(SELECTORS, () => null);
+    assert('none resolved → leaveButton failed', allBad.failed.includes('leaveButton'));
+    assert('none resolved → leaveButton flagged critical', allBad.criticalFailed.includes('leaveButton'));
+    assert('geminiInput is not treated as critical (appears post-activation)',
+      !allBad.criticalFailed.includes('geminiInput'));
+    console.groupEnd();
+  }
+
   function testNormalizeTheme() {
     console.group('normalizeTheme (UXF-8)');
     assertEq('light passes through', normalizeTheme('light'), 'light');
@@ -2463,6 +2492,7 @@ window.MM2C_TESTS = (() => {
     testFirstSnapshotAt();
     testOutputAppName();
     testSafeSend();
+    testSelectorRegistry();
     testNormalizeTheme();
     testLogGroupKey();
     testBuildDiagnosticsReport();
