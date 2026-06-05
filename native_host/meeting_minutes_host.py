@@ -259,6 +259,7 @@ def build_yaml_frontmatter(
     meeting_type: str | None = None,
     recording: bool = False,
     topic_tags: list | None = None,
+    cal_fields: dict | None = None,
 ) -> str:
     """Return a YAML front-matter block for a .md backup file.
 
@@ -290,6 +291,26 @@ def build_yaml_frontmatter(
             lines.append(f"  - {name}")
     if duration_min is not None:
         lines.append(f"duration_min: {duration_min}")
+    if cal_fields:
+        cf = cal_fields
+        if cf.get('recurring_event_id'):
+            lines.append(f"recurring_event_id: {cf['recurring_event_id']}")
+        if cf.get('organizer'):
+            lines.append(f"organizer: {cf['organizer']}")
+        if cf.get('scheduled_start'):
+            lines.append(f"scheduled_start: {cf['scheduled_start']}")
+        if cf.get('scheduled_end'):
+            lines.append(f"scheduled_end: {cf['scheduled_end']}")
+        if cf.get('scheduled_duration_min') is not None:
+            lines.append(f"scheduled_duration_min: {cf['scheduled_duration_min']}")
+        if cf.get('attendee_emails'):
+            lines.append("attendee_emails:")
+            for em in cf['attendee_emails']:
+                lines.append(f"  - {em}")
+        if cf.get('description'):
+            folded = ' '.join(str(cf['description']).split())
+            safe = folded.replace('\\', '\\\\').replace('"', '\\"')
+            lines.append(f'description: "{safe}"')
     all_tags = ['meeting', dt.strftime('%Y/%m')] + [t for t in (topic_tags or []) if t]
     lines.append(f"tags: [{', '.join(all_tags)}]")
     lines.append("---")

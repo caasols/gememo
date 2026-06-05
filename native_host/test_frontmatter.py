@@ -16,6 +16,26 @@ class TestBuildYamlFrontmatter(unittest.TestCase):
     def _dt(self) -> datetime:
         return datetime(2026, 5, 31, 9, 12, 0)
 
+    def test_calendar_fields_rendered(self):
+        cal = {
+            "recurring_event_id": "rec_1",
+            "description": "Line one\nLine two",
+            "organizer": "lead@x.com",
+            "attendee_emails": ["a@x.com", "b@x.com"],
+            "scheduled_start": "2026-06-05T09:00:00Z",
+            "scheduled_duration_min": 30,
+        }
+        fm = build_yaml_frontmatter("Q3 Sync", self._dt(), cal_fields=cal)
+        self.assertIn("recurring_event_id: rec_1", fm)
+        self.assertIn("organizer: lead@x.com", fm)
+        self.assertIn("scheduled_duration_min: 30", fm)
+        self.assertIn("  - a@x.com", fm)
+        self.assertIn('description: "Line one Line two"', fm)
+
+    def test_no_calendar_fields_unchanged(self):
+        fm = build_yaml_frontmatter("Q3 Sync", self._dt())
+        self.assertNotIn("recurring_event_id", fm)
+
     def test_final_note_fields(self):
         """Final note frontmatter has date, title, source, tags — no snapshot key."""
         result = build_yaml_frontmatter("Q3 Planning", self._dt())
