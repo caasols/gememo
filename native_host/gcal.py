@@ -43,3 +43,20 @@ def _event_start(event):
     if start.get('date'):
         return _parse_iso(start['date'] + 'T00:00:00+00:00')
     return None
+
+
+def _event_meet_code(event):
+    """Best-effort Meet room code ('abc-defg-hij') from a calendar event."""
+    event = event or {}
+    m = _MEET_CODE_RE.search(event.get('hangoutLink') or '')
+    if m:
+        return m.group(1)
+    conf = event.get('conferenceData') or {}
+    m = _MEET_CODE_RE.search(conf.get('conferenceId') or '')
+    if m:
+        return m.group(1)
+    for ep in conf.get('entryPoints') or []:
+        m = _MEET_CODE_RE.search(ep.get('uri') or '')
+        if m:
+            return m.group(1)
+    return ''
