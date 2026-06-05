@@ -57,5 +57,41 @@ test.describe('extension E2E harness', () => {
       expect(resp.ok).toBe(true);
       expect(resp.versionMismatch).toBe(false);
     });
+
+    test('MM2C_RESPONSE forwards the right payload and updates stats/status/last-note', async () => {
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'obsidian',
+        mm2c_stats: { meetingsAttended: 3, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      });
+      const resp = await sendFromPage(popup, {
+        type: 'MM2C_RESPONSE',
+        text: 'one two three four five',
+        meetingTitle: 'Q3 Sync',
+        durationMin: 25,
+        meetingCode: 'abc-defg-hij',
+      });
+      expect(resp.ok).toBe(true);
+
+      // The host received the forwarded payload (via the stubbed sendNativeMessage).
+      const sent = await getSent(ext.serviceWorker);
+      const fwd = sent.find(s => s.msg.transcript === 'one two three four five');
+      expect(fwd).toBeTruthy();
+      expect(fwd.msg.backupType).toBe('obsidian');
+      expect(fwd.msg.meetingTitle).toBe('Q3 Sync');
+
+      // On the stubbed {status:ok}: stats + last-note (global) and the status
+      // (tab-scoped, because the popup is a real tab) all update.
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null); // all keys
+        const statusKey = Object.keys(s).find(k => k.startsWith('mm2c_last_status'));
+        return {
+          notes: s.mm2c_stats?.notesSaved,
+          words: s.mm2c_stats?.wordsCaptured,
+          mins: s.mm2c_stats?.totalMeetingMinutes,
+          status: !!(statusKey && String(s[statusKey]).startsWith('Saved to Obsidian')),
+          note: s.mm2c_last_note,
+        };
+      }).toEqual({ notes: 1, words: 5, mins: 25, status: true, note: 'one two three four five' });
+    });
   });
 });
