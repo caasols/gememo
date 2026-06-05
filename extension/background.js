@@ -146,7 +146,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           'mm2c_wikilinks',
         ], (data) => {
           forwardToNativeHost(msg.text, {
-            backupType:          data.mm2c_output_app || 'craft',
+            // P9-H private pass overrides the destination; primary uses output_app.
+            backupType:          msg.privateApp || data.mm2c_output_app || 'craft',
             meetingTitle:        title,
             craftFolderId:       data.mm2c_craft_folder_id       || '',
             craftSpaceId:        data.mm2c_craft_space_id        || '',
