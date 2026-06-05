@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Unit tests for the pure layer of gcal.py (5.3) — no Google libs required."""
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -144,6 +146,42 @@ class TestEnrich(unittest.TestCase):
             "x", "", "", False, events_provider=boom)
         self.assertEqual(fields, {})
         self.assertTrue(status.startswith("error"))
+
+
+class TestTokenOps(unittest.TestCase):
+    """Token/account file ops — testable without the Google libraries."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self._orig = (gcal.CONFIG_DIR, gcal.TOKEN_PATH, gcal.ACCOUNT_PATH)
+        gcal.CONFIG_DIR = Path(self.tmp)
+        gcal.TOKEN_PATH = Path(self.tmp) / "token.json"
+        gcal.ACCOUNT_PATH = Path(self.tmp) / "account.json"
+
+    def tearDown(self):
+        gcal.CONFIG_DIR, gcal.TOKEN_PATH, gcal.ACCOUNT_PATH = self._orig
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_disconnect_removes_files(self):
+        gcal.TOKEN_PATH.write_text("{}")
+        gcal.ACCOUNT_PATH.write_text('{"email":"x@y.com"}')
+        r = gcal.disconnect()
+        self.assertTrue(r["ok"])
+        self.assertFalse(gcal.TOKEN_PATH.exists())
+        self.assertFalse(gcal.ACCOUNT_PATH.exists())
+
+    def test_disconnect_noop_when_absent(self):
+        self.assertTrue(gcal.disconnect()["ok"])
+
+    def test_load_creds_none_without_token(self):
+        self.assertIsNone(gcal._load_creds())
+
+    def test_status_when_libs_unavailable(self):
+        if gcal.GCAL_AVAILABLE:
+            self.skipTest("google libs present on this machine")
+        s = gcal.status()
+        self.assertFalse(s["connected"])
+        self.assertFalse(s["available"])
 
 
 if __name__ == "__main__":

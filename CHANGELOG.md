@@ -17,8 +17,12 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 - **Google Calendar enrichment (5.3)** — a beta-gated **"Connect Google Calendar"** in Settings. After a one-time OAuth connect (host-side loopback flow, read-only `calendar.readonly`), the native host matches each captured meeting to its Calendar event **by Meet room code** (time/title fallback) and enriches the note's YAML frontmatter with `attendee_emails`, `recurring_event_id`, `description` (the agenda — **delivers P9-A2**), `organizer`, and `scheduled_start/end/duration_min` (**exposes the data UXF-10 needs**). Best-effort: any failure (not connected / no match / API error) silently degrades to the existing DOM-derived data — capture is never blocked. Attendee emails are omitted when **Redact PII** is on. The stored token is reusable by the future Docs (5.7) / brief (P9-G) features.
 - All Google logic is isolated in `native_host/gcal.py` (pure match/extract/orchestration **unit-tested**, 22 new tests; OAuth/API behind a `GCAL_AVAILABLE` import guard). The Google libraries install into an **isolated venv** (best-effort) so the core host stays stdlib-only and **non-breaking** if they're absent.
 
+### Docs
+- README gains a **Beta / experimental features 🧪** section listing every beta-gated / opt-in feature (Calendar, private reflection, email, review-before-send, task-manager routing, selector hotfix, Obsidian/Bear) and flagging each as *under testing* until verified end-to-end.
+
 ### Notes
 - Requires a one-time GCP setup (`native_host/CALENDAR_SETUP.md`). Built against a **testing-mode** OAuth client; Google verification + Web Store publishing (RB-2c) are a separate downstream track on the **same code**. Existing users re-run `install.sh` once to get the venv/libs.
+- Coverage: `gcal.py` pure layer fully unit-tested (26 tests); host coverage stays high (the OAuth/network functions are the intentional untested boundary).
 
 ---
 

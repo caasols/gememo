@@ -110,6 +110,22 @@ bash native_host/install.sh
 - **Accessible** — keyboard/screen-reader friendly tab roles, labels, and focus rings
 - **About tab** — version, GitHub link, extension ID, a "Report an issue" link, a Ko-fi tip panel, and a "Your impact" panel (meetings attended, notes saved, words captured, time saved)
 
+## Beta / experimental features 🧪
+
+> These ship behind the **Experimental features** toggle (Settings) or are opt-in, and are **not yet fully verified** — they need a live meeting or an external app/account to confirm end-to-end, so treat them as *under testing*: they may change, misbehave, or move. Enable *Settings → Experimental features* to reveal the beta-gated ones.
+
+| Feature | Status | What it does |
+|---|---|---|
+| **Google Calendar enrichment** | 🧪 under testing | Read-only event metadata (attendees, agenda, recurrence, scheduled time) into note frontmatter. Live OAuth flow not yet maintainer-verified end-to-end. Setup: [`native_host/CALENDAR_SETUP.md`](native_host/CALENDAR_SETUP.md). |
+| **Private reflection (dual output)** | 🧪 under testing | A second Gemini pass with your private prompt, saved to a separate destination. The live second pass is unverified and adds latency at leave. |
+| **Email the note** | 🧪 under testing | Opens your mail client prefilled with the note (`mailto:`). |
+| **Review before saving** | 🧪 under testing | A 15-second review/discard gate before a captured note is sent. |
+| **Action items → task managers** | 🧪 needs the app | Push each action item to Things / Todoist / OmniFocus via URL schemes. |
+| **Remote selector hotfix** | 🧪 advanced | Patch a broken Meet selector via a hosted `selectors.json` without shipping a release. |
+| **Obsidian & Bear output** | 🧪 untested | Implemented but not yet verified against a live app (see the table below). |
+
+If you try one of these, please [report an issue](https://github.com/caasols/gememo/issues/new) with what worked or broke — that's how they graduate out of beta.
+
 ## Output apps
 
 | App | How it works | Config |
