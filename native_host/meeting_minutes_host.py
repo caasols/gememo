@@ -197,6 +197,28 @@ def render_title_template(template: str, dt: datetime, name: str = '',
     return out or default
 
 
+def extract_tags(body: str):
+    """Pull a 'Tags: a, b, c' line out of the note body (RB-4c).
+
+    Returns (tags_list, body_without_that_line). Tags are lowercased, spaces →
+    hyphens, deduped, capped at 5. Returns ([], body) when no Tags line exists.
+    """
+    m = re.search(r'^\s*tags:\s*(.+?)\s*$', body, flags=re.IGNORECASE | re.MULTILINE)
+    if not m:
+        return [], body
+    tags: list[str] = []
+    for raw in re.split(r'[,•;]', m.group(1)):
+        slug = re.sub(r'\s+', '-', raw.strip().lower())
+        slug = re.sub(r'[^a-z0-9\-/]', '', slug)
+        if slug and slug not in tags:
+            tags.append(slug)
+        if len(tags) >= 5:
+            break
+    cleaned = body[:m.start()] + body[m.end():]
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+    return tags, cleaned
+
+
 def build_provenance_footer(dt: datetime) -> str:
     """Return the provenance footer appended to every captured note (UXC-22).
 
@@ -219,6 +241,7 @@ def build_yaml_frontmatter(
     meeting_code: str | None = None,
     meeting_type: str | None = None,
     recording: bool = False,
+    topic_tags: list | None = None,
 ) -> str:
     """Return a YAML front-matter block for a .md backup file.
 
@@ -250,7 +273,8 @@ def build_yaml_frontmatter(
             lines.append(f"  - {name}")
     if duration_min is not None:
         lines.append(f"duration_min: {duration_min}")
-    lines.append(f"tags: [meeting, {dt.strftime('%Y/%m')}]")
+    all_tags = ['meeting', dt.strftime('%Y/%m')] + [t for t in (topic_tags or []) if t]
+    lines.append(f"tags: [{', '.join(all_tags)}]")
     lines.append("---")
     return "\n".join(lines) + "\n"
 
@@ -900,6 +924,10 @@ def main() -> None:
         kws = [k for k in (msg.get("redactKeywords") or "").split(",") if k.strip()]
         craft_md = redact_pii(craft_md, kws)
 
+    # Auto-tagging (RB-4c) — pull the trailing 'Tags:' line out of the body and
+    # promote it to YAML frontmatter; the line never reaches the rendered note.
+    topic_tags, craft_md = extract_tags(craft_md)
+
     # Resolve the timestamp — convert to local timezone so the Craft note title
     # shows wall-clock time rather than UTC (e.g. 09:12 CEST not 07:12 UTC).
     timestamp_str = msg.get("timestamp", "")
@@ -943,6 +971,7 @@ def main() -> None:
             meeting_code=msg.get("meetingCode") or None,
             meeting_type=msg.get("meetingType") or None,
             recording=bool(msg.get("recording")),
+            topic_tags=topic_tags,
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
         # .ics for the Next Steps section (RB-3b), written next to the note.
