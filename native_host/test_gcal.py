@@ -74,5 +74,39 @@ class TestMatch(unittest.TestCase):
         self.assertIsNone(gcal.match_calendar_event([], "aaa-bbbb-ccc", ""))
 
 
+class TestExtract(unittest.TestCase):
+    EVENT = {
+        "summary": "Q3 Planning",
+        "recurringEventId": "rec_123",
+        "description": "Agenda:\n- roadmap\n- staffing",
+        "organizer": {"email": "lead@x.com"},
+        "attendees": [{"email": "a@x.com"}, {"email": "b@x.com"}, {"displayName": "No Email"}],
+        "start": {"dateTime": "2026-06-05T09:00:00Z"},
+        "end": {"dateTime": "2026-06-05T09:30:00Z"},
+    }
+
+    def test_full_extraction(self):
+        f = gcal.extract_calendar_fields(self.EVENT, redact_emails=False)
+        self.assertEqual(f["recurring_event_id"], "rec_123")
+        self.assertIn("roadmap", f["description"])
+        self.assertEqual(f["organizer"], "lead@x.com")
+        self.assertEqual(f["attendee_emails"], ["a@x.com", "b@x.com"])
+        self.assertEqual(f["scheduled_duration_min"], 30)
+        self.assertEqual(f["scheduled_start"], "2026-06-05T09:00:00Z")
+
+    def test_redaction_omits_emails(self):
+        f = gcal.extract_calendar_fields(self.EVENT, redact_emails=True)
+        self.assertNotIn("attendee_emails", f)
+        self.assertIn("recurring_event_id", f)
+
+    def test_empty_event_returns_empty(self):
+        self.assertEqual(gcal.extract_calendar_fields(None), {})
+        self.assertEqual(gcal.extract_calendar_fields({}), {})
+
+    def test_all_day_event_has_no_duration(self):
+        f = gcal.extract_calendar_fields({"start": {"date": "2026-06-05"}, "end": {"date": "2026-06-06"}})
+        self.assertNotIn("scheduled_duration_min", f)
+
+
 if __name__ == "__main__":
     unittest.main()
