@@ -3,10 +3,45 @@
 
 import sys
 import unittest
+import urllib.request
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
-from meeting_minutes_host import parse_note_sections, build_webhook_payload, build_slack_payload
+from meeting_minutes_host import (
+    parse_note_sections, build_webhook_payload, build_slack_payload, post_webhook,
+)
+
+
+class _FakeResp:
+    def __init__(self, status):
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+class TestPostWebhook(unittest.TestCase):
+    def test_2xx_is_success(self):
+        with mock.patch.object(urllib.request, "urlopen", return_value=_FakeResp(200)):
+            ok, err = post_webhook("https://hooks.example.com/x", {"a": 1})
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+
+    def test_non_2xx_is_failure(self):
+        with mock.patch.object(urllib.request, "urlopen", return_value=_FakeResp(500)):
+            ok, err = post_webhook("https://hooks.example.com/x", {"a": 1})
+        self.assertFalse(ok)
+        self.assertIn("500", err)
+
+    def test_exception_is_caught(self):
+        with mock.patch.object(urllib.request, "urlopen", side_effect=OSError("boom")):
+            ok, err = post_webhook("https://hooks.example.com/x", {"a": 1})
+        self.assertFalse(ok)
+        self.assertIn("boom", err)
 
 
 class TestParseNoteSections(unittest.TestCase):
