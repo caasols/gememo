@@ -243,6 +243,21 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Beta tab appears when experimental is on and gathers the beta widgets (UXF-14)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true });
+      await expect(page.locator('#tab-beta')).toBeVisible();
+      await page.click('#tab-beta');
+      await expect(page.locator('#beta-panel #gcal-connect')).toBeVisible();
+      await expect(page.locator('#beta-panel #dual-output')).toBeAttached();
+      await page.close();
+    });
+
+    test('Beta tab is hidden when experimental is off (UXF-14)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: false });
+      await expect(page.locator('#tab-beta')).toBeHidden();
+      await page.close();
+    });
+
     test('Main tab renders the crash-recovery card from an in-flight note (RB-1d)', async () => {
       const page = await popupWith({
         // `at` older than the 60s grace window so inflightRecoverable() is true.

@@ -448,6 +448,9 @@ function applyState(s, tabId, live = null) {
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
+  // The Beta tab is hidden when experimental features are off — don't strand
+  // the user on a now-hidden tab (UXF-14).
+  if (!betaOn && $('tab-beta').classList.contains('active')) switchTab('settings');
   applyTheme(s.mm2c_theme);
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
   document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
@@ -656,7 +659,7 @@ function renderLogs(logs) {
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
 
-const TABS = ['main', 'rules', 'settings', 'logs', 'about'];
+const TABS = ['main', 'rules', 'settings', 'logs', 'about', 'beta'];
 
 function switchTab(tabName) {
   TABS.forEach(t => {
@@ -1043,6 +1046,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('beta-enabled').addEventListener('change', e => {
     document.body.classList.toggle('beta-enabled', e.target.checked);
+    // If experimental is turned off while on the Beta tab, fall back to
+    // Settings so the user isn't stranded on a now-hidden tab (UXF-14).
+    if (!e.target.checked && $('tab-beta').classList.contains('active')) switchTab('settings');
     save({ mm2c_beta_enabled: e.target.checked });
   });
 
