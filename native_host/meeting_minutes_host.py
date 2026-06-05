@@ -22,7 +22,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-HOST_VERSION = '0.1.30'  # updated in lockstep with manifest.json version
+HOST_VERSION = '0.2.0'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -171,6 +171,84 @@ def parse_transcript(text: str) -> tuple[str, str]:
     return title, body
 
 
+def render_title_template(template: str, dt: datetime, name: str = '',
+                          meeting_type: str = '', code: str = '') -> str:
+    """Render a per-rule note title from a template (RB-4d). Placeholders:
+      {date} → YYYYMMDD · {time} → HH:MM · {name} → meeting label ·
+      {type} → calendar|ad-hoc · {code} → Meet room code.
+    A blank template falls back to the default 'YYYYMMDD HH:MM name' format.
+    Collapses doubled spaces left by empty placeholders.
+    """
+    name = (name or 'Meeting').strip()
+    default = f"{dt.strftime('%Y%m%d %H:%M')} {name}"
+    if not template or not template.strip():
+        return default
+    repl = {
+        '{date}': dt.strftime('%Y%m%d'),
+        '{time}': dt.strftime('%H:%M'),
+        '{name}': name,
+        '{type}': meeting_type or '',
+        '{code}': code or '',
+    }
+    out = template
+    for k, v in repl.items():
+        out = out.replace(k, v)
+    out = re.sub(r'\s{2,}', ' ', out).strip(' -—·|')
+    return out or default
+
+
+def extract_tags(body: str):
+    """Pull a 'Tags: a, b, c' line out of the note body (RB-4c).
+
+    Returns (tags_list, body_without_that_line). Tags are lowercased, spaces →
+    hyphens, deduped, capped at 5. Returns ([], body) when no Tags line exists.
+    """
+    m = re.search(r'^\s*tags:\s*(.+?)\s*$', body, flags=re.IGNORECASE | re.MULTILINE)
+    if not m:
+        return [], body
+    tags: list[str] = []
+    for raw in re.split(r'[,•;]', m.group(1)):
+        slug = re.sub(r'\s+', '-', raw.strip().lower())
+        slug = re.sub(r'[^a-z0-9\-/]', '', slug)
+        if slug and slug not in tags:
+            tags.append(slug)
+        if len(tags) >= 5:
+            break
+    cleaned = body[:m.start()] + body[m.end():]
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+    return tags, cleaned
+
+
+def apply_wikilinks(body: str, attendees: list | None) -> str:
+    """Wrap each attendee's name in [[ ]] throughout the note body (RB-4e), so
+    every meeting note becomes a node in the user's Obsidian/Craft graph.
+
+    Names are wrapped longest-first so 'Bob Martinez' is linked before 'Bob';
+    a negative lookbehind for '[' keeps already-wrapped names from being
+    double-linked. Off by default — only sent when the user enables wikilinks.
+    """
+    names = sorted(
+        {(n or '').strip() for n in (attendees or []) if (n or '').strip()},
+        key=len, reverse=True,
+    )
+    for name in names:
+        body = re.sub(rf'(?<!\[)\b{re.escape(name)}\b(?!\]\])', f'[[{name}]]', body)
+    return body
+
+
+def build_provenance_footer(dt: datetime) -> str:
+    """Return the provenance footer appended to every captured note (UXC-22).
+
+    Gives an anonymous file in Craft/Obsidian/Notes a durable signal of where it
+    came from and that it was AI-assisted. Plain text (no markdown) so it reads
+    the same in every destination. Leading blank lines separate it from the body.
+    """
+    return (
+        "\n\nCaptured automatically by Gememo · "
+        f"{dt.strftime('%Y-%m-%d')} · source: Google Meet + Gemini"
+    )
+
+
 def build_yaml_frontmatter(
     title: str,
     dt: datetime,
@@ -180,6 +258,7 @@ def build_yaml_frontmatter(
     meeting_code: str | None = None,
     meeting_type: str | None = None,
     recording: bool = False,
+    topic_tags: list | None = None,
 ) -> str:
     """Return a YAML front-matter block for a .md backup file.
 
@@ -211,7 +290,8 @@ def build_yaml_frontmatter(
             lines.append(f"  - {name}")
     if duration_min is not None:
         lines.append(f"duration_min: {duration_min}")
-    lines.append(f"tags: [meeting, {dt.strftime('%Y/%m')}]")
+    all_tags = ['meeting', dt.strftime('%Y/%m')] + [t for t in (topic_tags or []) if t]
+    lines.append(f"tags: [{', '.join(all_tags)}]")
     lines.append("---")
     return "\n".join(lines) + "\n"
 
@@ -673,6 +753,16 @@ def find_latest_snapshot(backup_path: Path, slug: str, file_ext: str) -> Path | 
     return snaps[-1] if snaps else None
 
 
+def build_bear_url(title: str, text: str) -> str:
+    """bear://x-callback-url to create a Bear note (5.8). URL-encodes title+body."""
+    from urllib.parse import quote
+    return f"bear://x-callback-url/create?title={quote(title)}&text={quote(text)}"
+
+
+def _default_open_url(url: str) -> None:
+    subprocess.run(["open", url], timeout=10)
+
+
 def route_output(
     back_type: str,
     craft_md: str,
@@ -685,6 +775,7 @@ def route_output(
     apple_push_fn=None,
     notify_fn=None,
     send_fn=None,
+    open_url_fn=None,
 ) -> bool:
     """Handle non-Craft output destinations. Returns True if handled, False to fall through.
 
@@ -695,6 +786,7 @@ def route_output(
     _push  = apple_push_fn if apple_push_fn is not None else push_to_apple_notes
     _note  = notify_fn     if notify_fn     is not None else notify
     _send  = send_fn       if send_fn       is not None else send_message
+    _open  = open_url_fn   if open_url_fn   is not None else _default_open_url
 
     if back_type == 'obsidian':
         if not obsidian_vault_path:
@@ -731,6 +823,19 @@ def route_output(
             if file_path:
                 resp["file"] = str(file_path)
             _send(resp)
+        except Exception as exc:
+            _send({"status": "error", "error": str(exc)})
+        return True
+
+    if back_type == 'bear':
+        # Bear note via x-callback-url (5.8). Untested against a live Bear app.
+        try:
+            _open(build_bear_url(title, craft_md))
+            _note("Meeting Notes → Bear", title)
+            resp_bear: dict = {"status": "ok", "title": title}
+            if file_path:
+                resp_bear["file"] = str(file_path)
+            _send(resp_bear)
         except Exception as exc:
             _send({"status": "error", "error": str(exc)})
         return True
@@ -861,6 +966,10 @@ def main() -> None:
         kws = [k for k in (msg.get("redactKeywords") or "").split(",") if k.strip()]
         craft_md = redact_pii(craft_md, kws)
 
+    # Auto-tagging (RB-4c) — pull the trailing 'Tags:' line out of the body and
+    # promote it to YAML frontmatter; the line never reaches the rendered note.
+    topic_tags, craft_md = extract_tags(craft_md)
+
     # Resolve the timestamp — convert to local timezone so the Craft note title
     # shows wall-clock time rather than UTC (e.g. 09:12 CEST not 07:12 UTC).
     timestamp_str = msg.get("timestamp", "")
@@ -870,10 +979,23 @@ def main() -> None:
         dt = datetime.now()  # local time as fallback
     date_prefix = dt.strftime("%Y%m%d")
 
+    # Provenance footer (UXC-22) — appended to every persisted/sent note so the
+    # file carries its origin. note_body stays footer-free so the structured
+    # webhook payload's section parsing isn't polluted by the footer line.
+    note_body = craft_md
+    # Wikilinks (RB-4e) — wrap attendee names in [[ ]] for graph apps, on the
+    # persisted/sent note only (note_body stays plain for structured payloads).
+    if msg.get("wikilinks"):
+        craft_md = apply_wikilinks(craft_md, msg.get("attendees"))
+    craft_md = craft_md + build_provenance_footer(dt)
+
     # Title: always YYYYMMDD HH:MM + meeting name (or "Meeting" fallback)
     tab_title = msg.get("meetingTitle", "").strip()
     label     = tab_title or "Meeting"
-    title     = f"{dt.strftime('%Y%m%d %H:%M')} {label}"
+    title     = render_title_template(
+        msg.get("titleTemplate", ""), dt, label,
+        msg.get("meetingType", ""), msg.get("meetingCode", ""),
+    )
 
     file_backup_enabled = msg.get("fileBackupEnabled", False)
     file_backup_type    = msg.get("fileBackupType", "markdown")
@@ -895,11 +1017,12 @@ def main() -> None:
             meeting_code=msg.get("meetingCode") or None,
             meeting_type=msg.get("meetingType") or None,
             recording=bool(msg.get("recording")),
+            topic_tags=topic_tags,
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
         # .ics for the Next Steps section (RB-3b), written next to the note.
         if msg.get("emitIcs"):
-            steps = [ln for ln in parse_note_sections(craft_md).get('next_steps', '').split('\n') if ln.strip()]
+            steps = [ln for ln in parse_note_sections(note_body).get('next_steps', '').split('\n') if ln.strip()]
             ics = build_ics(steps, dt, label)
             if ics:
                 file_path.with_suffix('.ics').write_text(ics, encoding="utf-8")
@@ -913,7 +1036,7 @@ def main() -> None:
     webhook_url = (msg.get("webhookUrl") or "").strip()
     slack_url   = (msg.get("slackWebhookUrl") or "").strip()
     if webhook_url or slack_url:
-        sections = parse_note_sections(craft_md)
+        sections = parse_note_sections(note_body)  # footer-free (UXC-22)
         if webhook_url:
             post_webhook(
                 webhook_url,

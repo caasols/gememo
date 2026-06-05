@@ -1103,6 +1103,31 @@ window.MM2C_TESTS = (() => {
     assert('Case 4: no match returns null',
       matchPromptRule(rules, 'Retrospective') === null);
 
+    // UXF-10: duration ("time actually spent") conditions
+    assert('buildCondition captures minMinutes/maxMinutes',
+      JSON.stringify(buildCondition([], NaN, NaN, 0, 10)) === JSON.stringify({ minMinutes: 0, maxMinutes: 10 }));
+    assert('ruleDurationMatches within range', ruleDurationMatches({ minMinutes: 0, maxMinutes: 10 }, 9) === true);
+    assert('ruleDurationMatches above max → false', ruleDurationMatches({ minMinutes: 0, maxMinutes: 10 }, 11) === false);
+    assert('ruleDurationMatches below min → false', ruleDurationMatches({ minMinutes: 5 }, 3) === false);
+    assert('ruleDurationMatches with no bounds → false', ruleDurationMatches({ days: [1] }, 9) === false);
+    assert('ruleDurationMatches with unknown duration → false', ruleDurationMatches({ maxMinutes: 10 }, NaN) === false);
+    assert('findPromptRule matches a short-meeting rule via ctx.durationMin',
+      findPromptRule([{ condition: { maxMinutes: 10 }, prompt: 'short' }], 'Any', new Date(), { durationMin: 8 })?.prompt === 'short');
+    assert('findPromptRule skips duration rule when over the cap',
+      findPromptRule([{ condition: { maxMinutes: 10 }, prompt: 'short' }], 'Any', new Date(), { durationMin: 30 }) === null);
+    assert('findPromptRule ignores duration when ctx omitted (back-compat)',
+      findPromptRule([{ condition: { maxMinutes: 10 }, prompt: 'short' }], 'Any') === null);
+
+    // UXF-9: a disabled rule is skipped; enabled (or unset) rules still match.
+    assert('disabled rule is skipped',
+      findPromptRule([{ regex: 'daily', prompt: 'x', enabled: false }], 'Daily Standup') === null);
+    assert('explicitly enabled rule matches',
+      findPromptRule([{ regex: 'daily', prompt: 'x', enabled: true }], 'Daily Standup')?.prompt === 'x');
+    assert('rule with no enabled flag still matches (default on)',
+      findPromptRule([{ regex: 'daily', prompt: 'x' }], 'Daily Standup')?.prompt === 'x');
+    assert('disabled rule is skipped so a later rule can win',
+      findPromptRule([{ regex: 'daily', prompt: 'off', enabled: false }, { regex: 'daily', prompt: 'on' }], 'Daily')?.prompt === 'on');
+
     // Case 5: built-in templates match their meeting types (P5-K)
     assert('Case 5a: standup title matches a built-in',
       typeof matchPromptRule(BUILT_IN_RULES, 'Daily Standup') === 'string');
@@ -1180,6 +1205,20 @@ window.MM2C_TESTS = (() => {
     assert('webhookUrlError: http localhost ok', webhookUrlError('http://localhost:3000/h') === '');
     assert('webhookUrlError: missing scheme → error', webhookUrlError('hooks.slack.com/x') !== '');
     assert('webhookUrlError: wrong scheme → error', webhookUrlError('ftp://x') !== '');
+
+    // A4 · craftFolderIdError — validate the Craft inbox/doc ID field
+    assert('craftFolderIdError: blank is allowed (default)', craftFolderIdError('') === '' && craftFolderIdError('  ') === '');
+    assert('craftFolderIdError: bare docId ok', craftFolderIdError('A1B2-c3d4-EF56') === '');
+    assert('craftFolderIdError: whitespace → error', craftFolderIdError('abc def') !== '');
+    assert('craftFolderIdError: full deeplink URL → error', craftFolderIdError('craftdocs://open?blockId=x') !== '');
+    assert('craftFolderIdError: https URL → error', craftFolderIdError('https://craft.do/x') !== '');
+
+    // A4 · obsidianVaultPathError — validate the Obsidian vault folder path
+    assert('obsidianVaultPathError: blank is allowed (not set)', obsidianVaultPathError('') === '' && obsidianVaultPathError('  ') === '');
+    assert('obsidianVaultPathError: absolute / path ok', obsidianVaultPathError('/Users/me/Vault') === '');
+    assert('obsidianVaultPathError: ~ path ok', obsidianVaultPathError('~/Documents/Vault') === '');
+    assert('obsidianVaultPathError: relative path → error', obsidianVaultPathError('Documents/Vault') !== '');
+    assert('obsidianVaultPathError: URL → error', obsidianVaultPathError('https://x/y') !== '');
 
     // RB-5a · titleBlocked — exclude sensitive meetings from capture
     assert('titleBlocked: regex match (array)', titleBlocked('1:1 with HR', ['1:1 with HR|interview']) === true);
@@ -1907,7 +1946,7 @@ window.MM2C_TESTS = (() => {
 
   // KEEP IN SYNC with outputAppName() in content_meet.js
   function outputAppName_test(appKey) {
-    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian' })[appKey] || appKey;
+    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
   }
 
   function testOutputAppName() {
@@ -1916,7 +1955,318 @@ window.MM2C_TESTS = (() => {
     assertEq('apple_notes → Apple Notes',    outputAppName_test('apple_notes'), 'Apple Notes');
     assertEq('none → None',                  outputAppName_test('none'),        'None');
     assertEq('obsidian → Obsidian',          outputAppName_test('obsidian'),    'Obsidian');
+    assertEq('bear → Bear',                  outputAppName_test('bear'),        'Bear');
     assertEq('unknown key → returned as-is', outputAppName_test('unknown'),     'unknown');
+    console.groupEnd();
+  }
+
+  // Mirror of content_meet.js safeSend (A3). KEEP IN SYNC.
+  // Injectable deps so we can simulate a throwing sendMessage + dead context.
+  function safeSend_test(msg, { _send, _contextValid, _warn }) {
+    try {
+      _send(msg);
+    } catch (e) {
+      if (_contextValid()) _warn('[MM2C] sendMessage failed:', msg?.type, e?.message || e);
+    }
+  }
+
+  function testSafeSend() {
+    console.group('safeSend (A3 — never swallow unexpected failures)');
+    // Happy path: send succeeds, no warning.
+    let warned = 0;
+    safeSend_test({ type: 'X' }, {
+      _send: () => {}, _contextValid: () => true, _warn: () => { warned++; },
+    });
+    assertEq('no warning when send succeeds', warned, 0);
+
+    // Dead context (expected after reload): swallow silently, no warning, no throw.
+    warned = 0;
+    let threw = false;
+    try {
+      safeSend_test({ type: 'X' }, {
+        _send: () => { throw new Error('Extension context invalidated'); },
+        _contextValid: () => false, _warn: () => { warned++; },
+      });
+    } catch { threw = true; }
+    assert('dead context: no throw and no warning', !threw && warned === 0);
+
+    // Unexpected failure while context is still valid: surface via warn (don't swallow).
+    warned = 0;
+    safeSend_test({ type: 'X' }, {
+      _send: () => { throw new Error('boom'); },
+      _contextValid: () => true, _warn: () => { warned++; },
+    });
+    assertEq('valid context + failure → warned once', warned, 1);
+    console.groupEnd();
+  }
+
+  function testMyActionItems() {
+    console.group('owner/alias matching (UXF-7)');
+    assertEq('parseAliases trims + drops blanks',
+      JSON.stringify(parseAliases('James, , James R ,JR')), JSON.stringify(['James', 'James R', 'JR']));
+    assert('whole-word match', ownerMatchesAliases('James R', 'James, JR') === true);
+    assert('no partial-word match (Jameson)', ownerMatchesAliases('Jameson', 'James') === false);
+    assert('case-insensitive', ownerMatchesAliases('james', 'James') === true);
+    assert('empty owner → false', ownerMatchesAliases('', 'James') === false);
+    assert('empty aliases → false', ownerMatchesAliases('James', '') === false);
+    const items = [{ owner: 'James R' }, { owner: 'Alice' }, { owner: 'JR' }];
+    assertEq('counts my items across aliases', countMyActionItems(items, 'James, JR'), 2);
+    assertEq('no aliases → 0', countMyActionItems(items, ''), 0);
+    console.groupEnd();
+  }
+
+  function testHandlerPredicates() {
+    console.group('handler predicates (D2)');
+    const now = 1_000_000, win = 40 * 60 * 1000;
+    assert('dedup: same title within window → skip',
+      shouldSkipDuplicate({ title: 'Sync', sentAt: now - 1000 }, 'Sync', now, win) === true);
+    assert('dedup: same title outside window → send',
+      shouldSkipDuplicate({ title: 'Sync', sentAt: now - win - 1 }, 'Sync', now, win) === false);
+    assert('dedup: different title → send',
+      shouldSkipDuplicate({ title: 'A', sentAt: now }, 'B', now, win) === false);
+    assert('dedup: no stored fingerprint → send',
+      shouldSkipDuplicate(undefined, 'Sync', now, win) === false);
+
+    assert('version: same major → no mismatch', isVersionMismatch('0.1.130', '0.1.99') === false);
+    assert('version: different major → mismatch', isVersionMismatch('1.0.0', '0.9.0') === true);
+    assert('version: blank host → no mismatch (first run)', isVersionMismatch('0.1.130', null) === false);
+    console.groupEnd();
+  }
+
+  function testInflightRecoverable() {
+    console.group('inflightRecoverable (RB-1d)');
+    const now = 1_000_000;
+    assert('recoverable when text present and older than grace',
+      inflightRecoverable({ text: 'notes', at: now - 70000 }, now) === true);
+    assert('not recoverable while still within grace (in-progress send)',
+      inflightRecoverable({ text: 'notes', at: now - 5000 }, now) === false);
+    assert('not recoverable when empty text',
+      inflightRecoverable({ text: '   ', at: now - 70000 }, now) === false);
+    assert('not recoverable when undefined', inflightRecoverable(undefined, now) === false);
+    assert('not recoverable without a timestamp',
+      inflightRecoverable({ text: 'x' }, now) === false);
+    console.groupEnd();
+  }
+
+  function testSelectorRegistry() {
+    console.group('selector registry + health check (RB-1a)');
+    assert('SELECTORS has the core entries',
+      SELECTORS.leaveButton && SELECTORS.geminiInput && SELECTORS.submit && SELECTORS.sidePanel);
+    assert('each entry is an ordered fallback list',
+      Object.values(SELECTORS).every(v => Array.isArray(v) && v.length >= 1));
+
+    // firstMatchingSelector returns the first selector queryFn matches.
+    const present = new Set(['button[aria-label="Leave call"]']);
+    const q = sel => present.has(sel) ? {} : null;
+    assertEq('firstMatchingSelector finds the present one',
+      firstMatchingSelector(SELECTORS.leaveButton, q), 'button[aria-label="Leave call"]');
+    assertEq('firstMatchingSelector → null when none match',
+      firstMatchingSelector(['x', 'y'], q), null);
+
+    // All resolve → no failures.
+    const allOk = selectorHealthCheck(SELECTORS, () => ({}));
+    assertEq('all resolved → no failures', allOk.failed.length, 0);
+    assertEq('all resolved → no critical failures', allOk.criticalFailed.length, 0);
+
+    // None resolve → everything failed, criticals flagged.
+    const allBad = selectorHealthCheck(SELECTORS, () => null);
+    assert('none resolved → leaveButton failed', allBad.failed.includes('leaveButton'));
+    assert('none resolved → leaveButton flagged critical', allBad.criticalFailed.includes('leaveButton'));
+    assert('geminiInput is not treated as critical (appears post-activation)',
+      !allBad.criticalFailed.includes('geminiInput'));
+    console.groupEnd();
+  }
+
+  function testSelectorHotfix() {
+    console.group('selector hotfix merge/sanitize (RB-1b)');
+    // sanitize keeps known keys, accepts string or array, drops junk.
+    const clean = sanitizeSelectorOverrides({
+      leaveButton: 'button.new-leave',
+      submit: ['a', 'b'],
+      bogusKey: ['x'],
+      geminiInput: 123,
+    });
+    assert('string override → single-element array', JSON.stringify(clean.leaveButton) === JSON.stringify(['button.new-leave']));
+    assert('array override kept', JSON.stringify(clean.submit) === JSON.stringify(['a', 'b']));
+    assert('unknown key dropped', !('bogusKey' in clean));
+    assert('non-string/array value dropped', !('geminiInput' in clean));
+    assertEq('garbage input → empty object', JSON.stringify(sanitizeSelectorOverrides(null)), '{}');
+
+    // merge overlays only provided keys; others untouched; inputs not mutated.
+    const base = { leaveButton: ['old'], submit: ['s'] };
+    const merged = mergeSelectorOverrides(base, { leaveButton: ['new'] });
+    assert('override replaces the key', JSON.stringify(merged.leaveButton) === JSON.stringify(['new']));
+    assert('other keys untouched', JSON.stringify(merged.submit) === JSON.stringify(['s']));
+    assert('base not mutated', JSON.stringify(base.leaveButton) === JSON.stringify(['old']));
+    assert('empty overrides → base copy', JSON.stringify(mergeSelectorOverrides(base, {})) === JSON.stringify(base));
+    console.groupEnd();
+  }
+
+  function testNormalizeTheme() {
+    console.group('normalizeTheme (UXF-8)');
+    assertEq('light passes through', normalizeTheme('light'), 'light');
+    assertEq('dark passes through', normalizeTheme('dark'), 'dark');
+    assertEq('system passes through', normalizeTheme('system'), 'system');
+    assertEq('undefined → system', normalizeTheme(undefined), 'system');
+    assertEq('garbage → system', normalizeTheme('purple'), 'system');
+    console.groupEnd();
+  }
+
+  function testBucketLogGroupsByDay() {
+    console.group('bucketLogGroupsByDay (UXF-4)');
+    const t1 = new Date('2026-06-05T10:00:00').getTime();
+    const t1b = new Date('2026-06-05T14:00:00').getTime();
+    const t2 = new Date('2026-06-04T09:00:00').getTime();
+    const groups = [
+      { title: 'A', entries: [{ ts: t1 }] },
+      { title: 'B', entries: [{ ts: t1b }] },
+      { title: 'C', entries: [{ ts: t2 }] },
+    ];
+    const buckets = bucketLogGroupsByDay(groups);
+    assertEq('two day buckets', buckets.length, 2);
+    assertEq('first bucket has both same-day groups', buckets[0].groups.length, 2);
+    assertEq('second bucket has the other day', buckets[1].groups.length, 1);
+    assert('input order preserved (newest day first)', buckets[0].ts === t1);
+    assertEq('empty input → empty', bucketLogGroupsByDay([]).length, 0);
+    console.groupEnd();
+  }
+
+  function testLogGroupKey() {
+    console.group('logGroupKey (UXF-6)');
+    const ts = new Date('2026-06-05T10:00:00').getTime();
+    assertEq('stable for same title+day', logGroupKey('Q3 Sync', ts), logGroupKey('Q3 Sync', ts));
+    assert('different titles → different keys', logGroupKey('A', ts) !== logGroupKey('B', ts));
+    assert('includes the title', logGroupKey('Q3 Sync', ts).includes('Q3 Sync'));
+    assert('blank title → System', logGroupKey('', ts).includes('System'));
+    const ts2 = new Date('2026-06-06T10:00:00').getTime();
+    assert('different day → different key', logGroupKey('Q3 Sync', ts) !== logGroupKey('Q3 Sync', ts2));
+    console.groupEnd();
+  }
+
+  function testFirstRunChecklist() {
+    console.group('firstRunChecklist (RB-7a)');
+    const fresh = firstRunChecklist({ hostOk: false, outputApp: 'none' });
+    assertEq('three steps', fresh.length, 3);
+    assert('host step not done when host missing', fresh[0].ok === false);
+    assert('output step not done when none', fresh[1].ok === false);
+    assert('not ready on a fresh install', firstRunReady(fresh) === false);
+
+    const setUp = firstRunChecklist({ hostOk: true, outputApp: 'craft' });
+    assert('host step done', setUp[0].ok === true);
+    assert('output step done', setUp[1].ok === true);
+    assert('ready once host+output set (capture step excluded)', firstRunReady(setUp) === true);
+    assert('capture step is never auto-done', setUp[2].ok === false);
+    console.groupEnd();
+  }
+
+  function testBuildDiagnosticsReport() {
+    console.group('buildDiagnosticsReport (RB-7b)');
+    const r = buildDiagnosticsReport({
+      version: '0.1.130', extensionId: 'abc', hostOk: true, hostVersion: '0.1.130',
+      outputApp: 'obsidian', alsoSend: ['craft'], fileBackup: true,
+      permissions: ['storage', 'tabs'], platform: 'Mac', generatedAt: '2026-06-05',
+    });
+    assert('includes version', r.includes('Version: 0.1.130'));
+    assert('host ready with version', /Native host: ready \(v0\.1\.130\)/.test(r));
+    assert('output app shown', r.includes('Output app: obsidian'));
+    assert('also-send shown', r.includes('Also send to: craft'));
+    assert('permissions joined', r.includes('Permissions: storage, tabs'));
+    const r2 = buildDiagnosticsReport({ hostOk: false, hostMismatch: false });
+    assert('host not found path', r2.includes('Native host: not found'));
+    assert('empty also-send → none', r2.includes('Also send to: none'));
+    console.groupEnd();
+  }
+
+  function testBuildTaskUrl() {
+    console.group('buildTaskUrl (RB-3a)');
+    const item = { task: 'Ship the spec', owner: 'Alice', deadline: 'June 6' };
+    assert('things scheme + encoded title',
+      buildTaskUrl('things', item).startsWith('things:///add?title=Ship%20the%20spec'));
+    assert('things includes notes with owner + deadline',
+      /notes=Owner%3A%20Alice%20%C2%B7%20Due%3A%20June%206/.test(buildTaskUrl('things', item)));
+    assert('todoist scheme', buildTaskUrl('todoist', item).startsWith('todoist://addtask?content='));
+    assert('omnifocus scheme', buildTaskUrl('omnifocus', item).startsWith('omnifocus:///add?name='));
+    assertEq('unknown app → empty', buildTaskUrl('evernote', item), '');
+    assertEq('empty task → empty', buildTaskUrl('things', { task: '' }), '');
+    assert('no notes when owner/deadline absent',
+      buildTaskUrl('things', { task: 'X' }) === 'things:///add?title=X');
+    console.groupEnd();
+  }
+
+  function testBuildMailtoUrl() {
+    console.group('buildMailtoUrl (RB-3c)');
+    const u = buildMailtoUrl({ title: 'Q3 Sync', body: 'Notes here' });
+    assert('starts with mailto:?subject=', u.startsWith('mailto:?subject='));
+    assert('subject is URL-encoded', u.includes('Q3%20Sync'));
+    assert('body is URL-encoded in the body param', u.includes('body=Notes%20here'));
+    assert('blank title falls back to "Meeting notes"',
+      buildMailtoUrl({ body: 'x' }).includes('subject=Meeting%20notes'));
+    const longBody = 'a'.repeat(5000);
+    const lu = buildMailtoUrl({ body: longBody, maxBody: 100 });
+    assert('long body is truncated', decodeURIComponent(lu.split('body=')[1]).includes('truncated'));
+    assert('truncation keeps the URL short', lu.length < 5000);
+    console.groupEnd();
+  }
+
+  function testPrivateReflectionPrompt() {
+    console.group('private reflection prompt (P9-H)');
+    const p = assemblePrompt({ title: 'Q3 Sync', base: 'Summarise just my takeaways.', example: '' });
+    assert('includes the private base prompt', p.includes('Summarise just my takeaways.'));
+    assert('omits the few-shot example anchor when example is empty',
+      !p.includes('example of the exact note format'));
+    assert('still carries the meeting title context', p.includes('Q3 Sync'));
+    console.groupEnd();
+  }
+
+  function testFriendlyError() {
+    console.group('friendlyError (UXC-3)');
+    assert('native-host-not-found → setup guidance',
+      /Set up panel/i.test(friendlyError('Specified native messaging host not found.')));
+    assert('Craft not running → open Craft',
+      /Craft/i.test(friendlyError('Craft is not running — open Craft and try again')));
+    assert('context invalidated → reload guidance',
+      /reload the Meet tab/i.test(friendlyError('Extension context invalidated.')));
+    assert('timeout → backed up + retry',
+      /Retry/i.test(friendlyError('Craft send timed out')));
+    assert('empty response → no notes captured',
+      /No notes were captured/i.test(friendlyError('Response extracted but appears empty')));
+    assert('unknown → generic friendly fallback',
+      /Something went wrong/i.test(friendlyError('TypeError: x is not a function')));
+    assert('never echoes the raw stack/text verbatim',
+      friendlyError('TypeError: x is not a function').indexOf('TypeError') === -1);
+    assert('null/undefined safe', typeof friendlyError(null) === 'string' && friendlyError(undefined).length > 0);
+    console.groupEnd();
+  }
+
+  function testShouldPreviewBeforeSend() {
+    console.group('shouldPreviewBeforeSend (RB-4b)');
+    assert('enabled + real transcript → preview',
+      shouldPreviewBeforeSend(true, 'A reasonably long captured note here') === true);
+    assert('disabled → no preview', shouldPreviewBeforeSend(false, 'A long note here for review') === false);
+    assert('enabled but trivial transcript → no preview', shouldPreviewBeforeSend(true, 'tiny') === false);
+    assert('enabled but null transcript → no preview', shouldPreviewBeforeSend(true, null) === false);
+    console.groupEnd();
+  }
+
+  function testCloseOverlayBody() {
+    console.group('closeOverlayBody (UXC-1)');
+    assertEq('names Craft', closeOverlayBody('Craft'),
+      'Gemini notes are active. Save a summary to Craft before leaving?');
+    assert('uses the passed app name, not hardcoded Craft',
+      closeOverlayBody('Apple Notes').includes('Apple Notes') &&
+      !closeOverlayBody('Apple Notes').includes('Craft'));
+    assert('Obsidian flows through', closeOverlayBody('Obsidian').includes('Obsidian'));
+    console.groupEnd();
+  }
+
+  function testGeminiInactiveMessage() {
+    console.group('GEMINI_INACTIVE_MESSAGE (UXC-2)');
+    assert('canonical message is defined and non-empty',
+      typeof GEMINI_INACTIVE_MESSAGE === 'string' && GEMINI_INACTIVE_MESSAGE.length > 0);
+    assert('no subject-verb grammar error ("was not active" / "notes was")',
+      !/was not active/i.test(GEMINI_INACTIVE_MESSAGE) && !/notes was/i.test(GEMINI_INACTIVE_MESSAGE));
+    assert('conveys that no notes were saved',
+      /no notes were saved/i.test(GEMINI_INACTIVE_MESSAGE));
     console.groupEnd();
   }
 
@@ -2163,8 +2513,8 @@ window.MM2C_TESTS = (() => {
     b4.cls === 'ok' && b4.text === 'Saved to Craft: Daily');
 
   const b5 = resolveBanner({});
-  assert('resolveBanner: idle default',
-    b5.text === 'Not in a meeting.' && b5.cls === '');
+  assert('resolveBanner: idle default (no trailing period — UXC-17)',
+    b5.text === 'Not in a meeting' && b5.cls === '');
 
   // extractMeetingCode — Meet room code from the URL path (P9-A3a)
   assert('extractMeetingCode: standard path',
@@ -2311,6 +2661,24 @@ window.MM2C_TESTS = (() => {
     testExtractBackupPath();
     testFirstSnapshotAt();
     testOutputAppName();
+    testSafeSend();
+    testMyActionItems();
+    testHandlerPredicates();
+    testInflightRecoverable();
+    testSelectorRegistry();
+    testSelectorHotfix();
+    testNormalizeTheme();
+    testBucketLogGroupsByDay();
+    testLogGroupKey();
+    testFirstRunChecklist();
+    testBuildDiagnosticsReport();
+    testBuildTaskUrl();
+    testBuildMailtoUrl();
+    testFriendlyError();
+    testShouldPreviewBeforeSend();
+    testPrivateReflectionPrompt();
+    testCloseOverlayBody();
+    testGeminiInactiveMessage();
     testBuildPromptWithExample();
     testBuildPromptWithAttendees();
     testBuildPromptWithTitle();

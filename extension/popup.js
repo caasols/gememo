@@ -7,6 +7,11 @@ let activeMetTabId = null;
 // Logs tab tier toggle — when false, level:'debug' entries are hidden (UX-6).
 let showDebugLogs = false;
 
+// Persisted set of expanded log-group keys (UXF-6). Loaded from
+// mm2c_expanded_groups in applyState; mutated + saved by the toggle handler.
+// Default: all groups collapsed.
+let expandedGroups = new Set();
+
 const GLOBAL_KEYS = [
   'mm2c_enabled', 'mm2c_prompt',
   'mm2c_output_app',
@@ -27,7 +32,50 @@ const GLOBAL_KEYS = [
   'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_blocklist',
   'mm2c_emit_ics',
   'mm2c_glossary',
+  'mm2c_beta_enabled',
+  'mm2c_expanded_groups',
+  'mm2c_theme',
+  'mm2c_wikilinks',
+  'mm2c_task_app',
+  'mm2c_inflight',
+  'mm2c_my_aliases',
+  'mm2c_selector_hotfix_url',
+  'mm2c_setup_done',
+  'mm2c_preview_before_send',
+  'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
 ];
+
+// Render the first-run setup checklist (RB-7a) from live host status + config.
+function renderSetupWizard(hostOk) {
+  const panel = $('setup-wizard');
+  if (!panel) return;
+  chrome.storage.local.get(['mm2c_setup_done', 'mm2c_output_app'], ({ mm2c_setup_done, mm2c_output_app }) => {
+    if (mm2c_setup_done === true) { panel.classList.add('hidden'); return; }
+    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'craft' });
+    $('setup-wizard-steps').innerHTML = steps.map(s =>
+      `<div style="display:flex;gap:7px;align-items:center;margin-top:6px">
+         <span style="color:${s.ok ? 'var(--success)' : 'var(--text-muted)'}">${s.ok ? '✓' : '○'}</span>
+         <span style="color:var(--text)">${escapeHtml(s.label)}</span>
+       </div>`).join('');
+    panel.classList.remove('hidden');
+  });
+}
+
+// The user's name aliases (UXF-7), loaded in applyState; used by renderActionItems.
+let myAliases = '';
+
+// Last known native-host status (RB-7a) so the setup checklist can refresh when
+// the output app changes without re-pinging the host.
+let lastHostOk = false;
+
+// Apply a theme (system|light|dark) to <html> and the segmented control (UXF-8).
+function applyTheme(theme) {
+  const t = normalizeTheme(theme);
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll('#theme-control button').forEach(b => {
+    b.classList.toggle('active', b.dataset.themeValue === t);
+  });
+}
 
 function tabScopedKeys(tabId) {
   if (!tabId) return [];
@@ -59,6 +107,23 @@ function loadAndApplyState(tabId, live = null) {
 }
 
 const $ = id => document.getElementById(id);
+
+// Hide the "Also send to" option that matches the current primary output app
+// and uncheck it if it was selected (UXF-11) — a destination must never appear
+// as both primary and also-send.
+function syncAlsoSend(primaryApp) {
+  let changed = false;
+  document.querySelectorAll('.also-send-opt').forEach(cb => {
+    const isPrimary = cb.value === primaryApp;
+    const label = cb.closest('label');
+    if (label) label.classList.toggle('hidden', isPrimary);
+    if (isPrimary && cb.checked) { cb.checked = false; changed = true; }
+  });
+  if (changed) {
+    const selected = [...document.querySelectorAll('.also-send-opt:checked')].map(c => c.value);
+    chrome.storage.local.set({ mm2c_also_send: selected });
+  }
+}
 
 function escapeHtml(str) {
   return String(str)
@@ -124,12 +189,17 @@ function renderRules(rules) {
     item.dataset.index = i;
     item.innerHTML = `
       <div class="rule-header">
+        <label class="toggle-wrap" title="${rule.enabled === false ? 'Rule disabled' : 'Rule enabled'}" style="transform:scale(0.85)">
+          <input type="checkbox" class="rule-enabled" ${rule.enabled === false ? '' : 'checked'}>
+          <span class="toggle-track"></span>
+        </label>
         <input class="rule-regex" type="text" placeholder="e.g. DAILY" value="${escapeHtml(rule.regex || '')}">
         <button class="btn-rule-action" data-action="up" data-index="${i}" title="Move up" aria-label="Move rule up">↑</button>
         <button class="btn-rule-action" data-action="down" data-index="${i}" title="Move down" aria-label="Move rule down">↓</button>
         <button class="btn-rule-action danger" data-action="delete" data-index="${i}" title="Delete" aria-label="Delete rule">✕</button>
       </div>
       <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
+      <input class="rule-title-template" type="text" placeholder="Title template (optional) — {date} {time} {name} {type} {code}" value="${escapeHtml(rule.titleTemplate || '')}">
       <div class="rule-condition">
         <span class="rule-cond-label">…or when:</span>
         <span class="rule-days">${DAYS.map(([n, lbl]) =>
@@ -137,6 +207,10 @@ function renderRules(rules) {
         <span class="rule-hours">
           <input type="number" class="rule-hour-start" min="0" max="23" placeholder="0" value="${Number.isInteger(cond.startHour) ? cond.startHour : ''}">–
           <input type="number" class="rule-hour-end" min="0" max="24" placeholder="24" value="${Number.isInteger(cond.endHour) ? cond.endHour : ''}">h
+        </span>
+        <span class="rule-hours" title="Time actually spent in the meeting (minutes)">
+          <input type="number" class="rule-min-spent" min="0" placeholder="min" value="${Number.isInteger(cond.minMinutes) ? cond.minMinutes : ''}">–
+          <input type="number" class="rule-max-spent" min="0" placeholder="max" value="${Number.isInteger(cond.maxMinutes) ? cond.maxMinutes : ''}">m
         </span>
         <select class="rule-depth" title="Summary depth">
           <option value="" ${!rule.depth ? 'selected' : ''}>Standard depth</option>
@@ -157,11 +231,21 @@ function readRuleFromItem(item) {
   const days   = [...item.querySelectorAll('.rule-day:checked')].map(c => parseInt(c.dataset.day, 10));
   const sh = parseInt(item.querySelector('.rule-hour-start').value, 10);
   const eh = parseInt(item.querySelector('.rule-hour-end').value, 10);
-  const condition = buildCondition(days, Number.isNaN(sh) ? NaN : sh, Number.isNaN(eh) ? NaN : eh);
+  const mn = parseInt(item.querySelector('.rule-min-spent')?.value, 10);
+  const mx = parseInt(item.querySelector('.rule-max-spent')?.value, 10);
+  const condition = buildCondition(
+    days,
+    Number.isNaN(sh) ? NaN : sh, Number.isNaN(eh) ? NaN : eh,
+    Number.isNaN(mn) ? NaN : mn, Number.isNaN(mx) ? NaN : mx,
+  );
   const depth = item.querySelector('.rule-depth')?.value || '';
+  const titleTemplate = item.querySelector('.rule-title-template')?.value.trim() || '';
+  const enabled = item.querySelector('.rule-enabled')?.checked !== false;
   const rule = { regex, prompt };
   if (condition) rule.condition = condition;
   if (depth) rule.depth = depth;
+  if (titleTemplate) rule.titleTemplate = titleTemplate;
+  if (!enabled) rule.enabled = false; // only persist when off (default on)
   return rule;
 }
 
@@ -195,6 +279,11 @@ function renderStats(stats) {
 
 // Render the action-item checklist from the last captured note (P6-B).
 function renderActionItems(noteBody) {
+  // Email-this-note widget (RB-3c, beta) — available whenever a note exists.
+  // .beta keeps it hidden unless beta is on; .hidden tracks note presence.
+  const emailWidget = $('email-note-widget');
+  if (emailWidget) emailWidget.classList.toggle('hidden', !String(noteBody || '').trim());
+
   const widget = $('action-items-widget');
   const list   = $('action-items-list');
   if (!widget || !list) return;
@@ -205,6 +294,16 @@ function renderActionItems(noteBody) {
     return;
   }
   widget.classList.remove('hidden');
+  // Show "Send to tasks" only when a task app is configured (RB-3a).
+  const sendBtn = $('send-to-tasks');
+  if (sendBtn) sendBtn.classList.toggle('hidden', !$('task-app')?.value);
+  // "N for you" badge — action items assigned to the user's aliases (UXF-7).
+  const badge = $('my-items-badge');
+  if (badge) {
+    const mine = countMyActionItems(items, myAliases);
+    badge.textContent = mine ? `${mine} for you` : '';
+    badge.classList.toggle('hidden', !mine);
+  }
   list.innerHTML = items.map(it => {
     const meta = [it.owner, it.deadline].filter(Boolean).join(' · ');
     return `
@@ -220,7 +319,7 @@ function renderSearchResults(results) {
   const c = $('search-results');
   if (!c) return;
   if (!Array.isArray(results) || !results.length) {
-    c.innerHTML = '<div class="search-empty">No matching past meetings.</div>';
+    c.innerHTML = '<div class="search-empty">No matching past meetings. Try a different term or widen the date range.</div>';
     return;
   }
   c.innerHTML = results.map(r => `
@@ -247,6 +346,29 @@ function renderBuiltInRules() {
     </details>`).join('');
 }
 
+// Render the crash-recovery card from a persisted in-flight note (RB-1d).
+function renderRecovery(inflight) {
+  const container = $('recovery-list');
+  if (!container) return;
+  if (!inflightRecoverable(inflight)) { container.innerHTML = ''; return; }
+  const title = inflight.title
+    ? (inflight.title.length > 45 ? inflight.title.slice(0, 45) + '…' : inflight.title)
+    : 'Untitled meeting';
+  container.innerHTML = `
+    <div class="retry-card">
+      <div class="retry-card-header">
+        <div>
+          <div class="retry-card-title">${escapeHtml(title)}</div>
+          <div class="retry-card-hint">An unsent note was recovered after an interrupted capture.</div>
+        </div>
+      </div>
+      <div class="retry-card-actions">
+        <button class="btn" id="recover-send">Send now</button>
+        <button class="btn retry-dismiss-btn" id="recover-dismiss" title="Dismiss">✕</button>
+      </div>
+    </div>`;
+}
+
 function renderRetryList(list) {
   const container = $('retry-list');
   if (!container) return;
@@ -257,7 +379,7 @@ function renderRetryList(list) {
   container.innerHTML = list.map(entry => {
     const shortTitle = entry.title
       ? (entry.title.length > 45 ? entry.title.slice(0, 45) + '…' : entry.title)
-      : 'Unknown meeting';
+      : 'Untitled meeting';  // one prose-null term, matching search results (UXC-21)
     return `
       <div class="retry-card">
         <div class="retry-card-header">
@@ -268,13 +390,13 @@ function renderRetryList(list) {
           <button class="btn retry-dismiss-btn"
             data-tabid="${entry.tabId ?? ''}"
             data-backup="${escapeHtml(entry.backupPath || '')}"
-            title="Dismiss">×</button>
+            title="Dismiss">✕</button>
         </div>
         <div class="retry-card-actions">
           <button class="btn retry-btn"
             data-tabid="${entry.tabId ?? ''}"
             data-title="${escapeHtml(entry.title || '')}"
-            data-backup="${escapeHtml(entry.backupPath || '')}">Retry →</button>
+            data-backup="${escapeHtml(entry.backupPath || '')}">Retry</button>
         </div>
       </div>`;
   }).join('');
@@ -301,6 +423,8 @@ function applyState(s, tabId, live = null) {
 
   $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
   $('craft-space-id').value = s.mm2c_craft_space_id || '';
+  $('craft-folder-error').textContent = craftFolderIdError(s.mm2c_craft_folder_id || '');
+  $('obsidian-vault-error').textContent = obsidianVaultPathError(s.mm2c_obsidian_vault_path || '');
   $('webhook-url').value = s.mm2c_webhook_url || '';
   $('slack-webhook-url').value = s.mm2c_slack_webhook_url || '';
   $('webhook-error').textContent = webhookUrlError(s.mm2c_webhook_url || '');
@@ -309,8 +433,24 @@ function applyState(s, tabId, live = null) {
   $('redact-keywords').value = s.mm2c_redact_keywords || '';
   $('blocklist').value = s.mm2c_blocklist || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
+  $('preview-before-send').checked = s.mm2c_preview_before_send === true;
+  const dualOn = s.mm2c_dual_output === true;
+  $('dual-output').checked = dualOn;
+  $('dual-output-sub').classList.toggle('hidden', !dualOn);
+  $('private-prompt').value = s.mm2c_private_prompt || '';
+  $('private-app').value = s.mm2c_private_app || '';
+  $('wikilinks').checked = s.mm2c_wikilinks === true;
+  $('task-app').value = s.mm2c_task_app || '';
+  myAliases = s.mm2c_my_aliases || '';
+  $('my-aliases').value = myAliases;
+  $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
+  const betaOn = s.mm2c_beta_enabled === true;
+  $('beta-enabled').checked = betaOn;
+  document.body.classList.toggle('beta-enabled', betaOn);
+  applyTheme(s.mm2c_theme);
   const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
   document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
+  syncAlsoSend(outputApp);
 
   const fileBackupOn = s.mm2c_file_backup_enabled === true;
   $('file-backup-enabled').checked = fileBackupOn;
@@ -363,14 +503,18 @@ function applyState(s, tabId, live = null) {
     }
   }
 
+  expandedGroups = new Set(Array.isArray(s.mm2c_expanded_groups) ? s.mm2c_expanded_groups : []);
   renderLogs(s.mm2c_logs);
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
+  renderRecovery(s.mm2c_inflight);
   renderActionItems(s.mm2c_last_note);
   renderStats(s.mm2c_stats);
 }
 
 function setHostStatus(ok, error, hostVersion, versionMismatch) {
+  lastHostOk = ok === true;
+  renderSetupWizard(lastHostOk); // refresh the first-run checklist (RB-7a)
   const dot      = $('host-dot');
   const label    = $('host-label');
   const setupBtn = $('setup-btn');
@@ -430,6 +574,20 @@ function formatLogTime(ts) {
   return `${date} ${time}`;
 }
 
+// Just the HH:MM time — used for the group meta under a date section (UXF-4).
+function formatTimeOnly(ts) {
+  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Friendly day-section label: Today / Yesterday / "5 Jun" (UXF-4).
+function dayLabel(ts) {
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 function renderLogs(logs) {
   const list = $('log-list');
   const countEl = $('logs-count');
@@ -445,17 +603,18 @@ function renderLogs(logs) {
   const groups = groupLogs(logs);
   countEl.textContent = `${groups.length} meeting${groups.length === 1 ? '' : 's'} · ${logs.length} entr${logs.length === 1 ? 'y' : 'ies'}`;
 
-  list.innerHTML = groups.map((group, i) => {
-    const groupClass = i === 0 ? 'log-group expanded' : 'log-group';
+  const renderGroup = (group) => {
     const groupTitle = group.title || 'System';
+    // Default collapsed; expanded only if persisted in the set (UXF-6).
+    const key = logGroupKey(groupTitle, group.entries[0].ts);
+    const groupClass = expandedGroups.has(key) ? 'log-group expanded' : 'log-group';
     const outcome = groupOutcome(group.entries);
-    const groupDate = formatLogTime(group.entries[0].ts);
-    const entryCount = group.entries.length;
-    const meta = `${groupDate} · ${entryCount} entr${entryCount === 1 ? 'y' : 'ies'}`;
+    // Meta is just the time — the date lives in the day section header (UXF-4).
+    const meta = formatTimeOnly(group.entries[0].ts);
 
     const entriesHtml = group.entries.map(entry => {
       const dotClass = entry.status === 'ok' ? 'ok' : entry.status === 'warn' ? 'warn' : entry.status === 'err' ? 'err' : 'info';
-      const time = formatLogTime(entry.ts);
+      const time = formatTimeOnly(entry.ts);
       const message = entry.message || '';
       const backupMatch = entry.status === 'err' ? message.match(/backup at (.+)$/) : null;
       const retryChip = backupMatch
@@ -476,15 +635,22 @@ function renderLogs(logs) {
 
     return `
       <div class="${groupClass}">
-        <div class="log-group-header">
-          <span class="log-group-chevron">▶</span>
+        <div class="log-group-header" data-group-key="${escapeHtml(key)}">
           <span class="log-dot ${outcome}" title="Capture outcome"></span>
           <span class="log-group-title">${escapeHtml(groupTitle)}</span>
           <span class="log-group-meta">${escapeHtml(meta)}</span>
+          <span class="log-group-chevron">▶</span>
         </div>
         <div class="log-group-entries">${entriesHtml}</div>
       </div>`;
-  }).join('');
+  };
+
+  // Date → meeting → entries hierarchy (UXF-4): one section per calendar day.
+  list.innerHTML = bucketLogGroupsByDay(groups).map(bucket => `
+    <div class="log-day">
+      <div class="log-day-header">${escapeHtml(dayLabel(bucket.ts))}</div>
+      ${bucket.groups.map(renderGroup).join('')}
+    </div>`).join('');
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
@@ -498,6 +664,15 @@ function switchTab(tabName) {
     $(`tab-${t}`).setAttribute('aria-selected', isActive ? 'true' : 'false');
     $(`${t}-panel`).classList.toggle('hidden', !isActive);
   });
+  // Lazy-load the Ko-fi tip iframe only on first About open (MON-1) — never
+  // during capture, and never if the user never visits About.
+  if (tabName === 'about') {
+    const frame = $('kofi-frame');
+    if (frame && !frame.src && frame.dataset.src) {
+      frame.src = frame.dataset.src;
+      frame.classList.remove('hidden');
+    }
+  }
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -518,7 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('copy-ext-id').addEventListener('click', () => {
     navigator.clipboard.writeText(chrome.runtime.id).then(() => {
       const btn = $('copy-ext-id');
-      btn.textContent = 'Copied!';
+      btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
     });
@@ -555,6 +730,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const updated = removeFailureByPath(mm2c_failed_list, backupPath);
         chrome.storage.local.set({ mm2c_failed_list: updated }, () => renderRetryList(updated));
       });
+    }
+  });
+
+  // Crash-recovery card actions (RB-1d)
+  $('recovery-list').addEventListener('click', (e) => {
+    const sendBtn = e.target.closest('#recover-send');
+    const dismissBtn = e.target.closest('#recover-dismiss');
+    if (sendBtn) {
+      sendBtn.textContent = 'Sending…';
+      sendBtn.disabled = true;
+      chrome.runtime.sendMessage({ type: 'MM2C_RECOVER' }, (resp) => {
+        if (resp?.ok) {
+          $('recovery-list').innerHTML = '';
+        } else {
+          sendBtn.textContent = 'Failed';
+          sendBtn.disabled = false;
+        }
+      });
+    }
+    if (dismissBtn) {
+      chrome.storage.local.remove('mm2c_inflight', () => { $('recovery-list').innerHTML = ''; });
     }
   });
 
@@ -616,10 +812,12 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAndApplyState(tabId, { inMeeting: false, geminiActive });
         return;
       }
-      // Show snapshot widget if snapshot exists
-      chrome.storage.local.get([tabKey('mm2c_last_snapshot', tabId)], (data) => {
-        const snap = data[tabKey('mm2c_last_snapshot', tabId)] || null;
-        renderSnapshotWidget(snap);
+      // Single storage read for the whole in-meeting panel (C2). Previously this
+      // did get(snapKey) here AND a second get of an overlapping key set inside
+      // loadAndApplyState. Now one get renders the snapshot widget and applies
+      // state. Banner + capture button stay owned solely by applyState (BUG-C).
+      chrome.storage.local.get([...GLOBAL_KEYS, ...tabScopedKeys(tabId)], (s) => {
+        renderSnapshotWidget(s[tabKey('mm2c_last_snapshot', tabId)] || null);
         const nextEl = $('snapshot-next');
         if (nextEl) {
           const countdown = formatCountdown(response.nextSnapshotAt || 0);
@@ -634,10 +832,8 @@ document.addEventListener('DOMContentLoaded', () => {
             nextEl.classList.add('hidden');
           }
         }
+        applyState(s, tabId, { inMeeting: true, geminiActive });
       });
-      // Banner + capture button are owned solely by applyState (via resolveBanner),
-      // fed the fresh live state — no second writer here (BUG-C).
-      loadAndApplyState(tabId, { inMeeting: true, geminiActive });
     });
   }
   queryMeetingState();
@@ -665,11 +861,17 @@ document.addEventListener('DOMContentLoaded', () => {
     $('setup-panel').classList.toggle('hidden');
   });
 
+  // First-run setup checklist dismiss (RB-7a)
+  $('setup-wizard-dismiss').addEventListener('click', () => {
+    save({ mm2c_setup_done: true });
+    $('setup-wizard').classList.add('hidden');
+  });
+
   $('copy-cmd').addEventListener('click', () => {
     const cmd = $('install-cmd').textContent;
     navigator.clipboard.writeText(cmd).then(() => {
       const btn = $('copy-cmd');
-      btn.textContent = 'Copied!';
+      btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
     });
@@ -736,7 +938,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('rules-list').addEventListener('blur', saveRuleFromEvent, true);
   // Day checkboxes + depth select fire 'change', not 'blur' — capture those too.
   $('rules-list').addEventListener('change', (e) => {
-    if (e.target.classList.contains('rule-day') || e.target.classList.contains('rule-depth')) saveRuleFromEvent(e);
+    if (e.target.classList.contains('rule-day') || e.target.classList.contains('rule-depth') || e.target.classList.contains('rule-enabled')) saveRuleFromEvent(e);
   });
 
   $('prompt').addEventListener('change', e => {
@@ -751,9 +953,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const app = e.target.value;
     $('craft-sub-options').classList.toggle('hidden', app !== 'craft');
     $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
+    syncAlsoSend(app); // never offer the primary as an also-send target (UXF-11)
     save({ mm2c_output_app: app });
+    renderSetupWizard(lastHostOk); // checking off the "choose output app" step (RB-7a)
   });
 
+  $('craft-folder-id').addEventListener('input', e => {
+    $('craft-folder-error').textContent = craftFolderIdError(e.target.value);
+  });
   $('craft-folder-id').addEventListener('change', e => {
     save({ mm2c_craft_folder_id: e.target.value.trim() });
   });
@@ -787,6 +994,64 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('emit-ics').addEventListener('change', e => {
     save({ mm2c_emit_ics: e.target.checked });
+  });
+  $('wikilinks').addEventListener('change', e => {
+    save({ mm2c_wikilinks: e.target.checked });
+  });
+  $('preview-before-send').addEventListener('change', e => {
+    save({ mm2c_preview_before_send: e.target.checked });
+  });
+  $('dual-output').addEventListener('change', e => {
+    $('dual-output-sub').classList.toggle('hidden', !e.target.checked);
+    save({ mm2c_dual_output: e.target.checked });
+  });
+  $('private-prompt').addEventListener('change', e => save({ mm2c_private_prompt: e.target.value.trim() }));
+  $('private-app').addEventListener('change', e => save({ mm2c_private_app: e.target.value }));
+  $('selector-hotfix-url').addEventListener('change', e => {
+    const url = e.target.value.trim();
+    $('selector-hotfix-url').value = url;
+    save({ mm2c_selector_hotfix_url: url });
+    chrome.runtime.sendMessage({ type: 'MM2C_REFRESH_HOTFIX' }, () => void chrome.runtime.lastError);
+  });
+  $('my-aliases').addEventListener('change', e => {
+    myAliases = e.target.value.trim();
+    save({ mm2c_my_aliases: myAliases });
+    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => renderActionItems(mm2c_last_note));
+  });
+  $('task-app').addEventListener('change', e => {
+    save({ mm2c_task_app: e.target.value });
+    // Reflect the new choice on the action-items "Send to tasks" button now.
+    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => renderActionItems(mm2c_last_note));
+  });
+
+  // Send captured action items to the configured task manager (RB-3a)
+  $('send-to-tasks').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_last_note', 'mm2c_task_app'], ({ mm2c_last_note, mm2c_task_app }) => {
+      const app = mm2c_task_app || '';
+      if (!app) return;
+      const items = parseActionItems(mm2c_last_note || '');
+      let opened = 0;
+      items.forEach(it => {
+        const url = buildTaskUrl(app, it);
+        if (url) { window.open(url, '_blank'); opened++; }
+      });
+      const btn = $('send-to-tasks');
+      btn.textContent = opened ? `Sent ${opened}` : 'No items';
+      setTimeout(() => { btn.textContent = 'Send to tasks'; }, 2000);
+    });
+  });
+  $('beta-enabled').addEventListener('change', e => {
+    document.body.classList.toggle('beta-enabled', e.target.checked);
+    save({ mm2c_beta_enabled: e.target.checked });
+  });
+
+  // Tri-state appearance control (UXF-8)
+  $('theme-control').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-theme-value]');
+    if (!btn) return;
+    const theme = normalizeTheme(btn.dataset.themeValue);
+    applyTheme(theme);
+    save({ mm2c_theme: theme });
   });
 
   document.querySelectorAll('.also-send-opt').forEach(cb => {
@@ -901,8 +1166,11 @@ document.addEventListener('DOMContentLoaded', () => {
         captureBtn.textContent = capturing ? 'Capturing notes…' : 'Capture now';
       }
       if (capturing) {
-        $('status').textContent = 'Capturing notes…';
-        $('status-banner').className = 'status-banner ok';
+        // Route through resolveBanner so there is one banner writer (UXC-15) —
+        // no hardcoded text/class that can drift from applyState's version.
+        const b = resolveBanner({ capturing: true });
+        $('status').textContent = b.text;
+        $('status-banner').className = 'status-banner' + (b.cls ? ' ' + b.cls : '');
       } else {
         loadAndApplyState(activeMetTabId);
       }
@@ -928,11 +1196,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Collapsible log groups — toggle via event delegation
+  // Collapsible log groups — toggle the DOM and persist the choice (UXF-6) so
+  // the 10 s auto-refresh and future sessions remember it.
   $('log-list').addEventListener('click', (e) => {
     const header = e.target.closest('.log-group-header');
     if (!header) return;
-    header.closest('.log-group').classList.toggle('expanded');
+    const nowExpanded = header.closest('.log-group').classList.toggle('expanded');
+    const key = header.dataset.groupKey;
+    if (!key) return;
+    if (nowExpanded) expandedGroups.add(key);
+    else             expandedGroups.delete(key);
+    save({ mm2c_expanded_groups: [...expandedGroups] });
   });
 
   // Snapshot preview expand/collapse
@@ -956,9 +1230,60 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!md) return;
       navigator.clipboard.writeText(md).then(() => {
         const btn = $('copy-action-items');
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = 'Copy as tasks'; }, 2000);
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy as tasks'; btn.classList.remove('copied'); }, 2000);
       });
+    });
+  });
+
+  // Run diagnostics — gather host/settings/permissions into a shareable report (RB-7b)
+  $('run-diagnostics').addEventListener('click', () => {
+    const btn = $('run-diagnostics');
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+    chrome.runtime.sendMessage({ type: 'MM2C_CHECK_HOST' }, (hostResp) => {
+      chrome.storage.local.get(
+        ['mm2c_output_app', 'mm2c_also_send', 'mm2c_file_backup_enabled'],
+        (s) => {
+          const report = buildDiagnosticsReport({
+            version:       chrome.runtime.getManifest().version,
+            extensionId:   chrome.runtime.id,
+            hostOk:        hostResp?.ok === true,
+            hostVersion:   hostResp?.hostVersion,
+            hostMismatch:  hostResp?.versionMismatch === true,
+            outputApp:     s.mm2c_output_app || 'craft',
+            alsoSend:      Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [],
+            fileBackup:    s.mm2c_file_backup_enabled === true,
+            permissions:  (chrome.runtime.getManifest().permissions || []),
+            platform:      navigator.userAgent,
+            generatedAt:   new Date().toISOString(),
+          });
+          const out = $('diag-output');
+          out.textContent = report;
+          out.classList.remove('hidden');
+          $('copy-diagnostics').classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Run diagnostics';
+        }
+      );
+    });
+  });
+  $('copy-diagnostics').addEventListener('click', () => {
+    navigator.clipboard.writeText($('diag-output').textContent || '').then(() => {
+      const btn = $('copy-diagnostics');
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy report'; btn.classList.remove('copied'); }, 2000);
+    });
+  });
+
+  // Email the most recent note via the OS mail client (RB-3c, beta)
+  $('email-note-btn').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => {
+      const body = String(mm2c_last_note || '').trim();
+      if (!body) return;
+      window.open(buildMailtoUrl({ title: 'Meeting notes', body }), '_blank');
     });
   });
 
