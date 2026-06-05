@@ -44,6 +44,8 @@ const GLOBAL_KEYS = [
   'mm2c_calendar_enabled',
   'mm2c_preview_before_send',
   'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
+  'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
+  'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
 ];
 
 // Render the first-run setup checklist (RB-7a) from live host status + config.
@@ -445,6 +447,10 @@ function applyState(s, tabId, live = null) {
   myAliases = s.mm2c_my_aliases || '';
   $('my-aliases').value = myAliases;
   $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
+  $('cleanup-snap-enabled').checked = s.mm2c_cleanup_snap_enabled === true;
+  $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
+  $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
+  $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 30;
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -1016,6 +1022,20 @@ document.addEventListener('DOMContentLoaded', () => {
     $('selector-hotfix-url').value = url;
     save({ mm2c_selector_hotfix_url: url });
     chrome.runtime.sendMessage({ type: 'MM2C_REFRESH_HOTFIX' }, () => void chrome.runtime.lastError);
+  });
+  // Backup-folder auto-cleanup (UXF-13) — beta.
+  const clampDays = v => Math.max(1, Math.min(3650, parseInt(v, 10) || 30));
+  $('cleanup-snap-enabled').addEventListener('change', e => save({ mm2c_cleanup_snap_enabled: e.target.checked }));
+  $('cleanup-snap-days').addEventListener('change', e => {
+    const days = clampDays(e.target.value);
+    e.target.value = days;
+    save({ mm2c_cleanup_snap_days: days });
+  });
+  $('cleanup-final-enabled').addEventListener('change', e => save({ mm2c_cleanup_final_enabled: e.target.checked }));
+  $('cleanup-final-days').addEventListener('change', e => {
+    const days = clampDays(e.target.value);
+    e.target.value = days;
+    save({ mm2c_cleanup_final_days: days });
   });
   $('my-aliases').addEventListener('change', e => {
     myAliases = e.target.value.trim();
