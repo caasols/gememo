@@ -22,6 +22,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Resolve through the install symlink so sibling modules (gcal.py) import at
+# runtime whether run directly or via the symlinked wrapper.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
+
 HOST_VERSION = '0.2.0'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
@@ -992,6 +997,15 @@ def main() -> None:
     # promote it to YAML frontmatter; the line never reaches the rendered note.
     topic_tags, craft_md = extract_tags(craft_md)
 
+    # Google Calendar enrichment (5.3) — best-effort, never blocks capture.
+    cal_fields = {}
+    if msg.get("calendarEnabled") and gcal.GCAL_AVAILABLE:
+        cal_fields, _cal_status = gcal.enrich_frontmatter_fields(
+            msg.get("meetingCode", ""), msg.get("timestamp", ""),
+            msg.get("meetingTitle", ""), bool(msg.get("redactPii")),
+            events_provider=gcal.live_events_provider(msg.get("timestamp", "")),
+        )
+
     # Resolve the timestamp — convert to local timezone so the Craft note title
     # shows wall-clock time rather than UTC (e.g. 09:12 CEST not 07:12 UTC).
     timestamp_str = msg.get("timestamp", "")
@@ -1040,6 +1054,7 @@ def main() -> None:
             meeting_type=msg.get("meetingType") or None,
             recording=bool(msg.get("recording")),
             topic_tags=topic_tags,
+            cal_fields=cal_fields,
         ) if file_ext == ".md" else ""
         file_path.write_text(fm + craft_md, encoding="utf-8")
         # .ics for the Next Steps section (RB-3b), written next to the note.
@@ -1083,7 +1098,7 @@ def main() -> None:
 
     if route_output(back_type, craft_md, title, file_path,
                     obsidian_vault_path=msg.get("obsidianVaultPath", ""),
-                    dt=dt, label=label):
+                    dt=dt, label=label, cal_fields=cal_fields):
         return
 
     # back_type == 'craft' (or anything unrecognised) → fall through to Craft push
