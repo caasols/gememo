@@ -451,7 +451,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
       }
 
       if (response?.status === 'ok') {
-        const APP_LABELS = { craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian' };
+        const APP_LABELS = { craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' };
         const dest       = APP_LABELS[backupType] || backupType;
         const filePart  = fileBackupEnabled && response.file ? ` + ${response.file}` : '';
         const retryNote = response.retried ? ' (via snapshot retry)' : '';

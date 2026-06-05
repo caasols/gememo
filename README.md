@@ -38,7 +38,9 @@ Gememo writes **plain Markdown files you own** — with YAML frontmatter — str
 - **Google Chrome** or **Microsoft Edge** (Chromium) — `install.sh` registers the native host for whichever is installed
 - **Google Workspace** account with Gemini in Google Meet enabled
 - **Python 3.9+**
-- One of: **Craft**, **Apple Notes**, or **Obsidian**
+- One of: **Craft**, **Apple Notes**, **Obsidian**, or **Bear**
+
+> **Note:** Craft and Apple Notes are the actively-tested output apps. **Obsidian and Bear are implemented but not yet verified against a live app** — please report any issues.
 
 ### Setup
 
@@ -75,7 +77,7 @@ bash native_host/install.sh
 - **Recurring-meeting context** — for a repeating meeting, the previous session's summary and open action items are fed back into the prompt so notes build on each other
 - **Note language** — write notes in any language while preserving proper nouns, product names, and technical acronyms in their original form
 - **Glossary** — names, codenames, and acronyms you list are injected into the prompt with an instruction to spell them exactly
-- **Output apps** — Craft, Apple Notes, and Obsidian; pick a primary app and optionally **"Also send to"** others (multi-destination)
+- **Output apps** — Craft and Apple Notes (tested), plus Obsidian and Bear (untested); pick a primary app and optionally **"Also send to"** others (multi-destination)
 - **Webhooks** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, your own endpoint), plus a dedicated **Slack** option (title, summary, action-item count)
 - **.ics export** — optionally write a calendar file next to each note, one all-day event per **Next Steps** line (no Calendar OAuth)
 
@@ -101,7 +103,8 @@ bash native_host/install.sh
 |---|---|---|
 | **Craft** | Creates a document via `craftdocs://createdocument` with inline markdown content | Optional folder ID in Settings |
 | **Apple Notes** | Creates a note via `osascript` with HTML body (headings, bullets, paragraphs) | No config needed |
-| **Obsidian** | Writes a YAML-frontmatted `.md` file directly to your vault folder | Select vault folder in Settings |
+| **Obsidian** *(untested)* | Writes a YAML-frontmatted `.md` file directly to your vault folder | Select vault folder in Settings |
+| **Bear** *(untested)* | Creates a note via `bear://x-callback-url/create` | No config needed |
 | **Webhook** (any) | POSTs the note as structured JSON to a URL — runs alongside whichever app above is selected | Webhook URL in Settings |
 
 Backup `.md` files (and Obsidian notes) include YAML frontmatter: `date`, `title`, `attendees`, `duration_min`, `meeting_code`, `meeting_type` (calendar vs ad-hoc), and `recording` — so they're searchable and usable in Obsidian Dataview, Bear, or Notion.

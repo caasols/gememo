@@ -753,6 +753,16 @@ def find_latest_snapshot(backup_path: Path, slug: str, file_ext: str) -> Path | 
     return snaps[-1] if snaps else None
 
 
+def build_bear_url(title: str, text: str) -> str:
+    """bear://x-callback-url to create a Bear note (5.8). URL-encodes title+body."""
+    from urllib.parse import quote
+    return f"bear://x-callback-url/create?title={quote(title)}&text={quote(text)}"
+
+
+def _default_open_url(url: str) -> None:
+    subprocess.run(["open", url], timeout=10)
+
+
 def route_output(
     back_type: str,
     craft_md: str,
@@ -765,6 +775,7 @@ def route_output(
     apple_push_fn=None,
     notify_fn=None,
     send_fn=None,
+    open_url_fn=None,
 ) -> bool:
     """Handle non-Craft output destinations. Returns True if handled, False to fall through.
 
@@ -775,6 +786,7 @@ def route_output(
     _push  = apple_push_fn if apple_push_fn is not None else push_to_apple_notes
     _note  = notify_fn     if notify_fn     is not None else notify
     _send  = send_fn       if send_fn       is not None else send_message
+    _open  = open_url_fn   if open_url_fn   is not None else _default_open_url
 
     if back_type == 'obsidian':
         if not obsidian_vault_path:
@@ -811,6 +823,19 @@ def route_output(
             if file_path:
                 resp["file"] = str(file_path)
             _send(resp)
+        except Exception as exc:
+            _send({"status": "error", "error": str(exc)})
+        return True
+
+    if back_type == 'bear':
+        # Bear note via x-callback-url (5.8). Untested against a live Bear app.
+        try:
+            _open(build_bear_url(title, craft_md))
+            _note("Meeting Notes → Bear", title)
+            resp_bear: dict = {"status": "ok", "title": title}
+            if file_path:
+                resp_bear["file"] = str(file_path)
+            _send(resp_bear)
         except Exception as exc:
             _send({"status": "error", "error": str(exc)})
         return True

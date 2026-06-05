@@ -1921,7 +1921,7 @@ window.MM2C_TESTS = (() => {
 
   // KEEP IN SYNC with outputAppName() in content_meet.js
   function outputAppName_test(appKey) {
-    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian' })[appKey] || appKey;
+    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
   }
 
   function testOutputAppName() {
@@ -1930,6 +1930,7 @@ window.MM2C_TESTS = (() => {
     assertEq('apple_notes → Apple Notes',    outputAppName_test('apple_notes'), 'Apple Notes');
     assertEq('none → None',                  outputAppName_test('none'),        'None');
     assertEq('obsidian → Obsidian',          outputAppName_test('obsidian'),    'Obsidian');
+    assertEq('bear → Bear',                  outputAppName_test('bear'),        'Bear');
     assertEq('unknown key → returned as-is', outputAppName_test('unknown'),     'unknown');
     console.groupEnd();
   }
