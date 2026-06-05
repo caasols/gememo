@@ -150,6 +150,31 @@ function parseActionItems(body) {
   return items;
 }
 
+// Task managers Gememo can route action items to via their URL schemes (RB-3a).
+// No OAuth — the same x-callback-url pattern as the Craft/Bear push.
+const TASK_APPS = {
+  things:    'Things',
+  todoist:   'Todoist',
+  omnifocus: 'OmniFocus',
+};
+
+// Pure helper — build a task-manager URL for one action item (RB-3a). Owner +
+// deadline become the task note. Returns '' for an unknown app or empty task.
+function buildTaskUrl(app, item = {}) {
+  const title = String(item.task || '').trim();
+  if (!title) return '';
+  const notes = [item.owner ? `Owner: ${item.owner}` : '', item.deadline ? `Due: ${item.deadline}` : '']
+    .filter(Boolean).join(' · ');
+  const t = encodeURIComponent(title);
+  const n = encodeURIComponent(notes);
+  switch (app) {
+    case 'things':    return `things:///add?title=${t}${notes ? `&notes=${n}` : ''}`;
+    case 'todoist':   return `todoist://addtask?content=${t}${notes ? `&description=${n}` : ''}`;
+    case 'omnifocus': return `omnifocus:///add?name=${t}${notes ? `&note=${n}` : ''}`;
+    default:          return '';
+  }
+}
+
 // Pure helper — render action items as Markdown task list lines (P6-B).
 function formatActionItemsMarkdown(items) {
   return (Array.isArray(items) ? items : []).map(it => {

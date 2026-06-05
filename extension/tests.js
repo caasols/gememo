@@ -2043,6 +2043,22 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testBuildTaskUrl() {
+    console.group('buildTaskUrl (RB-3a)');
+    const item = { task: 'Ship the spec', owner: 'Alice', deadline: 'June 6' };
+    assert('things scheme + encoded title',
+      buildTaskUrl('things', item).startsWith('things:///add?title=Ship%20the%20spec'));
+    assert('things includes notes with owner + deadline',
+      /notes=Owner%3A%20Alice%20%C2%B7%20Due%3A%20June%206/.test(buildTaskUrl('things', item)));
+    assert('todoist scheme', buildTaskUrl('todoist', item).startsWith('todoist://addtask?content='));
+    assert('omnifocus scheme', buildTaskUrl('omnifocus', item).startsWith('omnifocus:///add?name='));
+    assertEq('unknown app → empty', buildTaskUrl('evernote', item), '');
+    assertEq('empty task → empty', buildTaskUrl('things', { task: '' }), '');
+    assert('no notes when owner/deadline absent',
+      buildTaskUrl('things', { task: 'X' }) === 'things:///add?title=X');
+    console.groupEnd();
+  }
+
   function testBuildMailtoUrl() {
     console.group('buildMailtoUrl (RB-3c)');
     const u = buildMailtoUrl({ title: 'Q3 Sync', body: 'Notes here' });
@@ -2496,6 +2512,7 @@ window.MM2C_TESTS = (() => {
     testNormalizeTheme();
     testLogGroupKey();
     testBuildDiagnosticsReport();
+    testBuildTaskUrl();
     testBuildMailtoUrl();
     testFriendlyError();
     testCloseOverlayBody();
