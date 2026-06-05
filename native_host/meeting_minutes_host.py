@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 
-HOST_VERSION = '0.2.0'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
+HOST_VERSION = '0.2.1'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
