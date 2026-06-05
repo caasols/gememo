@@ -68,6 +68,9 @@ bash native_host/install.sh
 - **"Capture now" button** — visible in the popup during meetings; triggers a snapshot immediately
 - **Keyboard shortcut** — Cmd/Ctrl+Shift+Y triggers a capture without opening the popup (rebindable at `chrome://extensions/shortcuts`)
 - **Retry on failure** — if the output app push fails, a Retry widget appears in the popup; the extension picks the freshest available content (2h cache → snapshot backup)
+- **Crash recovery** — the formatted note is persisted in-flight; if a send is interrupted, the popup offers to recover and resend it
+- **Review before saving** *(opt-in)* — show the captured notes for a quick review (with Discard / Save) when you leave a call
+- **Selector self-test** — a Meet DOM change surfaces as a diagnostic instead of a silent failure; an optional remote selector-hotfix URL can patch it without a release
 
 ### Prompt & output
 
@@ -77,6 +80,11 @@ bash native_host/install.sh
 - **Recurring-meeting context** — for a repeating meeting, the previous session's summary and open action items are fed back into the prompt so notes build on each other
 - **Note language** — write notes in any language while preserving proper nouns, product names, and technical acronyms in their original form
 - **Glossary** — names, codenames, and acronyms you list are injected into the prompt with an instruction to spell them exactly
+- **Per-rule title templates** — name notes with `{date} {time} {name} {type} {code}` placeholders per rule
+- **Auto-tags** — Gemini emits 3–5 topic tags, promoted to YAML `tags:` for Dataview/Bear/Notion filtering
+- **Wikilinks** *(opt-in)* — wrap attendee names in `[[double brackets]]` so each note links into your Obsidian/Craft graph
+- **Action items → tasks** — send each captured action item to **Things / Todoist / OmniFocus**, and flag items assigned to you with a "N for you" badge
+- **Private reflection** *(beta)* — optionally run a second Gemini pass with a private prompt and save it to a separate destination
 - **Output apps** — Craft and Apple Notes (tested), plus Obsidian and Bear (untested); pick a primary app and optionally **"Also send to"** others (multi-destination)
 - **Webhooks** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, your own endpoint), plus a dedicated **Slack** option (title, summary, action-item count)
 - **.ics export** — optionally write a calendar file next to each note, one all-day event per **Next Steps** line (no Calendar OAuth)
@@ -93,9 +101,13 @@ bash native_host/install.sh
 - **Action items** — extracted from each capture into a popup checklist with a "Copy as tasks" button (Markdown `- [ ]`)
 - **Logs tab** — activity grouped by meeting with a capture-outcome dot per group, per-entry Retry, and a Diagnostics toggle that hides routine internal events by default
 - **Search past meetings** — local full-text search across your backup notes (title, date, snippet) with date-range and attendee filters; no API, runs on your machine
-- **Dark mode** — the popup follows your OS theme automatically
-- **Accessible** — keyboard/screen-reader friendly tab roles and labels
-- **About tab** — version, GitHub link, extension ID, a "Report an issue" link, and a "Your impact" panel (meetings attended, notes saved, words captured, time saved)
+- **Theme** — tri-state **System / Light / Dark** appearance control (defaults to System)
+- **Logs** — grouped under **date sections** (Today / Yesterday / date), collapsed by default with your expand/collapse state remembered
+- **First-run checklist** — a guided welcome card walks you through install, picking an output app, and your first capture
+- **Run diagnostics** — one click produces a shareable report (host version, output app, permissions, platform)
+- **Experimental features** — a Settings toggle reveals in-progress beta features
+- **Accessible** — keyboard/screen-reader friendly tab roles, labels, and focus rings
+- **About tab** — version, GitHub link, extension ID, a "Report an issue" link, a Ko-fi tip panel, and a "Your impact" panel (meetings attended, notes saved, words captured, time saved)
 
 ## Output apps
 
