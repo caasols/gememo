@@ -642,8 +642,9 @@
 
     // Rule matching: user rules win first, then built-in templates, then default.
     const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
+    const durMin = meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : NaN;
     const matchedRule =
-      findPromptRule(rules, currentMeetingTitle) ||
+      findPromptRule(rules, currentMeetingTitle, new Date(), { durationMin: durMin }) ||
       findPromptRule(BUILT_IN_RULES, currentMeetingTitle);
 
     // Full prompt construction lives in the (unit-tested) assemblePrompt helper.

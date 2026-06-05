@@ -1103,6 +1103,21 @@ window.MM2C_TESTS = (() => {
     assert('Case 4: no match returns null',
       matchPromptRule(rules, 'Retrospective') === null);
 
+    // UXF-10: duration ("time actually spent") conditions
+    assert('buildCondition captures minMinutes/maxMinutes',
+      JSON.stringify(buildCondition([], NaN, NaN, 0, 10)) === JSON.stringify({ minMinutes: 0, maxMinutes: 10 }));
+    assert('ruleDurationMatches within range', ruleDurationMatches({ minMinutes: 0, maxMinutes: 10 }, 9) === true);
+    assert('ruleDurationMatches above max → false', ruleDurationMatches({ minMinutes: 0, maxMinutes: 10 }, 11) === false);
+    assert('ruleDurationMatches below min → false', ruleDurationMatches({ minMinutes: 5 }, 3) === false);
+    assert('ruleDurationMatches with no bounds → false', ruleDurationMatches({ days: [1] }, 9) === false);
+    assert('ruleDurationMatches with unknown duration → false', ruleDurationMatches({ maxMinutes: 10 }, NaN) === false);
+    assert('findPromptRule matches a short-meeting rule via ctx.durationMin',
+      findPromptRule([{ condition: { maxMinutes: 10 }, prompt: 'short' }], 'Any', new Date(), { durationMin: 8 })?.prompt === 'short');
+    assert('findPromptRule skips duration rule when over the cap',
+      findPromptRule([{ condition: { maxMinutes: 10 }, prompt: 'short' }], 'Any', new Date(), { durationMin: 30 }) === null);
+    assert('findPromptRule ignores duration when ctx omitted (back-compat)',
+      findPromptRule([{ condition: { maxMinutes: 10 }, prompt: 'short' }], 'Any') === null);
+
     // Case 5: built-in templates match their meeting types (P5-K)
     assert('Case 5a: standup title matches a built-in',
       typeof matchPromptRule(BUILT_IN_RULES, 'Daily Standup') === 'string');
