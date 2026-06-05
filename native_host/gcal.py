@@ -99,3 +99,46 @@ def match_calendar_event(events, meeting_code, timestamp_iso='', title=''):
         if titled:
             candidates = titled
     return _nearest_by_time(candidates, timestamp_iso)
+
+
+def _scheduled_duration_min(event):
+    start = (event or {}).get('start') or {}
+    end = (event or {}).get('end') or {}
+    if start.get('dateTime') and end.get('dateTime'):
+        s, e = _parse_iso(start['dateTime']), _parse_iso(end['dateTime'])
+        if s and e and e > s:
+            return int((e - s).total_seconds() // 60)
+    return None
+
+
+def extract_calendar_fields(event, redact_emails=False):
+    """Map a calendar event → a frontmatter-fields dict. Attendee emails are
+    omitted when redact_emails is True (privacy)."""
+    if not event:
+        return {}
+    out = {}
+    if event.get('recurringEventId'):
+        out['recurring_event_id'] = event['recurringEventId']
+    desc = (event.get('description') or '').strip()
+    if desc:
+        out['description'] = desc
+    org = event.get('organizer') or {}
+    organizer = org.get('email') or org.get('displayName') or ''
+    if organizer:
+        out['organizer'] = organizer
+    if not redact_emails:
+        emails = [a.get('email') for a in (event.get('attendees') or []) if a.get('email')]
+        if emails:
+            out['attendee_emails'] = emails
+    start = event.get('start') or {}
+    end = event.get('end') or {}
+    sval = start.get('dateTime') or start.get('date')
+    eval_ = end.get('dateTime') or end.get('date')
+    if sval:
+        out['scheduled_start'] = sval
+    if eval_:
+        out['scheduled_end'] = eval_
+    dur = _scheduled_duration_min(event)
+    if dur is not None:
+        out['scheduled_duration_min'] = dur
+    return out
