@@ -99,9 +99,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const hostVersion = response?.version || null;
         let versionMismatch = false;
         if (ok && hostVersion) {
-          const extMajor  = chrome.runtime.getManifest().version.split('.')[0];
-          const hostMajor = String(hostVersion).split('.')[0];
-          versionMismatch = extMajor !== hostMajor;
+          versionMismatch = isVersionMismatch(chrome.runtime.getManifest().version, hostVersion);
         }
         if (versionMismatch) {
           const extVersion = chrome.runtime.getManifest().version;
@@ -165,7 +163,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       chrome.storage.session.get([fpKey], (fpData) => {
         const stored = fpData[fpKey];
         const now = Date.now();
-        if (stored && stored.title === title && (now - stored.sentAt) < DEDUP_WINDOW_MS) {
+        if (shouldSkipDuplicate(stored, title, now, DEDUP_WINDOW_MS)) {
           appendLog('warn', title, 'Duplicate send skipped — notes already sent for this meeting within the last 40 minutes');
           sendResponse({ ok: true });
           return;
