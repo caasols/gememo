@@ -180,6 +180,10 @@ function renderRules(rules) {
           <input type="number" class="rule-hour-start" min="0" max="23" placeholder="0" value="${Number.isInteger(cond.startHour) ? cond.startHour : ''}">–
           <input type="number" class="rule-hour-end" min="0" max="24" placeholder="24" value="${Number.isInteger(cond.endHour) ? cond.endHour : ''}">h
         </span>
+        <span class="rule-hours" title="Time actually spent in the meeting (minutes)">
+          <input type="number" class="rule-min-spent" min="0" placeholder="min" value="${Number.isInteger(cond.minMinutes) ? cond.minMinutes : ''}">–
+          <input type="number" class="rule-max-spent" min="0" placeholder="max" value="${Number.isInteger(cond.maxMinutes) ? cond.maxMinutes : ''}">m
+        </span>
         <select class="rule-depth" title="Summary depth">
           <option value="" ${!rule.depth ? 'selected' : ''}>Standard depth</option>
           <option value="brief" ${rule.depth === 'brief' ? 'selected' : ''}>Brief</option>
@@ -199,7 +203,13 @@ function readRuleFromItem(item) {
   const days   = [...item.querySelectorAll('.rule-day:checked')].map(c => parseInt(c.dataset.day, 10));
   const sh = parseInt(item.querySelector('.rule-hour-start').value, 10);
   const eh = parseInt(item.querySelector('.rule-hour-end').value, 10);
-  const condition = buildCondition(days, Number.isNaN(sh) ? NaN : sh, Number.isNaN(eh) ? NaN : eh);
+  const mn = parseInt(item.querySelector('.rule-min-spent')?.value, 10);
+  const mx = parseInt(item.querySelector('.rule-max-spent')?.value, 10);
+  const condition = buildCondition(
+    days,
+    Number.isNaN(sh) ? NaN : sh, Number.isNaN(eh) ? NaN : eh,
+    Number.isNaN(mn) ? NaN : mn, Number.isNaN(mx) ? NaN : mx,
+  );
   const depth = item.querySelector('.rule-depth')?.value || '';
   const titleTemplate = item.querySelector('.rule-title-template')?.value.trim() || '';
   const rule = { regex, prompt };

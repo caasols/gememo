@@ -257,7 +257,9 @@ const BUILT_IN_RULES = [
 
 // Pure helper — normalise Rules-tab inputs into a rule `condition` object, or
 // null when nothing usable was entered (P5-L2). Hours require BOTH bounds.
-function buildCondition(days, startHour, endHour) {
+// minMinutes/maxMinutes (UXF-10) add a "time actually spent" range; either bound
+// is optional. Extra args are optional so existing 3-arg callers are unchanged.
+function buildCondition(days, startHour, endHour, minMinutes, maxMinutes) {
   const out = {};
   const validDays = (Array.isArray(days) ? days : []).filter(d => Number.isInteger(d) && d >= 1 && d <= 7);
   if (validDays.length) out.days = validDays;
@@ -266,7 +268,22 @@ function buildCondition(days, startHour, endHour) {
     out.startHour = startHour;
     out.endHour = endHour;
   }
+  if (Number.isInteger(minMinutes) && minMinutes >= 0) out.minMinutes = minMinutes;
+  if (Number.isInteger(maxMinutes) && maxMinutes >= 0) out.maxMinutes = maxMinutes;
   return Object.keys(out).length ? out : null;
+}
+
+// Pure helper — does a rule's duration condition match the time actually spent
+// (UXF-10)? minMinutes/maxMinutes form an inclusive range; either is optional.
+// Returns false when no duration bounds are set or durationMin is unknown.
+function ruleDurationMatches(condition, durationMin) {
+  if (!condition || !Number.isFinite(durationMin)) return false;
+  const hasMin = Number.isInteger(condition.minMinutes);
+  const hasMax = Number.isInteger(condition.maxMinutes);
+  if (!hasMin && !hasMax) return false;
+  if (hasMin && durationMin < condition.minMinutes) return false;
+  if (hasMax && durationMin > condition.maxMinutes) return false;
+  return true;
 }
 
 // Pure helper — does a rule's time condition match the given moment (P5-L2)?
@@ -291,7 +308,7 @@ function ruleTimeMatches(condition, date) {
 // Pure helper — return the first rule that matches, or null. A rule matches when
 // its regex matches the title OR its time condition matches `now` (P5-L2).
 // Shared by content_meet.js and tests.js; invalid regexes are skipped.
-function findPromptRule(rules, meetingTitle, now = new Date()) {
+function findPromptRule(rules, meetingTitle, now = new Date(), ctx = {}) {
   if (!Array.isArray(rules)) return null;
   const title = meetingTitle || '';
   for (const r of rules) {
@@ -301,6 +318,10 @@ function findPromptRule(rules, meetingTitle, now = new Date()) {
       try { matched = new RegExp(r.regex, 'i').test(title); } catch { /* skip bad regex */ }
     }
     if (!matched && r.condition) matched = ruleTimeMatches(r.condition, now);
+    // Time-actually-spent condition (UXF-10) — ctx.durationMin from the live meeting.
+    if (!matched && r.condition && Number.isFinite(ctx.durationMin)) {
+      matched = ruleDurationMatches(r.condition, ctx.durationMin);
+    }
     if (matched) return r;
   }
   return null;
