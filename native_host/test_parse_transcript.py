@@ -17,6 +17,13 @@ class TestParseTranscriptStripping(unittest.TestCase):
         _, body = parse_transcript(text)
         return body
 
+    def test_title_line_extracted_and_stripped_from_body(self):
+        """A leading 'TITLE:' line is pulled out and removed from the body."""
+        title, body = parse_transcript("TITLE: Q3 Planning\n## Summary\nWe shipped it.")
+        self.assertEqual(title, "Q3 Planning")
+        self.assertNotIn("TITLE:", body)
+        self.assertIn("We shipped it.", body)
+
     def test_bold_markers_stripped(self):
         """**bold text** markers are removed; content is preserved."""
         body = self._body("**Key Points:** something important happened")
