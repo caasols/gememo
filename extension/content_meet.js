@@ -1164,7 +1164,7 @@
   // ── Leave button interceptor ───────────────────────────────────────────────
 
   function outputAppName(appKey) {
-    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian' })[appKey] || appKey;
+    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
   }
 
   function isContextValid() {
