@@ -36,6 +36,7 @@ const GLOBAL_KEYS = [
   'mm2c_expanded_groups',
   'mm2c_theme',
   'mm2c_wikilinks',
+  'mm2c_task_app',
 ];
 
 // Apply a theme (system|light|dark) to <html> and the segmented control (UXF-8).
@@ -231,6 +232,9 @@ function renderActionItems(noteBody) {
     return;
   }
   widget.classList.remove('hidden');
+  // Show "Send to tasks" only when a task app is configured (RB-3a).
+  const sendBtn = $('send-to-tasks');
+  if (sendBtn) sendBtn.classList.toggle('hidden', !$('task-app')?.value);
   list.innerHTML = items.map(it => {
     const meta = [it.owner, it.deadline].filter(Boolean).join(' · ');
     return `
@@ -338,6 +342,7 @@ function applyState(s, tabId, live = null) {
   $('blocklist').value = s.mm2c_blocklist || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
   $('wikilinks').checked = s.mm2c_wikilinks === true;
+  $('task-app').value = s.mm2c_task_app || '';
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -839,6 +844,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('wikilinks').addEventListener('change', e => {
     save({ mm2c_wikilinks: e.target.checked });
+  });
+  $('task-app').addEventListener('change', e => {
+    save({ mm2c_task_app: e.target.value });
+    // Reflect the new choice on the action-items "Send to tasks" button now.
+    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => renderActionItems(mm2c_last_note));
+  });
+
+  // Send captured action items to the configured task manager (RB-3a)
+  $('send-to-tasks').addEventListener('click', () => {
+    chrome.storage.local.get(['mm2c_last_note', 'mm2c_task_app'], ({ mm2c_last_note, mm2c_task_app }) => {
+      const app = mm2c_task_app || '';
+      if (!app) return;
+      const items = parseActionItems(mm2c_last_note || '');
+      let opened = 0;
+      items.forEach(it => {
+        const url = buildTaskUrl(app, it);
+        if (url) { window.open(url, '_blank'); opened++; }
+      });
+      const btn = $('send-to-tasks');
+      btn.textContent = opened ? `Sent ${opened}` : 'No items';
+      setTimeout(() => { btn.textContent = 'Send to tasks'; }, 2000);
+    });
   });
   $('beta-enabled').addEventListener('change', e => {
     document.body.classList.toggle('beta-enabled', e.target.checked);

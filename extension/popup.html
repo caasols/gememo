@@ -1077,7 +1077,10 @@
     <div class="widget hidden" id="action-items-widget">
       <div class="widget-header">
         <div class="widget-title">Action items</div>
-        <button class="btn" id="copy-action-items">Copy as tasks</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn hidden" id="send-to-tasks">Send to tasks</button>
+          <button class="btn" id="copy-action-items">Copy as tasks</button>
+        </div>
       </div>
       <div id="action-items-list"></div>
     </div>
@@ -1236,6 +1239,21 @@
         </label>
       </div>
       <p class="hint">Wrap attendee names in [[double brackets]] so each note links into your Obsidian/Craft graph. Best left off for non-graph apps.</p>
+    </div>
+
+    <!-- Action items → task manager (RB-3a) -->
+    <div class="widget">
+      <div class="widget-title">Action items</div>
+      <div class="row">
+        <span class="label">Send to</span>
+        <select id="task-app">
+          <option value="">Off</option>
+          <option value="things">Things</option>
+          <option value="todoist">Todoist</option>
+          <option value="omnifocus">OmniFocus</option>
+        </select>
+      </div>
+      <p class="hint">Adds a "Send to tasks" button to the captured action items, opening each as a task in your chosen app (via its URL scheme — no account needed).</p>
     </div>
 
     <!-- File backup -->
