@@ -120,4 +120,52 @@ test.describe('extension E2E harness', () => {
       expect(call.msg.since).toBe('2026-06-01');
     });
   });
+
+  test.describe('popup render', () => {
+    // Seed storage, then (re)open the popup so popup.js renders from it.
+    async function popupWith(state) {
+      await clearStorage(ext.serviceWorker);
+      await stubNativeMessage(ext.serviceWorker, { ping: { status: 'ok' }, __default: { status: 'ok' } });
+      await seedStorage(ext.serviceWorker, state);
+      const page = await openPopup(ext.context, ext.extensionId);
+      return page;
+    }
+
+    test('About tab renders the impact stats', async () => {
+      const page = await popupWith({
+        mm2c_stats: { meetingsAttended: 4, notesSaved: 3, wordsCaptured: 1200, totalMeetingMinutes: 95 },
+      });
+      await page.click('#tab-about');
+      await expect(page.locator('#stats-grid')).toContainText('4');
+      await expect(page.locator('#stats-grid')).toContainText('1,200');
+      await expect(page.locator('#stats-grid')).toContainText('1h 35m');
+      await page.close();
+    });
+
+    test('Logs tab renders a meeting group from seeded logs', async () => {
+      const page = await popupWith({
+        mm2c_logs: [{ ts: Date.now(), status: 'ok', title: 'Q3 Sync', message: 'Saved to Craft', level: 'user' }],
+      });
+      await page.click('#tab-logs');
+      await expect(page.locator('#log-list')).toContainText('Q3 Sync');
+      await page.close();
+    });
+
+    test('Rules tab renders a seeded rule row', async () => {
+      const page = await popupWith({ mm2c_prompt_rules: [{ regex: 'standup', prompt: 'Brief notes' }] });
+      await page.click('#tab-rules');
+      await page.click('#rules-toggle');
+      await expect(page.locator('#rules-list .rule-regex')).toHaveValue('standup');
+      await page.close();
+    });
+
+    test('Main tab renders a retry card from a failed-send entry', async () => {
+      const page = await popupWith({
+        mm2c_failed_list: [{ tabId: null, title: 'Lost Meeting', backupPath: '/tmp/x.md', failedAt: Date.now() }],
+      });
+      await expect(page.locator('#retry-list')).toContainText('Lost Meeting');
+      await expect(page.locator('#retry-list .retry-btn')).toBeVisible();
+      await page.close();
+    });
+  });
 });
