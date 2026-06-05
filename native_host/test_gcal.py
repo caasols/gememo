@@ -108,5 +108,43 @@ class TestExtract(unittest.TestCase):
         self.assertNotIn("scheduled_duration_min", f)
 
 
+class TestEnrich(unittest.TestCase):
+    def test_window_brackets_timestamp(self):
+        tmin, tmax = gcal._window_around("2026-06-05T10:00:00Z")
+        self.assertLess(tmin, "2026-06-05T10:00:00Z")
+        self.assertGreater(tmax, "2026-06-05T10:00:00Z")
+
+    def test_enrich_ok(self):
+        ev = {"hangoutLink": "https://meet.google.com/abc-defg-hij",
+              "start": {"dateTime": "2026-06-05T10:00:00Z"},
+              "end": {"dateTime": "2026-06-05T10:30:00Z"},
+              "recurringEventId": "rec_1"}
+        fields, status = gcal.enrich_frontmatter_fields(
+            "abc-defg-hij", "2026-06-05T10:31:00Z", "", False,
+            events_provider=lambda: [ev])
+        self.assertEqual(status, "ok")
+        self.assertEqual(fields["recurring_event_id"], "rec_1")
+
+    def test_enrich_not_connected(self):
+        fields, status = gcal.enrich_frontmatter_fields(
+            "x", "", "", False, events_provider=lambda: None)
+        self.assertEqual(status, "not_connected")
+        self.assertEqual(fields, {})
+
+    def test_enrich_no_match(self):
+        fields, status = gcal.enrich_frontmatter_fields(
+            "zzz-zzzz-zzz", "2026-06-05T10:00:00Z", "", False,
+            events_provider=lambda: [])
+        self.assertEqual(status, "no_match")
+
+    def test_enrich_never_raises(self):
+        def boom():
+            raise RuntimeError("api down")
+        fields, status = gcal.enrich_frontmatter_fields(
+            "x", "", "", False, events_provider=boom)
+        self.assertEqual(fields, {})
+        self.assertTrue(status.startswith("error"))
+
+
 if __name__ == "__main__":
     unittest.main()
