@@ -506,15 +506,16 @@
     });
   }
 
-  // Resolves with the Gemini trigger element as soon as it appears in the DOM,
-  // or with null after timeoutMs. Replaces the fixed delay(2500) in
-  // autoActivateGemini — if the button is already present this resolves on the
-  // first tick; if it appears at 300 ms we're done at 300 ms, not at 2500 ms.
-  function waitForGeminiTrigger(timeoutMs) {
+  // Generic observe→check→timeout→disconnect helper (ARCH-5). Resolves with the
+  // first truthy result of check() — immediately if already truthy, otherwise as
+  // soon as a mutation on `target` makes it truthy — or with null on timeout.
+  // The three appearance waiters below are thin wrappers; the bespoke waiters
+  // (response-complete, panel-visible, foreground) keep their own logic.
+  function waitForCondition(check, timeoutMs, target = document.body,
+                            observeOptions = { childList: true, subtree: true }) {
     return new Promise((resolve) => {
-      const found = getGeminiTriggerElement();
-      if (found) return resolve(found);
-
+      const immediate = check();
+      if (immediate) return resolve(immediate);
       let done = false;
       const finish = (result) => {
         if (done) return;
@@ -523,43 +524,25 @@
         clearTimeout(deadlineTimer);
         resolve(result);
       };
-
       const observer = new MutationObserver(() => {
-        const el = getGeminiTriggerElement();
-        if (el) finish(el);
+        const r = check();
+        if (r) finish(r);
       });
-      observer.observe(document.body, { childList: true, subtree: true });
-
+      observer.observe(target, observeOptions);
       const deadlineTimer = setTimeout(() => finish(null), timeoutMs);
     });
   }
 
-  // Resolves with the "Start now" button as soon as it appears, or with null
-  // after timeoutMs. Null is the normal case — Gemini was already active, so
-  // the card never appeared. Caller's existing `if (startNowBtn)` guard is
-  // unchanged.
+  // Resolves with the Gemini trigger element as soon as it appears in the DOM,
+  // or with null after timeoutMs (ARCH-5: wraps waitForCondition).
+  function waitForGeminiTrigger(timeoutMs) {
+    return waitForCondition(getGeminiTriggerElement, timeoutMs);
+  }
+
+  // Resolves with the "Start now" button as soon as it appears, or null after
+  // timeoutMs (null is the normal case — Gemini was already active).
   function waitForStartNowButton(timeoutMs) {
-    return new Promise((resolve) => {
-      const found = getGeminiStartNowButton();
-      if (found) return resolve(found);
-
-      let done = false;
-      const finish = (result) => {
-        if (done) return;
-        done = true;
-        observer.disconnect();
-        clearTimeout(deadlineTimer);
-        resolve(result);
-      };
-
-      const observer = new MutationObserver(() => {
-        const el = getGeminiStartNowButton();
-        if (el) finish(el);
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-
-      const deadlineTimer = setTimeout(() => finish(null), timeoutMs);
-    });
+    return waitForCondition(getGeminiStartNowButton, timeoutMs);
   }
 
   // Injects `prompt` into the Gemini contenteditable input.
@@ -801,25 +784,8 @@
   // creates the active-state Gemini toggle (which can then be clicked to open
   // the panel). Distinguished from the no-aria-label "Geminispark_off" button.
   function waitForActiveGeminiButton(timeoutMs) {
-    const SELECTOR = 'button[aria-label*="Gemini" i]';
-    return new Promise((resolve) => {
-      const found = document.querySelector(SELECTOR);
-      if (found) { resolve(found); return; }
-      let done = false;
-      const finish = (el) => {
-        if (done) return;
-        done = true;
-        obs.disconnect();
-        clearTimeout(t);
-        resolve(el);
-      };
-      const obs = new MutationObserver(() => {
-        const el = document.querySelector(SELECTOR);
-        if (el) finish(el);
-      });
-      obs.observe(document.body, { childList: true, subtree: true });
-      const t = setTimeout(() => finish(null), timeoutMs);
-    });
+    return waitForCondition(
+      () => document.querySelector('button[aria-label*="Gemini" i]'), timeoutMs);
   }
 
   // ── Auto-activation state machine ─────────────────────────────────────────
