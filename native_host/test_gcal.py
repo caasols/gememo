@@ -47,5 +47,32 @@ class TestMeetCode(unittest.TestCase):
         self.assertEqual(gcal._event_meet_code({}), "")
 
 
+class TestMatch(unittest.TestCase):
+    def _ev(self, code, start, summary=""):
+        return {"hangoutLink": f"https://meet.google.com/{code}",
+                "start": {"dateTime": start}, "summary": summary}
+
+    def test_exact_code_match(self):
+        evs = [self._ev("aaa-bbbb-ccc", "2026-06-05T09:00:00Z"),
+               self._ev("ddd-eeee-fff", "2026-06-05T10:00:00Z")]
+        m = gcal.match_calendar_event(evs, "ddd-eeee-fff", "2026-06-05T10:05:00Z")
+        self.assertEqual(m["start"]["dateTime"], "2026-06-05T10:00:00Z")
+
+    def test_duplicate_code_uses_nearest_time(self):
+        evs = [self._ev("aaa-bbbb-ccc", "2026-06-05T09:00:00Z"),
+               self._ev("aaa-bbbb-ccc", "2026-06-05T15:00:00Z")]
+        m = gcal.match_calendar_event(evs, "aaa-bbbb-ccc", "2026-06-05T14:50:00Z")
+        self.assertEqual(m["start"]["dateTime"], "2026-06-05T15:00:00Z")
+
+    def test_fallback_title_then_time(self):
+        evs = [self._ev("aaa-bbbb-ccc", "2026-06-05T09:00:00Z", "Standup"),
+               self._ev("ddd-eeee-fff", "2026-06-05T10:00:00Z", "Q3 Planning")]
+        m = gcal.match_calendar_event(evs, "", "2026-06-05T10:10:00Z", title="Q3 Planning")
+        self.assertEqual(m["summary"], "Q3 Planning")
+
+    def test_no_events_returns_none(self):
+        self.assertIsNone(gcal.match_calendar_event([], "aaa-bbbb-ccc", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
