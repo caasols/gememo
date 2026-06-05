@@ -415,6 +415,59 @@ def prune_snapshots(backup_path: Path, slug: str, file_ext: str, keep: int = 3) 
             pass
 
 
+def cleanup_backups(backup_path, cfg, now=None, stamp_path=None, throttle=True):
+    """Retention-prune the backup folder (UXF-13). Best-effort; never raises.
+
+    cfg = {'snapshots': {'enabled': bool, 'days': int},
+           'finalNotes': {'enabled': bool, 'days': int}}.
+    Snapshots = *-snap.md/.txt; final notes = other .md/.txt (incl *-RECOVERED.md).
+    .ics files are never touched. A file is deleted only if its rule is enabled AND
+    its mtime is older than that rule's retention days. Both rules off ⇒ no-op.
+    Throttled to once/24h via a stamp file unless throttle=False. Returns the list
+    of deleted Paths (for tests).
+    """
+    cfg = cfg or {}
+    snap = cfg.get('snapshots') or {}
+    fin = cfg.get('finalNotes') or {}
+    snap_on, snap_days = bool(snap.get('enabled')), int(snap.get('days', 30))
+    fin_on, fin_days = bool(fin.get('enabled')), int(fin.get('days', 30))
+    if not snap_on and not fin_on:
+        return []
+    if now is None:
+        now = time.time()
+    stamp = Path(stamp_path) if stamp_path else (Path.home() / '.cache' / 'mm2c' / 'last_cleanup')
+    if throttle and stamp.exists():
+        try:
+            if (now - stamp.stat().st_mtime) < 86400:
+                return []
+        except OSError:
+            pass
+    folder = Path(backup_path).expanduser()
+    deleted = []
+    if folder.is_dir():
+        for p in folder.iterdir():
+            if p.suffix not in ('.md', '.txt'):
+                continue
+            is_snap = p.name.endswith('-snap.md') or p.name.endswith('-snap.txt')
+            rule_on, days = (snap_on, snap_days) if is_snap else (fin_on, fin_days)
+            if not rule_on:
+                continue
+            try:
+                if (now - p.stat().st_mtime) > days * 86400:
+                    p.unlink()
+                    deleted.append(p)
+            except OSError:
+                pass
+    # Record the run so the next capture within 24h skips (set mtime = now for tests).
+    try:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+        os.utime(stamp, (now, now))
+    except OSError:
+        pass
+    return deleted
+
+
 def handle_snapshot(msg: dict) -> None:
     """Write a timestamped snapshot file to the backup folder and prune old ones."""
     file_backup_type = msg.get("fileBackupType", "markdown")
@@ -1055,6 +1108,13 @@ def main() -> None:
     file_backup_enabled = msg.get("fileBackupEnabled", False)
     file_backup_type    = msg.get("fileBackupType", "markdown")
     file_backup_path    = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
+
+    # Backup-folder auto-cleanup (UXF-13) — best-effort, never blocks capture.
+    try:
+        if msg.get("backupCleanup"):
+            cleanup_backups(file_backup_path, msg.get("backupCleanup"))
+    except Exception:
+        pass
 
     # Optional file backup
     file_ext  = ".txt" if file_backup_type == "txt" else ".md"

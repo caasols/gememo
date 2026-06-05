@@ -153,6 +153,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           'mm2c_emit_ics',
           'mm2c_wikilinks',
           'mm2c_calendar_enabled',
+          'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
+          'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
         ], (data) => {
           forwardToNativeHost(msg.text, {
             // P9-H private pass overrides the destination; primary uses output_app.
@@ -178,6 +180,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             fileBackupEnabled:   data.mm2c_file_backup_enabled === true,
             fileBackupType:      data.mm2c_file_backup_type      || 'markdown',
             fileBackupPath:      data.mm2c_file_backup_path      || '~/Downloads/meeting-notes',
+            backupCleanup: {
+              snapshots: { enabled: data.mm2c_cleanup_snap_enabled === true, days: data.mm2c_cleanup_snap_days || 30 },
+              finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 30 },
+            },
             tabId,
           }, sr);
         });
@@ -500,10 +506,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath },
+    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;
