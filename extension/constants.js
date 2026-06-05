@@ -624,6 +624,17 @@ function snapshotFreshEnough(cachedTranscriptAt, intervalMs, now = Date.now()) {
   return (now - cachedTranscriptAt) < intervalMs / 2;
 }
 
+// Pure helper — should the popup offer to recover an in-flight note (RB-1d)?
+// content_meet persists the formatted note to mm2c_inflight just before sending
+// and clears it on confirmed save. If it's still present and older than the
+// grace window when the popup opens, the send never completed (e.g. a crash) —
+// offer recovery. The grace window avoids flashing the card during a normal
+// in-progress send that will clear within seconds.
+function inflightRecoverable(inflight, now = Date.now(), graceMs = 60000) {
+  return !!(inflight && typeof inflight.text === 'string' && inflight.text.trim()
+            && Number.isFinite(inflight.at) && (now - inflight.at) > graceMs);
+}
+
 // Pure helper — the single source of truth for the popup status-banner text and
 // CSS class. Centralising this removes the dual-writer race where onTabSelected
 // and applyState both wrote #status from independent async callbacks (BUG-C).
