@@ -22,7 +22,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-HOST_VERSION = '0.1.30'  # updated in lockstep with manifest.json version
+HOST_VERSION = '0.2.0'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.

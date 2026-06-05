@@ -11,6 +11,32 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ---
 
+## [0.2.0] – 2026-06-05 · Roadmap sweep — UX, privacy, resilience & integrations
+
+A large batch clearing the Tier 0–4 backlog. Every item ships with tests; new
+pure logic lands in the measured `constants.js`/host layers. JS tests 307 → 436,
+Python 186 → 210.
+
+### Added
+- **Design-token contract (UXC-0)** — `extension/design_tokens.js` is now the single source of truth for palette/radii/spacing/type across the popup, the in-Meet toast/overlay, and the toolbar badge. A drift-guard spec (`tests/tokens.spec.js`) keeps the popup `:root` and badge/toast in sync.
+- **Selector resilience** — a centralized selector registry with a join-time **health self-test** (RB-1a) turns a Meet DOM change into an observable diagnostic; an opt-in **remote selector hotfix** (RB-1b) can patch a broken selector via a `selectors.json` URL without a release.
+- **Crash recovery (RB-1d)** — the formatted note is persisted in-flight and offered for recovery in the popup if a send never completes.
+- **Note quality** — content-derived **topic tags** in frontmatter (RB-4c), opt-in **wikilinks** for graph apps (RB-4e), per-rule **title templates** (RB-4d), and a **provenance footer** on every note (UXC-22).
+- **Action items leave the note** — push to **Things / Todoist / OmniFocus** (RB-3a) and a **"N for you"** badge that flags items assigned to you (UXF-7).
+- **Outputs** — **Bear** output (5.8) and **email via mailto:** (RB-3c, beta). Obsidian and Bear are flagged **untested**.
+- **Power features (beta)** — **private reflection** dual-output pass (P9-H) and **review-before-send** (RB-4b).
+- **UX** — tri-state **System/Light/Dark** theme (UXF-8), **date-sectioned logs** (UXF-4), persisted/collapsed log groups (UXF-6), a **beta-features** toggle (UXF-1), a **first-run checklist** (RB-7a), a **Run diagnostics** report (RB-7b), per-rule **enable/disable** + **time-spent** conditions (UXF-9/UXF-10), and **Microsoft Edge** support (RB-2b).
+
+### Changed
+- **Friendly errors (UXC-3)** — raw exception strings no longer reach the banner/toast; the raw text stays in the debug log.
+- **Consistency** — one canonical "Gemini wasn't active" message (UXC-2), a single output-target term ("output app", UXC-16), a unified semantic colour palette/type/radius/spacing scale (UXC-5/8/11/12/14), focus rings + consistent copy buttons (UXC-9/18), and the in-Meet toast/overlay extracted to `content_meet.css` and rebuilt on the tokens (UXC-7/6).
+- **Robustness** — errors are no longer swallowed (A3), popup storage reads are batched (C2), input paths are validated (A4), the `waitForX` helpers are collapsed (ARCH-5), and background handler predicates are extracted + tested (D2). The popup is content-driven with a visible scrollbar (UXF-12).
+
+### Notes
+- **Deferred (need live verification or external access):** the Craft folder picker (5.2), the full `content_meet.js` module split + E2E harness (ARCH-7/ARCH-9, = the parked TEST-1), and the live-Gemini halves of dual-output/review (regenerate). Code for verify-blocked items ships behind opt-in toggles.
+
+---
+
 ## [0.1.125] – 2026-06-04 · Testable prompt construction (Tier 3 audit)
 
 ### Changed
