@@ -173,7 +173,7 @@ Open the extension popup → **Settings tab**:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b my-new-feature`
-3. Run the test suite: `npm run test:all` (the Apple Notes integration tests are opt-in — they launch the Notes app — and skip by default; run them deliberately with `GEMEMO_NOTES_INTEGRATION=1 python3 -m pytest native_host/test_apple_notes.py`)
+3. Run the test suite: `npm run test:all` — Python unit tests + Playwright. This includes an **extension E2E harness** (`tests/extension-e2e.spec.js` + `tests/ext-harness.js`) that loads the real unpacked extension headlessly and exercises `background.js`/`popup.js`, plus guarded JS coverage on the pure layer. (The Apple Notes integration tests are opt-in — they launch the Notes app — and skip by default; run them deliberately with `GEMEMO_NOTES_INTEGRATION=1 python3 -m pytest native_host/test_apple_notes.py`.)
 4. Commit your changes: `git commit -am 'Add some feature'`
 5. Push to the branch: `git push origin my-new-feature`
 6. Submit a pull request
