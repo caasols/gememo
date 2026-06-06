@@ -184,5 +184,30 @@ class TestTokenOps(unittest.TestCase):
         self.assertFalse(s["available"])
 
 
+class TestPureEdges(unittest.TestCase):
+    """Cheap branch coverage for the small pure helpers."""
+
+    def test_nearest_by_time_empty_is_none(self):
+        self.assertIsNone(gcal._nearest_by_time([], "2026-06-05T09:00:00Z"))  # 66-67
+
+    def test_nearest_by_time_bad_timestamp_returns_first(self):
+        events = [{"summary": "first"}, {"summary": "second"}]
+        self.assertEqual(gcal._nearest_by_time(events, "not-a-date"), events[0])  # 69-70
+
+    def test_window_around_naive_iso_is_treated_as_utc(self):
+        # A naive (tz-less) ISO timestamp hits the tzinfo-None branch (152).
+        lo, hi = gcal._window_around("2026-06-05T09:00:00", before_h=3, after_h=1)
+        self.assertEqual(lo, "2026-06-05T06:00:00Z")
+        self.assertEqual(hi, "2026-06-05T10:00:00Z")
+
+    def test_first_sentence_empty(self):
+        self.assertEqual(gcal._first_sentence(""), "")      # 181-182
+        self.assertEqual(gcal._first_sentence(None), "")
+        self.assertEqual(gcal._first_sentence("\n\n  \n"), "")  # whitespace-only ⇒ s falsy
+
+    def test_first_sentence_stops_at_punctuation(self):
+        self.assertEqual(gcal._first_sentence("Ship it. Then rest."), "Ship it.")
+
+
 if __name__ == "__main__":
     unittest.main()

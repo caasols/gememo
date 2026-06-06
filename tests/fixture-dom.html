@@ -49,7 +49,7 @@
 
     async function run() {
       results.length = 0;
-      const { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton } =
+      const { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording } =
         window.MM2C_SELECTORS;
       const savedTitle = document.title;
 
@@ -140,6 +140,27 @@
 
       await withFixture('', () => {
         assert('returns null when absent', getLeaveButton() === null);
+      });
+
+      console.groupEnd();
+
+      // ── isRecording (P9-A3c) ─────────────────────────────────────────────────
+      console.group('isRecording');
+
+      await withFixture('', () => {
+        assert('no recording indicator → false', isRecording() === false);
+      });
+
+      await withFixture('<div aria-label="This meeting is being recorded"></div>', () => {
+        assert('"is being recorded" aria-label → true', isRecording() === true);
+      });
+
+      await withFixture('<span aria-label="Recording"></span>', () => {
+        assert('Recording aria-label (case-insensitive) → true', isRecording() === true);
+      });
+
+      await withFixture('<div data-tooltip="Stop recording"></div>', () => {
+        assert('data-tooltip recording → true', isRecording() === true);
       });
 
       console.groupEnd();

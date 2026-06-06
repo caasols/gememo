@@ -265,6 +265,222 @@ class TestMainCaptureFlow(unittest.TestCase):
             sent = self._run({"type": "retry", "title": "Standup", "backupPath": str(bp)}, _proc(0))
             self.assertEqual(sent[-1]["status"], "ok")
 
+    # ── empty / missing message ─────────────────────────────────────────────
+    def test_empty_message_errors(self):
+        # read_message → None (Chrome closed the pipe) ⇒ guarded error reply.
+        sent = self._run(None, _proc(0))
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("empty message", sent[-1]["error"])
+
+    # ── choose_folder edge branches ─────────────────────────────────────────
+    def test_choose_folder_timeout(self):
+        with tempfile.TemporaryDirectory() as cache_tmp:
+            sent = []
+            with patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                    patch.object(host, 'read_message', return_value={"type": "choose_folder"}), \
+                    patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                    patch.object(host, 'notify'), \
+                    patch.object(host.subprocess, 'run',
+                                 side_effect=host.subprocess.TimeoutExpired(cmd="osascript", timeout=25)):
+                host.main()
+            self.assertEqual(sent[-1]["status"], "error")
+            self.assertIn("timed out", sent[-1]["error"])
+
+    def test_choose_folder_no_selection(self):
+        # returncode 1 / empty stdout ⇒ "No folder selected".
+        sent = self._run({"type": "choose_folder"}, _proc(1, stdout=""))
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("No folder selected", sent[-1]["error"])
+
+    # ── prior_context with an EXISTING prior note ───────────────────────────
+    def test_prior_context_with_existing_note(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            # A prior final note (yesterday) for the same series, with a Summary.
+            (Path(tmp) / "20260531-standup.md").write_text(
+                'title: "Standup"\ndate: 2026-05-31\n\n## Summary\nWe agreed on the plan.\n',
+                encoding="utf-8")
+            sent = self._run({"type": "prior_context", "meetingTitle": "Standup",
+                              "fileBackupPath": tmp}, _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertTrue(sent[-1]["context"])  # non-empty — the prior summary fed through
+            self.assertIn("agreed on the plan", sent[-1]["context"])
+
+
+class TestGcalDispatch(unittest.TestCase):
+    """main() routing for the gcal_* / pre_meeting_brief beta messages."""
+
+    def _dispatch(self, msg):
+        sent = []
+        with patch.object(host, 'read_message', return_value=msg), \
+                patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                patch.object(host, 'notify'):
+            host.main()
+        return sent
+
+    def test_gcal_status_sent_verbatim(self):
+        canned = {"connected": True, "available": True, "email": "lead@x.com"}
+        with patch.object(host.gcal, 'status', return_value=canned):
+            sent = self._dispatch({"type": "gcal_status"})
+        self.assertEqual(sent[-1], canned)
+
+    def test_gcal_disconnect_sent(self):
+        with patch.object(host.gcal, 'disconnect', return_value={"ok": True}) as dc:
+            sent = self._dispatch({"type": "gcal_disconnect"})
+        dc.assert_called_once()
+        self.assertEqual(sent[-1], {"ok": True})
+
+    def test_gcal_connect_spawns_detached(self):
+        with patch.object(host.subprocess, 'Popen') as popen:
+            sent = self._dispatch({"type": "gcal_connect"})
+        popen.assert_called_once()
+        # spawns gcal.py, detached
+        self.assertTrue(str(popen.call_args[0][0][-1]).endswith("gcal.py"))
+        self.assertEqual(popen.call_args[1].get("start_new_session"), True)
+        self.assertEqual(sent[-1], {"status": "ok", "started": True})
+
+    def test_gcal_connect_popen_failure_errors(self):
+        with patch.object(host.subprocess, 'Popen', side_effect=OSError("nope")):
+            sent = self._dispatch({"type": "gcal_connect"})
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("nope", sent[-1]["error"])
+
+    def test_pre_meeting_brief_ok(self):
+        with patch.object(host.gcal, 'GCAL_AVAILABLE', True), \
+                patch.object(host.gcal, 'live_events_provider', return_value=lambda: []), \
+                patch.object(host.gcal, 'pre_meeting_brief',
+                             return_value={"ok": True, "matched": True,
+                                           "bullets": ["Agenda: ship it"], "title": "Q3"}):
+            sent = self._dispatch({"type": "pre_meeting_brief", "meetingCode": "abc-defg-hij",
+                                   "timestamp": "2026-06-01T09:00:00Z", "meetingTitle": "Q3"})
+        self.assertTrue(sent[-1]["ok"])
+        self.assertIn("Agenda: ship it", sent[-1]["bullets"])
+
+    def test_pre_meeting_brief_unavailable(self):
+        with patch.object(host.gcal, 'GCAL_AVAILABLE', False):
+            sent = self._dispatch({"type": "pre_meeting_brief"})
+        self.assertEqual(sent[-1], {"ok": False, "error": "unavailable"})
+
+
+class TestGdocsDispatch(unittest.TestCase):
+    """main() routing for the gdocs_* beta messages."""
+
+    def _dispatch(self, msg):
+        sent = []
+        with patch.object(host, 'read_message', return_value=msg), \
+                patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                patch.object(host, 'notify'):
+            host.main()
+        return sent
+
+    def test_gdocs_status_sent_verbatim(self):
+        canned = {"connected": False, "available": True}
+        with patch.object(host.gdocs, 'status', return_value=canned):
+            sent = self._dispatch({"type": "gdocs_status"})
+        self.assertEqual(sent[-1], canned)
+
+    def test_gdocs_disconnect_sent(self):
+        with patch.object(host.gdocs, 'disconnect', return_value={"ok": True}) as dc:
+            sent = self._dispatch({"type": "gdocs_disconnect"})
+        dc.assert_called_once()
+        self.assertEqual(sent[-1], {"ok": True})
+
+    def test_gdocs_connect_spawns_detached(self):
+        with patch.object(host.subprocess, 'Popen') as popen:
+            sent = self._dispatch({"type": "gdocs_connect"})
+        popen.assert_called_once()
+        self.assertTrue(str(popen.call_args[0][0][-1]).endswith("gdocs.py"))
+        self.assertEqual(popen.call_args[1].get("start_new_session"), True)
+        self.assertEqual(sent[-1], {"status": "ok", "started": True})
+
+    def test_gdocs_connect_popen_failure_errors(self):
+        with patch.object(host.subprocess, 'Popen', side_effect=OSError("boom")):
+            sent = self._dispatch({"type": "gdocs_connect"})
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("boom", sent[-1]["error"])
+
+
+class TestCaptureHooks(unittest.TestCase):
+    """Capture-path wiring inside main(): googleDocsOutput / destinations /
+    calendar enrichment / wikilinks / backupCleanup / timestamp fallback.
+    Reuses the TestMainCaptureFlow harness."""
+
+    _run = TestMainCaptureFlow._run
+    _capture_msg = TestMainCaptureFlow._capture_msg
+
+    # 7 — googleDocsOutput → gdocs.create_doc(title, craft_md)
+    def test_google_docs_output_calls_create_doc(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = []
+            with patch.object(host.gdocs, 'GDOCS_AVAILABLE', True), \
+                    patch.object(host.gdocs, 'create_doc',
+                                 side_effect=lambda t, b: calls.append((t, b)) or {"ok": True}):
+                sent = self._run(self._capture_msg(tmp, googleDocsOutput=True), _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(len(calls), 1)
+            title, body = calls[0]
+            self.assertTrue(title.endswith("Q3 Planning"))
+            self.assertIn("We shipped it.", body)
+
+    def test_google_docs_output_isolated_when_create_doc_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(host.gdocs, 'GDOCS_AVAILABLE', True), \
+                    patch.object(host.gdocs, 'create_doc', side_effect=RuntimeError("docs down")):
+                sent = self._run(self._capture_msg(tmp, googleDocsOutput=True), _proc(0))
+            # best-effort except — capture still succeeds
+            self.assertEqual(sent[-1]["status"], "ok")
+
+    # 8 — destinations → send_to_configured_destinations(list, ...)
+    def test_destinations_hook_wires_into_main(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rows = [{"type": "apple_notes"}]
+            calls = []
+            with patch.object(host, 'send_to_configured_destinations',
+                              side_effect=lambda d, *a, **k: calls.append(d)):
+                sent = self._run(self._capture_msg(tmp, destinations=rows), _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(calls, [rows])
+
+    # 9 — calendar enrichment → cal_fields reach the frontmatter (covers 309)
+    def test_calendar_enrichment_reaches_frontmatter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cal = {"organizer": "lead@x.com", "scheduled_end": "2026-06-01T10:00:00Z"}
+            with patch.object(host.gcal, 'GCAL_AVAILABLE', True), \
+                    patch.object(host.gcal, 'live_events_provider', return_value=lambda: []), \
+                    patch.object(host.gcal, 'enrich_frontmatter_fields',
+                                 return_value=(cal, 'ok')):
+                self._run(self._capture_msg(tmp, calendarEnabled=True,
+                                            meetingCode="abc-defg-hij"), _proc(0))
+            content = next(Path(tmp).glob("*.md")).read_text(encoding="utf-8")
+            self.assertIn("organizer: lead@x.com", content)
+            self.assertIn("scheduled_end: 2026-06-01T10:00:00Z", content)
+
+    # 14 — wikilinks → attendee names wrapped in [[ ]] on the persisted note
+    def test_wikilinks_hook_wraps_attendees(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run(self._capture_msg(
+                tmp, wikilinks=True, attendees=["Alice"],
+                transcript="## Summary\nAlice owns the rollout."), _proc(0))
+            content = next(Path(tmp).glob("*.md")).read_text(encoding="utf-8")
+            self.assertIn("[[Alice]]", content)
+
+    # 15 — backupCleanup → cleanup_backups called
+    def test_backup_cleanup_hook_called(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = []
+            with patch.object(host, 'cleanup_backups',
+                              side_effect=lambda p, cfg, *a, **k: calls.append(cfg)):
+                sent = self._run(self._capture_msg(
+                    tmp, backupCleanup={"maxAgeDays": 30}), _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(calls, [{"maxAgeDays": 30}])
+
+    # 16 — unparseable timestamp → fallback to now(), capture still oks
+    def test_timestamp_garbage_falls_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sent = self._run(self._capture_msg(tmp, timestamp="garbage"), _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(len(list(Path(tmp).glob("*.md"))), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
