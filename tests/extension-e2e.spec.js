@@ -543,7 +543,8 @@ test.describe('extension E2E harness', () => {
     });
 
     test('toggling Redact PII persists to storage', async () => {
-      const page = await popupWith({ mm2c_redact_pii: false });
+      // Privacy is beta-gated now — enable Experimental so the widget shows.
+      const page = await popupWith({ mm2c_redact_pii: false, mm2c_beta_enabled: true });
       await page.click('#tab-settings');
       // The checkbox is a visually-hidden custom toggle (opacity:0); click its
       // wrapping label to drive the real change handler.
@@ -560,6 +561,44 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-beta');
       await expect(page.locator('#beta-panel #gcal-connect')).toBeVisible();
       await expect(page.locator('#beta-panel #dual-output')).toBeAttached();
+      await page.close();
+    });
+
+    test('advanced features are hidden when Experimental is OFF (beta gating)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: false });
+      await page.click('#tab-settings');
+      // Settings-tab gated widgets: Your name, Webhook, Privacy, action-item routing, also-send, wikilinks.
+      await expect(page.locator('#my-aliases')).not.toBeVisible();
+      await expect(page.locator('#webhook-url')).not.toBeVisible();
+      await expect(page.locator('#redact-keywords')).not.toBeVisible();
+      await expect(page.locator('#task-app')).not.toBeVisible();
+      await expect(page.getByText('Wikilinks for graph apps')).not.toBeVisible();
+      await expect(page.locator('.also-send')).not.toBeVisible();
+      // Core Settings stay visible.
+      await expect(page.locator('#output-app')).toBeVisible();
+      // Rules-tab Glossary is gated; Default prompt + Meeting rules stay.
+      await page.click('#tab-rules');
+      await expect(page.locator('#glossary')).not.toBeVisible();
+      await expect(page.locator('#rules-toggle')).toBeVisible();
+      // Logs-tab past-meeting search is gated; the log list stays.
+      await page.click('#tab-logs');
+      await expect(page.locator('#note-search')).not.toBeVisible();
+      await page.close();
+    });
+
+    test('advanced features appear when Experimental is ON (beta gating)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true });
+      await page.click('#tab-settings');
+      await expect(page.locator('#my-aliases')).toBeVisible();
+      await expect(page.locator('#webhook-url')).toBeVisible();
+      await expect(page.locator('#redact-keywords')).toBeVisible();
+      await expect(page.locator('#task-app')).toBeVisible();
+      await expect(page.getByText('Wikilinks for graph apps')).toBeVisible();
+      await expect(page.locator('.also-send')).toBeVisible();
+      await page.click('#tab-rules');
+      await expect(page.locator('#glossary')).toBeVisible();
+      await page.click('#tab-logs');
+      await expect(page.locator('#note-search')).toBeVisible();
       await page.close();
     });
 
