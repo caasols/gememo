@@ -11,6 +11,9 @@ let showDebugLogs = false;
 // mm2c_expanded_groups in applyState; mutated + saved by the toggle handler.
 // Default: all groups collapsed.
 let expandedGroups = new Set();
+// Rule indices the user has expanded (rules render collapsed by default, like the
+// template rows). Kept in-memory so a re-render on save doesn't reset the state.
+let expandedRuleIdx = new Set();
 
 const GLOBAL_KEYS = [
   'mm2c_enabled', 'mm2c_prompt',
@@ -192,6 +195,7 @@ function renderRules(rules) {
     const item = document.createElement('div');
     item.className = 'rule-item';
     item.dataset.index = i;
+    const open = expandedRuleIdx.has(i); // collapsed by default; survives re-renders
     item.innerHTML = `
       <div class="rule-header">
         ${rule.name ? `<span class="rule-name" title="Added from a built-in template">${escapeHtml(rule.name)}</span>` : ''}
@@ -203,26 +207,29 @@ function renderRules(rules) {
           <input type="checkbox" class="rule-enabled" ${rule.enabled === false ? '' : 'checked'}>
           <span class="toggle-track"></span>
         </label>
+        <button class="btn-collapse rule-expand ${open ? 'open' : ''}" type="button" aria-label="Expand or collapse this rule">▶</button>
       </div>
-      <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
-      <input class="rule-title-template" type="text" placeholder="Title template (optional) — {date} {time} {name} {type} {code}" value="${escapeHtml(rule.titleTemplate || '')}">
-      <div class="rule-condition">
-        <span class="rule-cond-label">…or when:</span>
-        <span class="rule-days">${DAYS.map(([n, lbl]) =>
-          `<label title="${lbl}"><input type="checkbox" class="rule-day" data-day="${n}" ${selDays.includes(n) ? 'checked' : ''}>${lbl}</label>`).join('')}</span>
-        <span class="rule-hours">
-          <input type="number" class="rule-hour-start" min="0" max="23" placeholder="0" value="${Number.isInteger(cond.startHour) ? cond.startHour : ''}">–
-          <input type="number" class="rule-hour-end" min="0" max="24" placeholder="24" value="${Number.isInteger(cond.endHour) ? cond.endHour : ''}">h
-        </span>
-        <span class="rule-hours" title="Time actually spent in the meeting (minutes)">
-          <input type="number" class="rule-min-spent" min="0" placeholder="min" value="${Number.isInteger(cond.minMinutes) ? cond.minMinutes : ''}">–
-          <input type="number" class="rule-max-spent" min="0" placeholder="max" value="${Number.isInteger(cond.maxMinutes) ? cond.maxMinutes : ''}">m
-        </span>
-        <select class="rule-depth" title="Summary depth">
-          <option value="" ${!rule.depth ? 'selected' : ''}>Standard depth</option>
-          <option value="brief" ${rule.depth === 'brief' ? 'selected' : ''}>Brief</option>
-          <option value="detailed" ${rule.depth === 'detailed' ? 'selected' : ''}>Detailed</option>
-        </select>
+      <div class="rule-body ${open ? '' : 'hidden'}">
+        <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
+        <input class="rule-title-template" type="text" placeholder="Title template (optional) — {date} {time} {name} {type} {code}" value="${escapeHtml(rule.titleTemplate || '')}">
+        <div class="rule-condition">
+          <span class="rule-cond-label">…or when:</span>
+          <span class="rule-days">${DAYS.map(([n, lbl]) =>
+            `<label title="${lbl}"><input type="checkbox" class="rule-day" data-day="${n}" ${selDays.includes(n) ? 'checked' : ''}>${lbl}</label>`).join('')}</span>
+          <span class="rule-hours">
+            <input type="number" class="rule-hour-start" min="0" max="23" placeholder="0" value="${Number.isInteger(cond.startHour) ? cond.startHour : ''}">–
+            <input type="number" class="rule-hour-end" min="0" max="24" placeholder="24" value="${Number.isInteger(cond.endHour) ? cond.endHour : ''}">h
+          </span>
+          <span class="rule-hours" title="Time actually spent in the meeting (minutes)">
+            <input type="number" class="rule-min-spent" min="0" placeholder="min" value="${Number.isInteger(cond.minMinutes) ? cond.minMinutes : ''}">–
+            <input type="number" class="rule-max-spent" min="0" placeholder="max" value="${Number.isInteger(cond.maxMinutes) ? cond.maxMinutes : ''}">m
+          </span>
+          <select class="rule-depth" title="Summary depth">
+            <option value="" ${!rule.depth ? 'selected' : ''}>Standard depth</option>
+            <option value="brief" ${rule.depth === 'brief' ? 'selected' : ''}>Brief</option>
+            <option value="detailed" ${rule.depth === 'detailed' ? 'selected' : ''}>Detailed</option>
+          </select>
+        </div>
       </div>
     `;
     list.appendChild(item);
@@ -1030,12 +1037,24 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get(['mm2c_prompt_rules'], ({ mm2c_prompt_rules }) => {
       const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
       rules.push({ regex: '', prompt: '' });
+      expandedRuleIdx.add(rules.length - 1); // open the new rule for editing
       save({ mm2c_prompt_rules: rules });
       renderRules(rules);
     });
   });
 
   $('rules-list').addEventListener('click', (e) => {
+    // Collapse/expand a rule's body (chevron on the right, like the templates).
+    const expandBtn = e.target.closest('.rule-expand');
+    if (expandBtn) {
+      const idx  = parseInt(expandBtn.closest('.rule-item')?.dataset.index, 10);
+      const body = expandBtn.closest('.rule-item')?.querySelector('.rule-body');
+      if (!body) return;
+      const shown = !body.classList.toggle('hidden');
+      expandBtn.classList.toggle('open', shown);
+      if (Number.isInteger(idx)) shown ? expandedRuleIdx.add(idx) : expandedRuleIdx.delete(idx);
+      return;
+    }
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const idx    = parseInt(btn.dataset.index, 10);
@@ -1049,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (action === 'down' && idx < rules.length - 1) {
         [rules[idx], rules[idx + 1]] = [rules[idx + 1], rules[idx]];
       }
+      expandedRuleIdx.clear(); // indices shifted — reset collapse state
       save({ mm2c_prompt_rules: rules });
       renderRules(rules);
     });
