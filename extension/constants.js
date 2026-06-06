@@ -717,9 +717,14 @@ function extractMeetingCode(pathname) {
 // no title (getMeetingTitle returns '' or a 'Personal meeting (code)' label, and
 // a bare room code can leak through). All of those are ad-hoc.
 const _MEET_CODE_RE = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/i;
+// Pure helper — is this string a bare Meet room code like "abc-defg-hij"?
+// (ARCH-7) Deduped from the inline regex in content_meet.js getMeetingTitle.
+function isMeetCode(s) {
+  return _MEET_CODE_RE.test(String(s || ''));
+}
 function inferMeetingType(title) {
   const t = String(title || '').trim();
-  if (!t || _MEET_CODE_RE.test(t) || /^Personal meeting \(/.test(t)) return 'ad-hoc';
+  if (!t || isMeetCode(t) || /^Personal meeting \(/.test(t)) return 'ad-hoc';
   return 'calendar';
 }
 
@@ -812,4 +817,34 @@ function resolveBanner({ capturing = false, inMeeting = false, geminiActive = fa
     return { text: lastStatus, cls };
   }
   return { text: 'Not in a meeting', cls: '' };
+}
+
+// Pure helper — map an output-app key to its human label (ARCH-7). Moved
+// verbatim from content_meet.js; unknown keys pass through unchanged.
+function outputAppName(appKey) {
+  return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
+}
+
+// Pure helper — turn one meeting-title candidate into a display title (ARCH-7).
+// Empty/whitespace → ''; a bare room code → "Personal meeting (code)"; otherwise
+// the trimmed candidate itself.
+function meetingTitleFromCandidate(str) {
+  const t = (str || '').trim();
+  if (!t) return '';
+  return isMeetCode(t) ? `Personal meeting (${t})` : t;
+}
+
+// Pure helper — extract the meeting title from the browser tab title (ARCH-7).
+// "Meet - Foo" → "Foo", "Meet - abc-defg-hij" → "Personal meeting (abc-defg-hij)".
+// A non-Meet title (or no match) → ''. Keeps the en-dash variant of the separator.
+function meetingTitleFromTab(documentTitle) {
+  const m = String(documentTitle || '').match(/^Meet\s*[-–]\s*(.+)$/i);
+  return m ? meetingTitleFromCandidate(m[1]) : '';
+}
+
+// Pure helper — is this a plausible attendee display name (ARCH-7)? Filters out
+// empties, single chars, over-long strings, and pure-numeric ids.
+function isValidAttendeeName(n) {
+  const s = (n || '').trim();
+  return s.length > 1 && s.length < 80 && !/^\d+$/.test(s);
 }
