@@ -753,6 +753,7 @@
     .rule-toggle { margin-left: 4px; }
     .rule-regex {
       flex: 1;
+      min-width: 0; /* allow the input to shrink so the row never overflows the popup */
       font-size: 12px;
       font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
       border: 1px solid var(--border);
