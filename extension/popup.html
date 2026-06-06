@@ -126,6 +126,9 @@
       /* Thin, subtle scrollbar — signal "there's more" instead of hiding it (UXF-12). */
       scrollbar-width: thin;
       scrollbar-color: var(--border-strong) transparent;
+      /* Always reserve the scrollbar gutter so content width is identical whether
+         or not a tab overflows — no left/right shift when switching tabs (UXF-15). */
+      scrollbar-gutter: stable;
       min-height: 0;
     }
     #main-content::-webkit-scrollbar { width: 8px; }
