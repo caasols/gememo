@@ -549,12 +549,32 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-rules');
       await page.click('#rules-toggle');
       const fits = await page.evaluate(() => {
-        const tg = document.querySelector('#rules-list .rule-toggle');
-        if (!tg) return false;
-        // Toggle's right edge must be within the popup body width.
-        return Math.round(tg.getBoundingClientRect().right) <= document.body.clientWidth;
+        // The chevron is the right-most header control; its right edge must stay
+        // within the popup body width (and the header must not overflow).
+        const chev = document.querySelector('#rules-list .rule-expand');
+        const hdr  = document.querySelector('#rules-list .rule-header');
+        if (!chev || !hdr) return false;
+        return Math.round(chev.getBoundingClientRect().right) <= document.body.clientWidth
+          && hdr.scrollWidth <= hdr.clientWidth + 1;
       });
       expect(fits).toBe(true);
+      await page.close();
+    });
+
+    test('editable rules collapse/expand via the right-side chevron', async () => {
+      const page = await popupWith({
+        mm2c_prompt_rules: [{ name: 'Standup', regex: 'standup', prompt: 'p', enabled: true }],
+      });
+      await page.click('#tab-rules');
+      await page.click('#rules-toggle');
+      const body = page.locator('#rules-list .rule-item .rule-body');
+      const chev = page.locator('#rules-list .rule-item .rule-expand');
+      await expect(chev).toHaveCount(1);
+      await expect(body).toBeHidden();   // collapsed by default (tidy, like templates)
+      await chev.click();
+      await expect(body).toBeVisible();  // chevron expands the prompt/conditions
+      await chev.click();
+      await expect(body).toBeHidden();   // and collapses again
       await page.close();
     });
 
