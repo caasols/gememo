@@ -1217,9 +1217,9 @@
   // on a confirmed save (or handled error). cachedTranscript itself is RAM-only
   // and disk snapshots are raw transcripts, so this is the only durable copy of
   // the FORMATTED note.
-  function setInflightNote(title, text) {
+  function setInflightNote(title, text, durationMin) {
     if (!isContextValid()) return;
-    try { chrome.storage.local.set({ mm2c_inflight: { title: title || '', text: text || '', at: Date.now() } }); } catch {}
+    try { chrome.storage.local.set({ mm2c_inflight: { title: title || '', text: text || '', durationMin: durationMin ?? null, at: Date.now() } }); } catch {}
   }
   function clearInflightNote() {
     if (!isContextValid()) return;
@@ -1382,7 +1382,8 @@
         // and risk silent data loss. A 20 s timeout ensures we always leave.
         // Persist the formatted note before sending so a crash mid-send is
         // recoverable from the popup (RB-1d); cleared once the send resolves.
-        setInflightNote(meetingTitle, transcript);
+        const inflightDurationMin = meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null;
+        setInflightNote(meetingTitle, transcript, inflightDurationMin);
         await new Promise((resolve) => {
           const giveUp = setTimeout(() => {
             sendLog('Craft send timed out — leaving anyway');
@@ -1393,7 +1394,7 @@
             text: transcript,
             meetingTitle,
             attendees: getAttendeeNames(),
-            durationMin: meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : null,
+            durationMin: inflightDurationMin,
             meetingCode: currentMeetingCode,
             meetingType: currentMeetingType,
             titleTemplate: currentTitleTemplate,
