@@ -726,6 +726,15 @@
       align-items: center;
       gap: 4px;
     }
+    /* Name badge on rules added from a built-in template. */
+    .rule-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    /* Enable toggle sits on the far right of the row (coherent with other toggles). */
+    .rule-toggle { margin-left: 4px; }
     .rule-regex {
       flex: 1;
       font-size: 12px;
@@ -837,26 +846,28 @@
     .rule-days label { display: inline-flex; align-items: center; gap: 2px; }
     .rule-hours input { width: 38px; padding: 2px 4px; font-size: 11px; }
 
-    /* Built-in templates (read-only) */
-    /* Section label — same type as .widget-title (UXC-12), just with vertical
-       margin since it sits inline within the Rules panel. */
-    .rules-subhead {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin: 10px 0 4px;
-    }
-    /* Toggle (sibling) + the disclosure details on one row. */
+    /* Built-in templates shown inline in the rules list — off by default; the
+       toggle on the RIGHT switches one on (materialises it into an editable rule,
+       so it joins the rules above). The disclosure expands the template's prompt. */
     .builtin-rule-row {
       display: flex;
       align-items: flex-start;
-      gap: 4px;
+      gap: 6px;
       margin-bottom: 6px;
     }
-    .builtin-rule-row .toggle-wrap { flex-shrink: 0; margin-top: 6px; }
     .builtin-rule-row .builtin-rule { flex: 1; min-width: 0; margin-bottom: 0; }
+    .builtin-rule-row .toggle-wrap { flex-shrink: 0; margin-top: 6px; } /* aligns with the summary line */
+    .bi-tag {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--text-muted);
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
     .builtin-rule {
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -883,11 +894,16 @@
       flex-shrink: 0;
     }
     .builtin-rule[open] summary::before { transform: rotate(90deg); }
-    .builtin-rule summary .bi-name { font-weight: 600; }
+    .builtin-rule summary .bi-name { font-weight: 600; flex-shrink: 0; }
     .builtin-rule summary .bi-regex {
       font-family: ui-monospace, monospace;
       font-size: 11px;
       color: var(--text-muted);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .builtin-rule .bi-prompt {
       margin-top: 6px;
@@ -1166,12 +1182,10 @@
         <div class="widget-title">Meeting rules</div>
         <button class="btn-collapse" id="rules-toggle">▶</button>
       </div>
-      <p class="hint">Match meeting titles with a regex to apply a custom prompt instead of the default.</p>
+      <p class="hint">Match meeting titles with a regex to apply a custom prompt instead of the default. Built-in templates are off by default — switch one on to add it as a rule you can edit.</p>
       <div id="rules-body" class="sub-options hidden">
-        <div class="rules-subhead">Built-in templates</div>
-        <div id="builtin-rules-list"></div>
-        <div class="rules-subhead">Your rules</div>
         <div id="rules-list"></div>
+        <div id="builtin-rules-list"></div>
         <button id="add-rule-btn">Add rule</button>
       </div>
     </div>
