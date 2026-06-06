@@ -849,28 +849,10 @@
     .rule-days label { display: inline-flex; align-items: center; gap: 2px; }
     .rule-hours input { width: 38px; padding: 2px 4px; font-size: 11px; }
 
-    /* Built-in templates shown inline in the rules list — off by default; the
-       toggle on the RIGHT switches one on (materialises it into an editable rule,
-       so it joins the rules above). The disclosure expands the template's prompt. */
-    .builtin-rule-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-    .builtin-rule-row .builtin-rule { flex: 1; min-width: 0; margin-bottom: 0; }
-    .builtin-rule-row .toggle-wrap { flex-shrink: 0; margin-top: 6px; } /* aligns with the summary line */
-    .bi-tag {
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      color: var(--text-muted);
-      border: 1px solid var(--border-strong);
-      border-radius: 4px;
-      padding: 0 4px;
-      flex-shrink: 0;
-    }
+    /* Built-in templates shown inline in the rules list — off by default. The
+       enable toggle and the expand chevron both live INSIDE the bordered box, on
+       the right; the chevron toggles the template's prompt. Switching the toggle
+       on materialises the template into an editable rule (it joins the rules above). */
     .builtin-rule {
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -878,27 +860,14 @@
       margin-bottom: 6px;
       background: var(--surface-subtle);
     }
-    .builtin-rule summary {
-      cursor: pointer;
-      font-size: 12px;
+    .builtin-head {
       display: flex;
-      gap: var(--space-3);
-      align-items: baseline;
-      list-style: none; /* drop the native disclosure marker; use our chevron */
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
     }
-    .builtin-rule summary::-webkit-details-marker { display: none; }
-    /* Same clean chevron as the log-group / section collapse arrows. */
-    .builtin-rule summary::before {
-      content: '▶';
-      font-size: 10px;
-      color: var(--text-muted);
-      transition: transform 0.15s;
-      transform-origin: center;
-      flex-shrink: 0;
-    }
-    .builtin-rule[open] summary::before { transform: rotate(90deg); }
-    .builtin-rule summary .bi-name { font-weight: 600; flex-shrink: 0; }
-    .builtin-rule summary .bi-regex {
+    .builtin-head .bi-name { font-weight: 600; flex-shrink: 0; }
+    .builtin-head .bi-regex {
       font-family: ui-monospace, monospace;
       font-size: 11px;
       color: var(--text-muted);
@@ -908,6 +877,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .builtin-head .toggle-wrap { flex-shrink: 0; }
     .builtin-rule .bi-prompt {
       margin-top: 6px;
       font-size: 11px;
@@ -1234,9 +1204,9 @@
       <p class="hint">How often to snapshot the running Gemini summary mid-meeting, so nothing is lost if capture fails when you leave.</p>
     </div>
 
-    <!-- Note language -->
-    <div class="widget">
-      <div class="widget-title">Note language</div>
+    <!-- Note language — beta-gated -->
+    <div class="widget beta">
+      <div class="widget-title">Note language <span class="beta-pill">Beta</span></div>
       <div class="row">
         <span class="label">Language</span>
         <select id="note-language">
@@ -1374,9 +1344,9 @@
 
     </div>
 
-    <!-- Review before send (RB-4b) -->
-    <div class="widget">
-      <div class="widget-title">Review</div>
+    <!-- Review before send (RB-4b) — beta-gated -->
+    <div class="widget beta">
+      <div class="widget-title">Review <span class="beta-pill">Beta</span></div>
       <div class="row">
         <span class="label">Review notes before saving</span>
         <label class="toggle-wrap">

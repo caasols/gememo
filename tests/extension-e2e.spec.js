@@ -526,7 +526,7 @@ test.describe('extension E2E harness', () => {
       expect((await getStorage(ext.serviceWorker, ['mm2c_prompt_rules'])).mm2c_prompt_rules || []).toEqual([]);
       // Switch 'Standup' on → it materialises into mm2c_prompt_rules as an enabled,
       // editable rule (with its name + regex + prompt) and leaves the template list.
-      await page.locator('#builtin-rules-list .builtin-rule-row:has(.builtin-enabled[data-name="Standup"]) label.toggle-wrap').click();
+      await page.locator('#builtin-rules-list .builtin-rule:has(.builtin-enabled[data-name="Standup"]) label.toggle-wrap').click();
       await expect.poll(async () => {
         const r = (await getStorage(ext.serviceWorker, ['mm2c_prompt_rules'])).mm2c_prompt_rules || [];
         const s = r.find(x => x.name === 'Standup');
@@ -581,6 +581,8 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#task-app')).not.toBeVisible();
       await expect(page.getByText('Wikilinks for graph apps')).not.toBeVisible();
       await expect(page.locator('.also-send')).not.toBeVisible();
+      await expect(page.locator('#note-language')).not.toBeVisible();
+      await expect(page.locator('#preview-before-send')).not.toBeVisible();
       // Core Settings stay visible.
       await expect(page.locator('#output-app')).toBeVisible();
       // Rules-tab Glossary is gated; Default prompt + Meeting rules stay.
@@ -602,6 +604,8 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#task-app')).toBeVisible();
       await expect(page.getByText('Wikilinks for graph apps')).toBeVisible();
       await expect(page.locator('.also-send')).toBeVisible();
+      await expect(page.locator('#note-language')).toBeVisible();
+      await expect(page.getByText('Review notes before saving')).toBeVisible();
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).toBeVisible();
       await page.click('#tab-logs');
