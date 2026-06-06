@@ -223,9 +223,8 @@
       justify-content: space-between;
     }
 
-    /* Shared 22×22 icon-button box (UXC-10) — one anatomy for the collapse
-       chevron and the rule up/down/delete actions; per-class tweaks below. */
-    .btn-collapse, .btn-rule-action {
+    /* 22×22 icon-button box (UXC-10) for the rule up/down/delete actions. */
+    .btn-rule-action {
       width: 22px;
       height: 22px;
       border-radius: 6px;
@@ -239,12 +238,21 @@
       flex-shrink: 0;
       font-family: inherit;
     }
+    /* Section collapse chevron — the same clean, small, borderless triangle as
+       the log-group and snapshot chevrons (consistency). Rotates 90° when open. */
     .btn-collapse {
-      color: var(--text);
-      font-size: 13px;
-      transition: background 0.1s, border-color 0.1s, transform 0.2s;
+      font-size: 10px;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      line-height: 1;
+      flex-shrink: 0;
+      font-family: inherit;
+      transition: transform 0.15s, color 0.1s;
     }
-    .btn-collapse:hover { background: var(--hover-primary); border-color: var(--focus); }
+    .btn-collapse:hover { color: var(--text); }
     .btn-collapse.open { transform: rotate(90deg); }
 
     /* Row */
@@ -853,7 +861,19 @@
       display: flex;
       gap: var(--space-3);
       align-items: baseline;
+      list-style: none; /* drop the native disclosure marker; use our chevron */
     }
+    .builtin-rule summary::-webkit-details-marker { display: none; }
+    /* Same clean chevron as the log-group / section collapse arrows. */
+    .builtin-rule summary::before {
+      content: '▶';
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform 0.15s;
+      transform-origin: center;
+      flex-shrink: 0;
+    }
+    .builtin-rule[open] summary::before { transform: rotate(90deg); }
     .builtin-rule summary .bi-name { font-weight: 600; }
     .builtin-rule summary .bi-regex {
       font-family: ui-monospace, monospace;
