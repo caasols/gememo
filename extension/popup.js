@@ -339,29 +339,27 @@ function renderSearchResults(results) {
 }
 
 // Built-in templates shown inline at the bottom of the rules list — OFF by
-// default. Only templates not yet added (by name) are shown; switching one ON
-// materialises it into mm2c_prompt_rules as a normal editable rule (so it joins
-// the rules above and drops out of here). The toggle is a SIBLING of <details>
-// (not inside <summary>) so clicking it doesn't also toggle the disclosure, and
-// sits on the RIGHT to match the rest of the app's toggles.
+// default. Only templates not yet added (by name) are shown; switching the toggle
+// ON materialises it into mm2c_prompt_rules as a normal editable rule (so it joins
+// the rules above and drops out of here). The enable toggle and the expand chevron
+// both sit INSIDE the bordered box on the right; the chevron (a plain button, not a
+// native <details>) toggles the prompt, so clicking the toggle never expands it.
 function renderTemplates(available) {
   const container = $('builtin-rules-list');
   if (!container || typeof BUILT_IN_RULES === 'undefined') return;
   const list = Array.isArray(available) ? available : [];
   container.innerHTML = list.map(rule => `
-    <div class="builtin-rule-row">
-      <details class="builtin-rule">
-        <summary>
-          <span class="bi-tag">Template</span>
-          <span class="bi-name">${escapeHtml(rule.name)}</span>
-          <span class="bi-regex">${escapeHtml(rule.regex)}</span>
-        </summary>
-        <div class="bi-prompt">${escapeHtml(rule.prompt)}</div>
-      </details>
-      <label class="toggle-wrap" title="Switch on to add this template as a rule" style="transform:scale(0.85)">
-        <input type="checkbox" class="builtin-enabled" data-name="${escapeHtml(rule.name)}">
-        <span class="toggle-track"></span>
-      </label>
+    <div class="builtin-rule">
+      <div class="builtin-head">
+        <span class="bi-name">${escapeHtml(rule.name)}</span>
+        <span class="bi-regex">${escapeHtml(rule.regex)}</span>
+        <label class="toggle-wrap" title="Switch on to add this template as a rule" style="transform:scale(0.85)">
+          <input type="checkbox" class="builtin-enabled" data-name="${escapeHtml(rule.name)}">
+          <span class="toggle-track"></span>
+        </label>
+        <button class="btn-collapse bi-expand" type="button" aria-label="Show this template's prompt">▶</button>
+      </div>
+      <div class="bi-prompt hidden">${escapeHtml(rule.prompt)}</div>
     </div>`).join('');
 }
 
@@ -1073,9 +1071,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.classList.contains('rule-day') || e.target.classList.contains('rule-depth') || e.target.classList.contains('rule-enabled')) saveRuleFromEvent(e);
   });
 
-  // Built-in template enable/disable toggles — rebuild the disabled set (names
-  // whose checkbox is unchecked) from the DOM and persist it. Event delegation
-  // on the container; DOM is left as-is (no full re-render needed on toggle).
+  // Expand/collapse a template's prompt — the chevron is a plain button (not a
+  // native <details>), so it never interferes with the enable toggle next to it.
+  $('builtin-rules-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('.bi-expand');
+    if (!btn) return;
+    const prompt = btn.closest('.builtin-rule')?.querySelector('.bi-prompt');
+    if (!prompt) return;
+    const shown = !prompt.classList.toggle('hidden');
+    btn.classList.toggle('open', shown);
+  });
+
+  // Built-in templates: switching a toggle ON materialises that template into the
+  // user's rules as an editable rule. Event delegation on the container.
   $('builtin-rules-list').addEventListener('change', (e) => {
     if (!e.target.classList.contains('builtin-enabled')) return;
     if (!e.target.checked) return; // templates only ever switch ON here → materialise
