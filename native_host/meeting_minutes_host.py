@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.3'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
+HOST_VERSION = '0.2.4'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1076,6 +1076,22 @@ def main() -> None:
 
     if msg.get("type") == "gcal_disconnect":
         send_message(gcal.disconnect())
+        return
+
+    if msg.get("type") == "pre_meeting_brief":
+        # P9-G — beta pre-meeting brief. Match the active meeting's calendar
+        # event and return ≤3 prep bullets. Best-effort; guarded by the libs.
+        if not gcal.GCAL_AVAILABLE:
+            send_message({"ok": False, "error": "unavailable"})
+            return
+        ts = msg.get("timestamp", "")
+        send_message(gcal.pre_meeting_brief(
+            msg.get("meetingCode", ""),
+            ts,
+            msg.get("meetingTitle", ""),
+            bool(msg.get("redactPii")),
+            events_provider=gcal.live_events_provider(ts),
+        ))
         return
 
     if msg.get("type") == "gcal_connect":
