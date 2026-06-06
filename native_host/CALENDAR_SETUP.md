@@ -34,5 +34,10 @@ recurrence, and scheduled time. This is a **beta** feature — enable
   Submitting the app for **OAuth verification** (or using an **Internal** Workspace
   consent screen) removes that and lets other users connect.
 - The scope is read-only; Gememo never writes to your calendar.
+- **Google Docs output (5.7)** is a **separate** connect — it needs its own
+  `https://www.googleapis.com/auth/documents` scope on the consent screen and
+  stores its own token (`token_docs.json`), so it never touches this Calendar
+  connection. Existing Calendar users are unaffected. See
+  [`GDOCS_SETUP.md`](GDOCS_SETUP.md).
 - If the Google libraries aren't installed (venv step failed), the widget shows
   *Not installed* and the feature stays off — core capture is unaffected.
