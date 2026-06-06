@@ -156,6 +156,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
           'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
           'mm2c_destinations', 'mm2c_beta_enabled',
+          'mm2c_gdocs_enabled',
         ], (data) => {
           // UXF-11 — only thread the additional-destinations repeater into the
           // host payload when experimental is on. Double-guarded: beta OFF ⇒ []
@@ -190,6 +191,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 30 },
             },
             destinations: betaOn ? (Array.isArray(data.mm2c_destinations) ? data.mm2c_destinations : []) : [],
+            // 5.7 — Google Docs output. Beta-gated + double-guarded: OFF ⇒ false
+            // ⇒ host no-op, so stale data can never change behavior.
+            googleDocsOutput: betaOn ? (data.mm2c_gdocs_enabled === true) : false,
             tabId,
           }, sr);
         });
@@ -512,10 +516,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, googleDocsOutput, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations },
+    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, alsoSend, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, googleDocsOutput },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;
