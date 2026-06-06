@@ -21,6 +21,7 @@ const GLOBAL_KEYS = [
   'mm2c_logs',
   'mm2c_note_language',
   'mm2c_prompt_rules',
+  'mm2c_builtin_disabled',
   'mm2c_snapshot_interval_min',
   'mm2c_obsidian_vault_path',
   'mm2c_failed_list',
@@ -56,7 +57,7 @@ function renderSetupWizard(hostOk) {
   if (!panel) return;
   chrome.storage.local.get(['mm2c_setup_done', 'mm2c_output_app'], ({ mm2c_setup_done, mm2c_output_app }) => {
     if (mm2c_setup_done === true) { panel.classList.add('hidden'); return; }
-    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'craft' });
+    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'none' });
     $('setup-wizard-steps').innerHTML = steps.map(s =>
       `<div style="display:flex;gap:7px;align-items:center;margin-top:6px">
          <span style="color:${s.ok ? 'var(--success)' : 'var(--text-muted)'}">${s.ok ? '✓' : '○'}</span>
@@ -337,18 +338,31 @@ function renderSearchResults(results) {
     </div>`).join('');
 }
 
-// Read-only display of the non-deletable built-in prompt templates (P5-K).
-function renderBuiltInRules() {
+// Read-only display of the non-deletable built-in prompt templates (P5-K), each
+// with an enable/disable toggle (default on). `disabled` is a string[] of
+// built-in `name`s that are OFF. The toggle is a SIBLING of <details> (not inside
+// <summary>) so clicking it doesn't also toggle the disclosure.
+function renderBuiltInRules(disabled) {
   const container = $('builtin-rules-list');
   if (!container || typeof BUILT_IN_RULES === 'undefined') return;
-  container.innerHTML = BUILT_IN_RULES.map(rule => `
-    <details class="builtin-rule">
-      <summary>
-        <span class="bi-name">${escapeHtml(rule.name)}</span>
-        <span class="bi-regex">${escapeHtml(rule.regex)}</span>
-      </summary>
-      <div class="bi-prompt">${escapeHtml(rule.prompt)}</div>
-    </details>`).join('');
+  const off = new Set(Array.isArray(disabled) ? disabled : []);
+  container.innerHTML = BUILT_IN_RULES.map(rule => {
+    const isOff = off.has(rule.name);
+    return `
+    <div class="builtin-rule-row">
+      <label class="toggle-wrap" title="${isOff ? 'Template disabled' : 'Template enabled'}" style="transform:scale(0.85)">
+        <input type="checkbox" class="builtin-enabled" data-name="${escapeHtml(rule.name)}" ${isOff ? '' : 'checked'}>
+        <span class="toggle-track"></span>
+      </label>
+      <details class="builtin-rule">
+        <summary>
+          <span class="bi-name">${escapeHtml(rule.name)}</span>
+          <span class="bi-regex">${escapeHtml(rule.regex)}</span>
+        </summary>
+        <div class="bi-prompt">${escapeHtml(rule.prompt)}</div>
+      </details>
+    </div>`;
+  }).join('');
 }
 
 // Render the crash-recovery card from a persisted in-flight note (RB-1d).
@@ -419,8 +433,9 @@ function applyState(s, tabId, live = null) {
   $('prompt').value = s.mm2c_prompt || DEFAULT_PROMPT;
   $('glossary').value = s.mm2c_glossary || '';
 
-  // Output app selector — default to 'craft' for existing users
-  const outputApp = s.mm2c_output_app || 'craft';
+  // Output app selector — default to 'none' so onboarding's "Choose an output
+  // app" step is a real choice (and nothing is silently saved before you pick).
+  const outputApp = s.mm2c_output_app || 'none';
   $('output-app').value = outputApp;
   $('craft-sub-options').classList.toggle('hidden', outputApp !== 'craft');
   $('obsidian-sub-options').classList.toggle('hidden', outputApp !== 'obsidian');
@@ -499,6 +514,7 @@ function applyState(s, tabId, live = null) {
   }
 
   renderRules(s.mm2c_prompt_rules || []);
+  renderBuiltInRules(s.mm2c_builtin_disabled);
   $('snapshot-interval').value = s.mm2c_snapshot_interval_min || 8;
 
   // Keep capture-now button in sync with capture + live meeting state
@@ -1055,6 +1071,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Day checkboxes + depth select fire 'change', not 'blur' — capture those too.
   $('rules-list').addEventListener('change', (e) => {
     if (e.target.classList.contains('rule-day') || e.target.classList.contains('rule-depth') || e.target.classList.contains('rule-enabled')) saveRuleFromEvent(e);
+  });
+
+  // Built-in template enable/disable toggles — rebuild the disabled set (names
+  // whose checkbox is unchecked) from the DOM and persist it. Event delegation
+  // on the container; DOM is left as-is (no full re-render needed on toggle).
+  $('builtin-rules-list').addEventListener('change', (e) => {
+    if (!e.target.classList.contains('builtin-enabled')) return;
+    const disabled = [...document.querySelectorAll('#builtin-rules-list .builtin-enabled:not(:checked)')]
+      .map(c => c.dataset.name);
+    save({ mm2c_builtin_disabled: disabled });
   });
 
   $('prompt').addEventListener('change', e => {
