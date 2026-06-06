@@ -1052,7 +1052,7 @@
       try {
         document.querySelectorAll(sel).forEach(el => {
           const n = (el.textContent || el.dataset?.selfName || '').trim();
-          if (n.length > 1 && n.length < 80 && !/^\d+$/.test(n)) names.add(n);
+          if (isValidAttendeeName(n)) names.add(n);
         });
       } catch { /* selector unsupported in this Meet build — try the next one */ }
     }
@@ -1063,18 +1063,9 @@
   // Tab title is "Meet - MEETING NAME". Extract the name part.
 
   function getMeetingTitle() {
-    // Meet generates codes like "abc-defg-hij" — not useful as titles
-    const isMeetCode = s => /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/i.test(s);
-
     // 1. Tab title: "Meet - Meeting Name" (scheduled calendar meetings)
-    const raw = document.title || '';
-    const m = raw.match(/^Meet\s*[-–]\s*(.+)$/i);
-    if (m) {
-      const name = m[1].trim();
-      if (name && !isMeetCode(name)) return name;
-      // Tab title IS the room code — personal Meet link with no calendar event
-      if (name && isMeetCode(name)) return `Personal meeting (${name})`;
-    }
+    const fromTab = meetingTitleFromTab(document.title);
+    if (fromTab) return fromTab;
 
     // 2. DOM fallback — filter out codes here too
     const candidates = [
@@ -1083,9 +1074,8 @@
       document.querySelector('c-wiz div[jsname="Tmhsfe"] span')?.textContent,
     ];
     for (const c of candidates) {
-      const t = c?.trim();
-      if (t && !isMeetCode(t)) return t;
-      if (t && isMeetCode(t)) return `Personal meeting (${t})`;
+      const r = meetingTitleFromCandidate(c);
+      if (r) return r;
     }
 
     return '';
@@ -1191,10 +1181,6 @@
   }
 
   // ── Leave button interceptor ───────────────────────────────────────────────
-
-  function outputAppName(appKey) {
-    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
-  }
 
   function isContextValid() {
     try { return !!chrome?.runtime?.id; } catch { return false; }

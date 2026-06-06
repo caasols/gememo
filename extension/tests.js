@@ -1970,19 +1970,17 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // KEEP IN SYNC with outputAppName() in content_meet.js
-  function outputAppName_test(appKey) {
-    return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
-  }
-
+  // outputAppName now lives in constants.js (ARCH-7) — test the real global
+  // directly instead of a hand-synced copy.
   function testOutputAppName() {
     console.group('outputAppName');
-    assertEq('craft → Craft',                outputAppName_test('craft'),       'Craft');
-    assertEq('apple_notes → Apple Notes',    outputAppName_test('apple_notes'), 'Apple Notes');
-    assertEq('none → None',                  outputAppName_test('none'),        'None');
-    assertEq('obsidian → Obsidian',          outputAppName_test('obsidian'),    'Obsidian');
-    assertEq('bear → Bear',                  outputAppName_test('bear'),        'Bear');
-    assertEq('unknown key → returned as-is', outputAppName_test('unknown'),     'unknown');
+    assertEq('craft → Craft',                outputAppName('craft'),       'Craft');
+    assertEq('apple_notes → Apple Notes',    outputAppName('apple_notes'), 'Apple Notes');
+    assertEq('none → None',                  outputAppName('none'),        'None');
+    assertEq('obsidian → Obsidian',          outputAppName('obsidian'),    'Obsidian');
+    assertEq('bear → Bear',                  outputAppName('bear'),        'Bear');
+    assertEq('unknown key → returned as-is', outputAppName('unknown'),     'unknown');
+    assertEq('foo → foo (passthrough)',      outputAppName('foo'),         'foo');
     console.groupEnd();
   }
 
@@ -2561,6 +2559,52 @@ window.MM2C_TESTS = (() => {
     inferMeetingType('ecj-jduu-oez') === 'ad-hoc');
   assert('inferMeetingType: personal-meeting label → ad-hoc',
     inferMeetingType('Personal meeting (ecj-jduu-oez)') === 'ad-hoc');
+
+  // isMeetCode — bare Meet room code detection (ARCH-7)
+  assert('isMeetCode: lowercase code → true',
+    isMeetCode('abc-defg-hij') === true);
+  assert('isMeetCode: uppercase code → true',
+    isMeetCode('ABC-DEFG-HIJ') === true);
+  assert('isMeetCode: non-code → false',
+    isMeetCode('not-a-code') === false);
+  assert('isMeetCode: empty → false',
+    isMeetCode('') === false);
+  assert('isMeetCode: undefined → false',
+    isMeetCode(undefined) === false);
+
+  // meetingTitleFromCandidate — one title candidate → display title (ARCH-7)
+  assert('meetingTitleFromCandidate: plain name → itself',
+    meetingTitleFromCandidate('Weekly Sync') === 'Weekly Sync');
+  assert('meetingTitleFromCandidate: code → Personal meeting (code)',
+    meetingTitleFromCandidate('abc-defg-hij') === 'Personal meeting (abc-defg-hij)');
+  assert('meetingTitleFromCandidate: whitespace → empty',
+    meetingTitleFromCandidate('  ') === '');
+  assert('meetingTitleFromCandidate: undefined → empty',
+    meetingTitleFromCandidate(undefined) === '');
+
+  // meetingTitleFromTab — browser tab title → display title (ARCH-7)
+  assert('meetingTitleFromTab: "Meet - Foo" → Foo',
+    meetingTitleFromTab('Meet - Weekly Sync') === 'Weekly Sync');
+  assert('meetingTitleFromTab: en-dash separator → Foo',
+    meetingTitleFromTab('Meet – Weekly Sync') === 'Weekly Sync');
+  assert('meetingTitleFromTab: tab is a code → Personal meeting (code)',
+    meetingTitleFromTab('Meet - abc-defg-hij') === 'Personal meeting (abc-defg-hij)');
+  assert('meetingTitleFromTab: non-Meet title → empty',
+    meetingTitleFromTab('Google Meet') === '');
+  assert('meetingTitleFromTab: empty → empty',
+    meetingTitleFromTab('') === '');
+
+  // isValidAttendeeName — plausible attendee display name (ARCH-7)
+  assert('isValidAttendeeName: real name → true',
+    isValidAttendeeName('Ana') === true);
+  assert('isValidAttendeeName: single char → false',
+    isValidAttendeeName('A') === false);
+  assert('isValidAttendeeName: digits-only → false',
+    isValidAttendeeName('12345') === false);
+  assert('isValidAttendeeName: empty → false',
+    isValidAttendeeName('') === false);
+  assert('isValidAttendeeName: 90-char name → false',
+    isValidAttendeeName('x'.repeat(90)) === false);
 
   // snapshotFreshEnough — skip the redundant Leave-time Gemini run when a
   // periodic snapshot completed within the last half-interval (BUG-3).
