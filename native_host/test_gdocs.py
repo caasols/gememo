@@ -186,6 +186,14 @@ class TestCreateDoc(unittest.TestCase):
         out = gdocs.create_doc("X", "body", service=Boom())
         self.assertFalse(out["ok"])
 
+    def test_create_doc_not_connected_when_no_creds(self):
+        # No injected service/creds and _load_creds → None ⇒ not_connected,
+        # without ever touching build()/the network (covers gdocs.py 184-188).
+        from unittest.mock import patch
+        with patch.object(gdocs, '_load_creds', return_value=None):
+            out = gdocs.create_doc("X", "body")
+        self.assertEqual(out, {"ok": False, "error": "not_connected"})
+
 
 class TestTokenOps(unittest.TestCase):
     """Token/file ops — testable without the Google libraries."""

@@ -1684,7 +1684,7 @@
   // Expose DOM-reading functions for offline fixture tests.
   // Only active when MM2C_FIXTURE_MODE = true (set by fixture-dom.html).
   if (window.MM2C_FIXTURE_MODE) {
-    window.MM2C_SELECTORS = { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton };
+    window.MM2C_SELECTORS = { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording };
   }
 
 })();

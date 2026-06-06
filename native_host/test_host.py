@@ -323,6 +323,28 @@ class TestHandleRetry(unittest.TestCase):
             self.assertEqual(sent[-1]["status"], "error")
             self.assertIn("boom", sent[-1]["error"])
 
+    def test_folder_id_and_space_id_flags_passed_to_push(self):
+        # craftFolderId on the msg + CRAFT_SPACE_ID in the env ⇒ both flags
+        # forwarded to push_to_craft.py (covers host lines 810/812).
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-x.md"
+            bp.write_text("n", encoding="utf-8")
+            cmds = []
+            with patch.object(host, 'CACHE_DIR', Path(tmp)), \
+                    patch.object(host, 'send_message'), \
+                    patch.object(host, 'notify'), \
+                    patch.dict(os.environ, {"CRAFT_SPACE_ID": "space-9"}), \
+                    patch.object(host.subprocess, 'run',
+                                 side_effect=lambda cmd, **k: cmds.append(cmd) or
+                                 types.SimpleNamespace(returncode=0, stdout='', stderr='')):
+                host.handle_retry({"title": "X", "backupPath": str(bp),
+                                   "craftFolderId": "folder-7"})
+            cmd = cmds[0]
+            self.assertIn("--space-id", cmd)
+            self.assertIn("space-9", cmd)
+            self.assertIn("--folder-id", cmd)
+            self.assertIn("folder-7", cmd)
+
 
 class TestSendToExtras(unittest.TestCase):
     """send_to_extras — best-effort secondary outputs (P9-X)."""
@@ -381,6 +403,27 @@ class TestResolveExtras(unittest.TestCase):
     def test_empty_inputs(self):
         self.assertEqual(resolve_extras('craft', None), [])
         self.assertEqual(resolve_extras('apple_notes', ['apple_notes']), [])
+
+
+class TestPureEdges(unittest.TestCase):
+    """Cheap branch coverage for small pure helpers."""
+
+    def test_note_date_from_no_date_no_prefix_is_empty(self):
+        # No YAML date: and a filename without a YYYYMMDD prefix ⇒ '' (host 640).
+        self.assertEqual(host._note_date_from("body with no date", Path("notes.md")), "")
+
+    def test_note_date_from_uses_filename_prefix(self):
+        self.assertEqual(
+            host._note_date_from("no yaml here", Path("20260601-standup.md")),
+            "2026-06-01")
+
+    def test_snippet_around_no_match_is_empty(self):
+        # Query not present ⇒ '' (host 647).
+        self.assertEqual(host._snippet_around("the quick brown fox", "zebra"), "")
+
+    def test_snippet_around_match_returns_context(self):
+        snip = host._snippet_around("the quick brown fox jumps", "brown")
+        self.assertIn("brown", snip)
 
 
 if __name__ == '__main__':

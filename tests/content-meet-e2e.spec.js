@@ -137,4 +137,58 @@ test.describe('content_meet e2e (fake Meet over localhost)', () => {
       await page.close();
     }
   });
+
+  // ── 2c (leave → primary save) — the genuine Leave-click capture path ─────────
+  // Distinct from 2b's snapshot path: clicking the real "Leave call" button is
+  // intercepted by attachInterceptor → onLeaveClick → runGeminiFlow → the content
+  // script emits MM2C_RESPONSE, which background.js forwards to the host as the
+  // PRIMARY capture payload (transcript + meetingTitle, NOT a {type:'snapshot'}).
+  // This is the main save path and was previously only covered for snapshots.
+  test('clicking Leave forwards the primary MM2C_RESPONSE capture to the native host', async () => {
+    test.setTimeout(60_000);
+
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      mm2c_output_app: 'craft', // a real primary destination so the forward happens
+    });
+
+    const page = await ext.context.newPage();
+    try {
+      await page.goto(fake.url, { waitUntil: 'domcontentloaded' });
+
+      // Wait for join (interceptor attached) before clicking Leave.
+      await expect
+        .poll(
+          async () =>
+            (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.meetingsAttended,
+          { timeout: 15_000 }
+        )
+        .toBe(1);
+
+      // Genuine user action: click the real Leave button. The fake page has no
+      // navigation handler, so the interceptor's eventual btn.click() is a no-op
+      // and the page stays alive for the assertion.
+      await page.click('button[aria-label="Leave call"]');
+
+      // onLeaveClick runs the Gemini flow then forwards MM2C_RESPONSE; background
+      // forwards the PRIMARY payload (no type:'snapshot') carrying the transcript.
+      await expect
+        .poll(
+          async () => {
+            const sent = await getSent(ext.serviceWorker);
+            return sent.some(
+              (s) =>
+                s.msg.type !== 'snapshot' &&
+                typeof s.msg.transcript === 'string' &&
+                s.msg.transcript.includes(SENTINEL_TRANSCRIPT)
+            );
+          },
+          { timeout: 40_000 }
+        )
+        .toBe(true);
+    } finally {
+      await page.close();
+    }
+  });
 });

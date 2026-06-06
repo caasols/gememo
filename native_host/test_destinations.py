@@ -127,6 +127,17 @@ class TestSendToConfiguredDestinations(unittest.TestCase):
         pan.assert_not_called()
         run.assert_not_called()
 
+    def test_non_dict_entry_skipped_valid_row_still_dispatched(self):
+        # A malformed (non-dict) row is skipped (host 982-983) without stopping
+        # a following valid apple_notes row.
+        with patch.object(host, 'push_to_apple_notes') as pan, \
+                patch.object(host, 'notify'), \
+                patch.object(host.subprocess, 'run') as run:
+            host.send_to_configured_destinations(
+                ["garbage", None, 42, {'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
+        pan.assert_called_once()  # the valid row still fired
+        run.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
