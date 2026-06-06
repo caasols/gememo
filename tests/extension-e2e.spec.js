@@ -94,6 +94,47 @@ test.describe('extension E2E harness', () => {
       }).toEqual({ notes: 1, words: 5, mins: 25, status: true, note: 'one two three four five' });
     });
 
+    test('MM2C_RESPONSE forwards the destinations repeater when beta is ON (UXF-11)', async () => {
+      const dests = [
+        { type: 'obsidian', vaultPath: '/tmp/VaultA' },
+        { type: 'craft', folderId: 'folder-xyz' },
+        { type: 'apple_notes' },
+      ];
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'craft',
+        mm2c_beta_enabled: true,
+        mm2c_destinations: dests,
+      });
+      const resp = await sendFromPage(popup, {
+        type: 'MM2C_RESPONSE',
+        text: 'beta on destinations payload',
+        meetingTitle: 'Beta On',
+      });
+      expect(resp.ok).toBe(true);
+      const sent = await getSent(ext.serviceWorker);
+      const fwd = sent.find(s => s.msg.transcript === 'beta on destinations payload');
+      expect(fwd).toBeTruthy();
+      expect(fwd.msg.destinations).toEqual(dests);
+    });
+
+    test('MM2C_RESPONSE sends destinations:[] when beta is OFF even with seeded data (UXF-11)', async () => {
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'craft',
+        mm2c_beta_enabled: false,
+        mm2c_destinations: [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }],
+      });
+      const resp = await sendFromPage(popup, {
+        type: 'MM2C_RESPONSE',
+        text: 'beta off destinations payload',
+        meetingTitle: 'Beta Off',
+      });
+      expect(resp.ok).toBe(true);
+      const sent = await getSent(ext.serviceWorker);
+      const fwd = sent.find(s => s.msg.transcript === 'beta off destinations payload');
+      expect(fwd).toBeTruthy();
+      expect(fwd.msg.destinations).toEqual([]);
+    });
+
     test('MM2C_GCAL relays the action to the host', async () => {
       await stubNativeMessage(ext.serviceWorker, {
         gcal_status: { connected: true, available: true, email: 'me@x.com' },
@@ -264,6 +305,42 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-beta');
       await expect(page.locator('#beta-panel #gcal-connect')).toBeVisible();
       await expect(page.locator('#beta-panel #dual-output')).toBeAttached();
+      await page.close();
+    });
+
+    test('Beta tab renders seeded additional-destination rows (UXF-11)', async () => {
+      const page = await popupWith({
+        mm2c_beta_enabled: true,
+        mm2c_destinations: [
+          { type: 'obsidian', vaultPath: '/tmp/VaultA' },
+          { type: 'craft', folderId: 'fid-123' },
+        ],
+      });
+      await page.click('#tab-beta');
+      const rows = page.locator('#destinations-list .dest-row');
+      await expect(rows).toHaveCount(2);
+      await expect(rows.nth(0).locator('.dest-type')).toHaveValue('obsidian');
+      await expect(rows.nth(0).locator('.dest-config')).toHaveValue('/tmp/VaultA');
+      await expect(rows.nth(1).locator('.dest-type')).toHaveValue('craft');
+      await expect(rows.nth(1).locator('.dest-config')).toHaveValue('fid-123');
+      await page.close();
+    });
+
+    test('Adding + filling an additional destination persists to storage (UXF-11)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true, mm2c_destinations: [] });
+      await page.click('#tab-beta');
+      await page.click('#add-destination');
+      const row = page.locator('#destinations-list .dest-row').first();
+      // Default new row is obsidian; fill its vault path and assert it persists.
+      await row.locator('.dest-config').fill('/tmp/NewVault');
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_destinations'])).mm2c_destinations
+      ).toEqual([{ type: 'obsidian', vaultPath: '/tmp/NewVault' }]);
+      // Removing the row clears it back to [].
+      await row.locator('.dest-remove').click();
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_destinations'])).mm2c_destinations
+      ).toEqual([]);
       await page.close();
     });
 
