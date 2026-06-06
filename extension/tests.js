@@ -1138,6 +1138,25 @@ window.MM2C_TESTS = (() => {
     assert('Case 5d: generic title matches no built-in',
       matchPromptRule(BUILT_IN_RULES, 'Q3 Budget Review') === null);
 
+    // enabledBuiltIns — opt-out built-in templates by name (default all on).
+    assert('enabledBuiltIns: empty disabled → all on',
+      enabledBuiltIns(BUILT_IN_RULES, []).length === BUILT_IN_RULES.length);
+    assert('enabledBuiltIns: missing disabled → all on',
+      enabledBuiltIns(BUILT_IN_RULES).length === BUILT_IN_RULES.length);
+    assert('enabledBuiltIns: non-array disabled → all on',
+      enabledBuiltIns(BUILT_IN_RULES, 'Standup').length === BUILT_IN_RULES.length);
+    assert('enabledBuiltIns: removes a named entry',
+      enabledBuiltIns(BUILT_IN_RULES, ['Standup']).every(r => r.name !== 'Standup') &&
+      enabledBuiltIns(BUILT_IN_RULES, ['Standup']).length === BUILT_IN_RULES.length - 1);
+    assert('enabledBuiltIns: removes multiple named entries',
+      enabledBuiltIns([{ name: 'A' }, { name: 'B' }, { name: 'C' }], ['A', 'C']).map(r => r.name).join(',') === 'B');
+    assert('enabledBuiltIns: unknown name is a no-op',
+      enabledBuiltIns(BUILT_IN_RULES, ['Nope']).length === BUILT_IN_RULES.length);
+    assert('enabledBuiltIns: non-array builtins → []',
+      JSON.stringify(enabledBuiltIns(null, ['Standup'])) === '[]');
+    assert('enabledBuiltIns: a disabled built-in is then skipped by matchPromptRule',
+      matchPromptRule(enabledBuiltIns(BUILT_IN_RULES, ['Standup']), 'Daily Standup') === null);
+
     // P5-L2 · time/day conditions. Jan 1 2024 = Monday (ISO 1), Jan 5 = Friday (ISO 5).
     const MON_9AM = new Date(2024, 0, 1, 9, 0);
     const TUE_9AM = new Date(2024, 0, 2, 9, 0);

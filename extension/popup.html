@@ -848,6 +848,15 @@
       letter-spacing: 0.6px;
       margin: 10px 0 4px;
     }
+    /* Toggle (sibling) + the disclosure details on one row. */
+    .builtin-rule-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .builtin-rule-row .toggle-wrap { flex-shrink: 0; margin-top: 6px; }
+    .builtin-rule-row .builtin-rule { flex: 1; min-width: 0; margin-bottom: 0; }
     .builtin-rule {
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -1115,8 +1124,8 @@
       </div>
     </div>
 
-    <!-- Action items from the most recent capture (P6-B) -->
-    <div class="widget hidden" id="action-items-widget">
+    <!-- Action items from the most recent capture (P6-B) — beta-gated -->
+    <div class="widget hidden beta" id="action-items-widget">
       <div class="widget-header">
         <div class="widget-title">Action items <span id="my-items-badge" class="beta-pill hidden" style="color:var(--primary);background:var(--hover-primary);border-color:var(--primary)"></span></div>
         <div style="display:flex;gap:6px">
@@ -1144,9 +1153,9 @@
       </div>
     </div>
 
-    <!-- Glossary (RB-4a) -->
-    <div class="widget">
-      <div class="widget-title">Glossary</div>
+    <!-- Glossary (RB-4a) — beta-gated -->
+    <div class="widget beta">
+      <div class="widget-title">Glossary <span class="beta-pill">Beta</span></div>
       <p class="hint">Names, codenames, acronyms to keep spelled exactly (comma or newline separated).</p>
       <textarea id="glossary" rows="2" placeholder="Kubernetes, Falcon, Carlos Sol"></textarea>
     </div>
@@ -1172,9 +1181,9 @@
   <!-- ── Settings panel ─────────────────────────────────────────── -->
   <div class="panel hidden" id="settings-panel" role="tabpanel" aria-labelledby="tab-settings">
 
-    <!-- Identity — flag action items assigned to me (UXF-7) -->
-    <div class="widget">
-      <div class="widget-title">Your name</div>
+    <!-- Identity — flag action items assigned to me (UXF-7) — beta-gated -->
+    <div class="widget beta">
+      <div class="widget-title">Your name <span class="beta-pill">Beta</span></div>
       <div class="row">
         <span class="label">Name &amp; aliases</span>
         <input type="text" id="my-aliases" class="text-normal" placeholder="James, James R, JR">
@@ -1274,28 +1283,33 @@
         <p class="hint">Click the field to open a folder picker and select your Obsidian vault.</p>
       </div>
 
-      <!-- Also send to (P9-X multi-destination) -->
-      <div class="also-send">
-        <span class="label">Also send to</span>
-        <label><input type="checkbox" class="also-send-opt" value="craft"> Craft</label>
-        <label><input type="checkbox" class="also-send-opt" value="apple_notes"> Apple Notes</label>
-        <label><input type="checkbox" class="also-send-opt" value="obsidian"> Obsidian</label>
+      <!-- Also send to (P9-X multi-destination) — beta-gated -->
+      <div class="beta">
+        <div class="also-send">
+          <span class="label">Also send to</span>
+          <label><input type="checkbox" class="also-send-opt" value="craft"> Craft</label>
+          <label><input type="checkbox" class="also-send-opt" value="apple_notes"> Apple Notes</label>
+          <label><input type="checkbox" class="also-send-opt" value="obsidian"> Obsidian</label>
+        </div>
+        <p class="hint">Each note also goes to the apps checked here, in addition to your primary output app above.</p>
       </div>
-      <p class="hint">Each note also goes to the apps checked here, in addition to your primary output app above.</p>
 
-      <div class="row" style="margin-top:8px">
-        <span class="label">Wikilinks for graph apps</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="wikilinks">
-          <span class="toggle-track"></span>
-        </label>
+      <!-- Wikilinks for graph apps — beta-gated -->
+      <div class="beta">
+        <div class="row" style="margin-top:8px">
+          <span class="label">Wikilinks for graph apps</span>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="wikilinks">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <p class="hint">Wrap attendee names in [[double brackets]] so each note links into your Obsidian/Craft graph. Best left off for non-graph apps.</p>
       </div>
-      <p class="hint">Wrap attendee names in [[double brackets]] so each note links into your Obsidian/Craft graph. Best left off for non-graph apps.</p>
     </div>
 
-    <!-- Action items → task manager (RB-3a) -->
-    <div class="widget">
-      <div class="widget-title">Action items</div>
+    <!-- Action items → task manager (RB-3a) — beta-gated -->
+    <div class="widget beta">
+      <div class="widget-title">Action items <span class="beta-pill">Beta</span></div>
       <div class="row">
         <span class="label">Send to</span>
         <select id="task-app">
@@ -1356,9 +1370,9 @@
       <p class="hint">When you leave a call, show the captured notes for a quick review (15s) with Discard / Save before they're sent.</p>
     </div>
 
-    <!-- Generic webhook (P9-D) -->
-    <div class="widget">
-      <div class="widget-title">Webhook</div>
+    <!-- Generic webhook (P9-D) — beta-gated -->
+    <div class="widget beta">
+      <div class="widget-title">Webhook <span class="beta-pill">Beta</span></div>
       <p class="hint">POST each captured note as JSON to a URL (Zapier, n8n, Make, your own endpoint). Leave blank to disable.</p>
       <div class="row">
         <span class="label">URL</span>
@@ -1374,8 +1388,8 @@
     </div>
 
     <!-- Privacy: PII redaction (RB-5b) -->
-    <div class="widget">
-      <div class="widget-title">Privacy</div>
+    <div class="widget beta">
+      <div class="widget-title">Privacy <span class="beta-pill">Beta</span></div>
       <div class="row">
         <span class="label">Redact PII</span>
         <label class="toggle-wrap">
@@ -1413,13 +1427,16 @@
   <!-- ── Logs panel ─────────────────────────────────────────────── -->
   <div class="panel hidden" id="logs-panel" role="tabpanel" aria-labelledby="tab-logs">
 
-    <input type="text" id="note-search" class="note-search" placeholder="Search past meetings…">
-    <div class="search-filters">
-      <input type="date" id="search-since" title="From date">
-      <input type="date" id="search-until" title="To date">
-      <input type="text" id="search-attendee" placeholder="attendee" title="Filter by attendee">
+    <!-- Search past meetings — beta-gated -->
+    <div class="beta">
+      <input type="text" id="note-search" class="note-search" placeholder="Search past meetings…">
+      <div class="search-filters">
+        <input type="date" id="search-since" title="From date">
+        <input type="date" id="search-until" title="To date">
+        <input type="text" id="search-attendee" placeholder="attendee" title="Filter by attendee">
+      </div>
+      <div id="search-results"></div>
     </div>
-    <div id="search-results"></div>
 
     <div class="logs-toolbar">
       <span class="logs-count" id="logs-count"></span>

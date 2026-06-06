@@ -194,7 +194,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           const betaOn = !!data.mm2c_beta_enabled;
           forwardToNativeHost(msg.text, {
             // P9-H private pass overrides the destination; primary uses output_app.
-            backupType:          msg.privateApp || data.mm2c_output_app || 'craft',
+            backupType:          msg.privateApp || data.mm2c_output_app || 'none',
             meetingTitle:        title,
             craftFolderId:       data.mm2c_craft_folder_id       || '',
             craftSpaceId:        data.mm2c_craft_space_id        || '',
@@ -305,7 +305,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const note = data.mm2c_inflight;
         if (!note?.text) { sendResponse({ ok: false, error: 'nothing to recover' }); return; }
         forwardToNativeHost(note.text, {
-          backupType:        data.mm2c_output_app || 'craft',
+          backupType:        data.mm2c_output_app || 'none',
           meetingTitle:      note.title || '',
           craftFolderId:     data.mm2c_craft_folder_id || '',
           craftSpaceId:      data.mm2c_craft_space_id || '',
