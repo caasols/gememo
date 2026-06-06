@@ -280,11 +280,15 @@ const BUILT_IN_RULES = [
   },
 ];
 
-// Pure helper — built-in templates minus the disabled set (opt-out by name).
-// disabled: string[] of BUILT_IN_RULES names that are OFF. Default = all on.
-function enabledBuiltIns(builtins, disabled) {
-  const off = new Set(Array.isArray(disabled) ? disabled : []);
-  return (Array.isArray(builtins) ? builtins : []).filter(r => r && !off.has(r.name));
+// Pure helper — built-in templates not yet added to the user's rules (by name).
+// Templates are off by default; switching one on "materialises" it into
+// mm2c_prompt_rules as a normal editable rule, after which it drops out of the
+// suggestion list (matched by name). Returns the still-addable templates.
+function availableTemplates(builtins, rules) {
+  const taken = new Set(
+    (Array.isArray(rules) ? rules : []).map(r => r && r.name).filter(Boolean)
+  );
+  return (Array.isArray(builtins) ? builtins : []).filter(r => r && !taken.has(r.name));
 }
 
 // Pure helper — normalise Rules-tab inputs into a rule `condition` object, or
