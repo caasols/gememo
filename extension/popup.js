@@ -42,6 +42,7 @@ const GLOBAL_KEYS = [
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
   'mm2c_calendar_enabled',
+  'mm2c_gdocs_enabled',
   'mm2c_preview_before_send',
   'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
@@ -448,6 +449,7 @@ function applyState(s, tabId, live = null) {
   myAliases = s.mm2c_my_aliases || '';
   $('my-aliases').value = myAliases;
   $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
+  $('gdocs-enabled').checked = s.mm2c_gdocs_enabled === true;
   $('cleanup-snap-enabled').checked = s.mm2c_cleanup_snap_enabled === true;
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
@@ -1129,6 +1131,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   // Backup-folder auto-cleanup (UXF-13) — beta.
   const clampDays = v => Math.max(1, Math.min(3650, parseInt(v, 10) || 30));
+  $('gdocs-enabled').addEventListener('change', e => save({ mm2c_gdocs_enabled: e.target.checked }));
   $('cleanup-snap-enabled').addEventListener('change', e => save({ mm2c_cleanup_snap_enabled: e.target.checked }));
   $('cleanup-snap-days').addEventListener('change', e => {
     const days = clampDays(e.target.value);
@@ -1455,6 +1458,51 @@ document.addEventListener('DOMContentLoaded', () => {
       const timer = setInterval(() => {
         tries++;
         renderGcalStatus();
+        if (tries > 30) clearInterval(timer);
+      }, 2000);
+    });
+  });
+
+  // Google Docs connect/disconnect/status (5.7, beta) — separate OAuth grant,
+  // rides the existing MM2C_GCAL relay (it forwards msg.action as the host type).
+  function renderGdocsStatus() {
+    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gdocs_status' }, (r) => {
+      if (chrome.runtime.lastError || !r) return;
+      const label = $('gdocs-status');
+      const btn = $('gdocs-connect');
+      if (r.connected) {
+        label.textContent = r.email ? `Connected as ${r.email}` : 'Connected';
+        btn.textContent = 'Disconnect';
+        btn.dataset.action = 'disconnect';
+      } else if (r.needs_reconnect) {
+        label.textContent = 'Session expired';
+        btn.textContent = 'Reconnect';
+        btn.dataset.action = 'connect';
+      } else {
+        label.textContent = r.available === false ? 'Not installed (re-run install.sh)' : 'Not connected';
+        btn.textContent = 'Connect';
+        btn.dataset.action = 'connect';
+      }
+    });
+  }
+  renderGdocsStatus();
+  $('gdocs-connect').addEventListener('click', () => {
+    const action = $('gdocs-connect').dataset.action || 'connect';
+    if (action === 'disconnect') {
+      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gdocs_disconnect' }, () => {
+        save({ mm2c_gdocs_enabled: false });
+        $('gdocs-enabled').checked = false;
+        renderGdocsStatus();
+      });
+      return;
+    }
+    $('gdocs-status').textContent = 'Opening browser — approve access, then return…';
+    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gdocs_connect' }, () => {
+      // The flow runs detached; poll status until it flips to connected.
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+        renderGdocsStatus();
         if (tries > 30) clearInterval(timer);
       }, 2000);
     });

@@ -26,8 +26,9 @@ from pathlib import Path
 # runtime whether run directly or via the symlinked wrapper.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
+import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.2'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
+HOST_VERSION = '0.2.3'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1088,6 +1089,25 @@ def main() -> None:
             send_message({"status": "error", "error": str(exc)})
         return
 
+    if msg.get("type") == "gdocs_status":
+        send_message(gdocs.status())
+        return
+
+    if msg.get("type") == "gdocs_disconnect":
+        send_message(gdocs.disconnect())
+        return
+
+    if msg.get("type") == "gdocs_connect":
+        # Run the Docs OAuth flow detached so it outlives Chrome's ~30s native-
+        # messaging window; the popup polls gdocs_status afterward. Separate grant.
+        try:
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gdocs.py"))],
+                             start_new_session=True)
+            send_message({"status": "ok", "started": True})
+        except Exception as exc:
+            send_message({"status": "error", "error": str(exc)})
+        return
+
     transcript = msg.get("transcript", "").strip()
     if not transcript:
         send_message({"status": "error", "error": "transcript is empty"})
@@ -1219,6 +1239,16 @@ def main() -> None:
     if destinations:
         try:
             send_to_configured_destinations(destinations, craft_md, title, dt, label)
+        except Exception:
+            pass
+
+    # Google Docs output (5.7) — best-effort, never blocks capture. Beta-gated:
+    # background only sets googleDocsOutput when experimental is on, so OFF ⇒
+    # falsy ⇒ no-op here. Separate OAuth grant (token_docs.json), independent of
+    # the Calendar feature.
+    if msg.get("googleDocsOutput") and gdocs.GDOCS_AVAILABLE:
+        try:
+            gdocs.create_doc(title, craft_md)
         except Exception:
             pass
 
