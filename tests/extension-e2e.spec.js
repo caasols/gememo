@@ -540,6 +540,24 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('a materialised rule row fits within the popup (no horizontal overflow)', async () => {
+      // Regression: name badge + regex + ↑↓✕ + toggle must fit in 340px — the
+      // regex input has to shrink (min-width:0) or the toggle overflows off-screen.
+      const page = await popupWith({
+        mm2c_prompt_rules: [{ name: 'Standup', regex: 'standup|stand-up|daily|scrum', prompt: 'p', enabled: true }],
+      });
+      await page.click('#tab-rules');
+      await page.click('#rules-toggle');
+      const fits = await page.evaluate(() => {
+        const tg = document.querySelector('#rules-list .rule-toggle');
+        if (!tg) return false;
+        // Toggle's right edge must be within the popup body width.
+        return Math.round(tg.getBoundingClientRect().right) <= document.body.clientWidth;
+      });
+      expect(fits).toBe(true);
+      await page.close();
+    });
+
     test('Main tab renders a retry card from a failed-send entry', async () => {
       const page = await popupWith({
         mm2c_failed_list: [{ tabId: null, title: 'Lost Meeting', backupPath: '/tmp/x.md', failedAt: Date.now() }],
