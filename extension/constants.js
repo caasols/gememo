@@ -280,6 +280,13 @@ const BUILT_IN_RULES = [
   },
 ];
 
+// Pure helper — built-in templates minus the disabled set (opt-out by name).
+// disabled: string[] of BUILT_IN_RULES names that are OFF. Default = all on.
+function enabledBuiltIns(builtins, disabled) {
+  const off = new Set(Array.isArray(disabled) ? disabled : []);
+  return (Array.isArray(builtins) ? builtins : []).filter(r => r && !off.has(r.name));
+}
+
 // Pure helper — normalise Rules-tab inputs into a rule `condition` object, or
 // null when nothing usable was entered (P5-L2). Hours require BOTH bounds.
 // minMinutes/maxMinutes (UXF-10) add a "time actually spent" range; either bound

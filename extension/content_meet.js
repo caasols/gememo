@@ -662,8 +662,8 @@
   }
 
   async function _runGeminiFlowInner(timeoutMs = 120000, promptOverride = null) {
-    const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules, mm2c_glossary } = isContextValid()
-      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules', 'mm2c_glossary'])
+    const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules, mm2c_glossary, mm2c_builtin_disabled } = isContextValid()
+      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules', 'mm2c_glossary', 'mm2c_builtin_disabled'])
       : {};
     const promptBase = mm2c_prompt?.trim() || DEFAULT_PROMPT;
 
@@ -672,7 +672,7 @@
     const durMin = meetingJoinedAt > 0 ? Math.round((Date.now() - meetingJoinedAt) / 60_000) : NaN;
     const matchedRule =
       findPromptRule(rules, currentMeetingTitle, new Date(), { durationMin: durMin }) ||
-      findPromptRule(BUILT_IN_RULES, currentMeetingTitle);
+      findPromptRule(enabledBuiltIns(BUILT_IN_RULES, mm2c_builtin_disabled), currentMeetingTitle);
 
     // Full prompt construction lives in the (unit-tested) assemblePrompt helper.
     // promptOverride bypasses rule matching (used by the P9-H private pass).

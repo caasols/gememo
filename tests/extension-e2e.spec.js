@@ -513,6 +513,26 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Rules tab built-in toggles reflect + persist mm2c_builtin_disabled', async () => {
+      // 'Standup' is the first real built-in (extension/constants.js BUILT_IN_RULES).
+      const page = await popupWith({ mm2c_builtin_disabled: ['Standup'] });
+      await page.click('#tab-rules');
+      await page.click('#rules-toggle');
+      // Seeded-off built-in renders unchecked; the others render checked.
+      await expect(page.locator('#builtin-rules-list .builtin-enabled[data-name="Standup"]')).not.toBeChecked();
+      const others = page.locator('#builtin-rules-list .builtin-enabled:not([data-name="Standup"])');
+      const count = await others.count();
+      for (let i = 0; i < count; i++) await expect(others.nth(i)).toBeChecked();
+      // Toggle another one OFF → storage gains its name.
+      const name = await others.first().getAttribute('data-name');
+      // Click the wrapping label (the checkbox is a visually-hidden custom toggle).
+      await page.locator(`#builtin-rules-list .builtin-rule-row:has(.builtin-enabled[data-name="${name}"]) label.toggle-wrap`).click();
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_builtin_disabled'])).mm2c_builtin_disabled
+      ).toEqual(expect.arrayContaining([name]));
+      await page.close();
+    });
+
     test('Main tab renders a retry card from a failed-send entry', async () => {
       const page = await popupWith({
         mm2c_failed_list: [{ tabId: null, title: 'Lost Meeting', backupPath: '/tmp/x.md', failedAt: Date.now() }],
