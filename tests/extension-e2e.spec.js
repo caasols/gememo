@@ -197,6 +197,56 @@ test.describe('extension E2E harness', () => {
       expect(call.msg.since).toBe('2026-06-01');
     });
 
+    test('MM2C_PRE_BRIEF beta OFF returns beta_off WITHOUT calling the host (P9-G)', async () => {
+      await seedStorage(ext.serviceWorker, { mm2c_beta_enabled: false });
+      const resp = await sendFromPage(popup, { type: 'MM2C_PRE_BRIEF' });
+      expect(resp).toEqual({ ok: false, error: 'beta_off' });
+      // Invariant: the native host must NOT have been called.
+      const sent = await getSent(ext.serviceWorker);
+      expect(sent.some(s => s.msg.type === 'pre_meeting_brief')).toBe(false);
+    });
+
+    test('MM2C_PRE_BRIEF with no active Meet tab returns no_meet_tab (P9-G)', async () => {
+      await seedStorage(ext.serviceWorker, { mm2c_beta_enabled: true });
+      // No meet.google.com tab is open in this context; the popup is the only tab.
+      const resp = await sendFromPage(popup, { type: 'MM2C_PRE_BRIEF' });
+      expect(resp).toEqual({ ok: false, error: 'no_meet_tab' });
+      const sent = await getSent(ext.serviceWorker);
+      expect(sent.some(s => s.msg.type === 'pre_meeting_brief')).toBe(false);
+    });
+
+    test('MM2C_PRE_BRIEF with beta ON relays the host bullets (P9-G)', async () => {
+      await seedStorage(ext.serviceWorker, { mm2c_beta_enabled: true, mm2c_redact_pii: false });
+      await stubNativeMessage(ext.serviceWorker, {
+        pre_meeting_brief: { ok: true, matched: true, title: 'Q3 Planning',
+                             bullets: ['Agenda: Roadmap', 'Who: 2 attendees'] },
+        __default: { status: 'ok' },
+      });
+      // Stub chrome.tabs.query so the handler sees an active Meet tab without
+      // needing to launch a real meet.google.com page (blocked headlessly).
+      await ext.serviceWorker.evaluate(() => {
+        globalThis.__origQuery = chrome.tabs.query;
+        chrome.tabs.query = (info, cb) => cb([
+          { id: 1, active: true, url: 'https://meet.google.com/abc-defg-hij?authuser=0', title: 'Q3 Planning' },
+        ]);
+      });
+      try {
+        const resp = await sendFromPage(popup, { type: 'MM2C_PRE_BRIEF' });
+        expect(resp.ok).toBe(true);
+        expect(resp.matched).toBe(true);
+        expect(resp.bullets).toEqual(['Agenda: Roadmap', 'Who: 2 attendees']);
+        // The host got the parsed room code + redaction flag.
+        const sent = await getSent(ext.serviceWorker);
+        const call = sent.find(s => s.msg.type === 'pre_meeting_brief');
+        expect(call).toBeTruthy();
+        expect(call.msg.meetingCode).toBe('abc-defg-hij');
+        expect(call.msg.redactPii).toBe(false);
+        expect(call.msg.meetingTitle).toBe('Q3 Planning');
+      } finally {
+        await ext.serviceWorker.evaluate(() => { chrome.tabs.query = globalThis.__origQuery; });
+      }
+    });
+
     test('MM2C_SET_CAPTURE_STATE records capturing state + REC tab tracking', async () => {
       await sendFromPage(popup, { type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' });
       await expect.poll(async () => {
@@ -385,6 +435,48 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-beta');
       await expect(page.locator('#beta-panel #gdocs-enabled')).toBeAttached();
       await expect(page.locator('#beta-panel #gdocs-connect')).toBeVisible();
+      await page.close();
+    });
+
+    test('Beta tab renders the Pre-meeting brief widget (P9-G)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true });
+      await page.click('#tab-beta');
+      await expect(page.locator('#beta-panel #pre-brief-btn')).toBeVisible();
+      await expect(page.locator('#beta-panel #pre-brief-out')).toBeAttached();
+      await page.close();
+    });
+
+    test('Clicking Pre-meeting brief renders the stubbed bullets (P9-G)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true });
+      // Intercept the runtime message in the popup page so the click renders
+      // deterministically without a live host or Meet tab.
+      await page.evaluate(() => {
+        chrome.runtime.sendMessage = (msg, cb) => {
+          if (msg && msg.type === 'MM2C_PRE_BRIEF') {
+            cb({ ok: true, matched: true, title: 'Q3',
+                 bullets: ['Agenda: Roadmap', 'Who: 3 attendees', 'Context: Recurring meeting'] });
+          } else if (cb) { cb({}); }
+        };
+      });
+      await page.click('#tab-beta');
+      await page.click('#pre-brief-btn');
+      const items = page.locator('#pre-brief-out ul li');
+      await expect(items).toHaveCount(3);
+      await expect(items.first()).toHaveText('Agenda: Roadmap');
+      await page.close();
+    });
+
+    test('Pre-meeting brief shows a friendly message when no event matches (P9-G)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true });
+      await page.evaluate(() => {
+        chrome.runtime.sendMessage = (msg, cb) => {
+          if (msg && msg.type === 'MM2C_PRE_BRIEF') cb({ ok: true, matched: false, bullets: [] });
+          else if (cb) cb({});
+        };
+      });
+      await page.click('#tab-beta');
+      await page.click('#pre-brief-btn');
+      await expect(page.locator('#pre-brief-out')).toContainText('No matching calendar event');
       await page.close();
     });
 

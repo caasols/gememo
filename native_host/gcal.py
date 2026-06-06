@@ -173,6 +173,95 @@ def enrich_frontmatter_fields(meeting_code, timestamp_iso, title, redact_emails,
         return {}, f'error: {exc}'
 
 
+# ── P9-G pre-meeting brief (pure brain) ──────────────────────────────────────
+
+def _first_sentence(text):
+    """First sentence (or first non-empty line) of a description blob. Best-effort."""
+    s = str(text or '').strip()
+    if not s:
+        return ''
+    line = next((ln.strip() for ln in s.splitlines() if ln.strip()), '')
+    if not line:
+        return ''
+    m = re.search(r'[.!?](\s|$)', line)
+    return line[:m.start() + 1].strip() if m else line
+
+
+def build_pre_meeting_brief(fields, redact_emails=False):
+    """Pure: from extracted calendar fields produce ≤3 concise prep bullets.
+    Bullets — Agenda / Who / Context. Drops empties; [] when nothing useful.
+    Never raises (best-effort prep, never blocks)."""
+    try:
+        f = fields if isinstance(fields, dict) else {}
+        if not f:
+            return []
+        bullets = []
+
+        # 1) Agenda — first sentence/line of the invite description.
+        desc = f.get('description')
+        agenda = _first_sentence(desc) if desc else ''
+        if agenda:
+            bullets.append(f'Agenda: {agenda}')
+        else:
+            bullets.append('Agenda: No agenda in the invite.')
+
+        # 2) Who — attendee count + up to ~3 names/emails (omit emails when
+        #    redacting) and the organizer.
+        emails = f.get('attendee_emails')
+        emails = [e for e in emails if isinstance(e, str)] if isinstance(emails, list) else []
+        organizer = f.get('organizer')
+        organizer = organizer if isinstance(organizer, str) else ''
+        who_parts = []
+        if emails:
+            who_parts.append(f'{len(emails)} attendee' + ('s' if len(emails) != 1 else ''))
+            if not redact_emails:
+                shown = emails[:3]
+                names = ', '.join(shown)
+                if len(emails) > len(shown):
+                    names += ', …'
+                who_parts.append(names)
+        if organizer and not redact_emails:
+            who_parts.append(f'organized by {organizer}')
+        if who_parts:
+            bullets.append('Who: ' + ' — '.join(who_parts))
+
+        # 3) Context — recurrence + scheduled start/duration.
+        ctx_parts = []
+        if f.get('recurring_event_id'):
+            ctx_parts.append('Recurring meeting')
+        start = f.get('scheduled_start')
+        if isinstance(start, str) and start:
+            ctx_parts.append(f'starts {start}')
+        dur = f.get('scheduled_duration_min')
+        if isinstance(dur, int):
+            ctx_parts.append(f'{dur} min')
+        if ctx_parts:
+            bullets.append('Context: ' + ', '.join(ctx_parts))
+
+        return bullets[:3]
+    except Exception:
+        return []
+
+
+def pre_meeting_brief(meeting_code, timestamp_iso, title, redact_emails, *, events_provider):
+    """Match the calendar event (same path as enrich) and build the brief.
+    Returns {ok, matched, bullets, title} on success; {ok:False, error} when not
+    connected / libs absent / the provider raises. Best-effort, never raises."""
+    try:
+        events = events_provider()
+        if events is None:
+            return {'ok': False, 'error': 'not_connected'}
+        event = match_calendar_event(events, meeting_code, timestamp_iso, title)
+        if not event:
+            return {'ok': True, 'matched': False, 'bullets': [], 'title': title or ''}
+        fields = extract_calendar_fields(event, redact_emails)
+        bullets = build_pre_meeting_brief(fields, redact_emails=redact_emails)
+        return {'ok': True, 'matched': True, 'bullets': bullets,
+                'title': (event.get('summary') or title or '')}
+    except Exception as exc:
+        return {'ok': False, 'error': f'error: {exc}'}
+
+
 # ── OAuth / token / API (live; require the google libs; not unit-tested) ──────
 
 def _save_token(creds):
