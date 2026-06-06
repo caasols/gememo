@@ -324,13 +324,162 @@ test.describe('extension E2E harness', () => {
         return { mins: s.mm2c_stats?.totalMeetingMinutes, notes: s.mm2c_stats?.notesSaved, cleared: s.mm2c_inflight };
       }).toEqual({ mins: 42, notes: 1, cleared: undefined });
     });
+
+    test('MM2C_RESPONSE host-error appends to mm2c_failed_list + friendly banner (retry entry point)', async () => {
+      // The host replies with a non-ok status AND a backupPath — this is the only
+      // path that creates a failed-list retry entry (forwardToNativeHost error branch).
+      await stubNativeMessage(ext.serviceWorker, {
+        __default: { status: 'error', error: 'disk full', backupPath: '/tmp/x.md' },
+      });
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'craft' });
+      const resp = await sendFromPage(popup, {
+        type: 'MM2C_RESPONSE',
+        text: 'host error body',
+        meetingTitle: 'Fail Me',
+      });
+      // The handler reports failure with the backup path threaded back for the chip.
+      expect(resp.ok).toBe(false);
+      expect(resp.backupPath).toBe('/tmp/x.md');
+
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const failed = s.mm2c_failed_list || [];
+        const entry = failed.find(f => f.backupPath === '/tmp/x.md');
+        const statusKey = Object.keys(s).find(k => k.startsWith('mm2c_last_status'));
+        const status = statusKey ? String(s[statusKey]) : '';
+        return {
+          entryTitle: entry?.title,
+          entryPath: entry?.backupPath,
+          // friendlyError('disk full') → generic "Something went wrong" banner,
+          // prefixed with "Error:" so resolveBanner classifies it as an error.
+          statusIsError: /^Error/.test(status) || /^Couldn/.test(status),
+        };
+      }).toEqual({ entryTitle: 'Fail Me', entryPath: '/tmp/x.md', statusIsError: true });
+    });
+
+    test('MM2C_RESPONSE skips a duplicate send within the dedup window (shouldSkipDuplicate)', async () => {
+      // Tab-keyed fingerprint dedup: two identical sends from the same sender (same
+      // tab + same title) within DEDUP_WINDOW_MS must forward exactly once.
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'craft', mm2c_logs: [] });
+      const dupMsg = { type: 'MM2C_RESPONSE', meetingTitle: 'Dup', text: 'dedup-body-unique' };
+
+      const first = await sendFromPage(popup, dupMsg);
+      expect(first.ok).toBe(true);
+      // Wait for the first forward to be recorded before sending the duplicate so
+      // the fingerprint is committed to session storage.
+      await expect.poll(async () => {
+        const sent = await getSent(ext.serviceWorker);
+        return sent.filter(s => s.msg.transcript === 'dedup-body-unique').length;
+      }).toBe(1);
+
+      const second = await sendFromPage(popup, dupMsg);
+      expect(second.ok).toBe(true);
+
+      // The second send must NOT have produced a new host send for that transcript…
+      const sent = await getSent(ext.serviceWorker);
+      expect(sent.filter(s => s.msg.transcript === 'dedup-body-unique').length).toBe(1);
+      // …and a "Duplicate send skipped" warn must be logged.
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_logs']);
+        return (s.mm2c_logs || []).some(
+          e => e.status === 'warn' && /Duplicate send skipped/.test(e.message)
+        );
+      }).toBe(true);
+    });
+
+    test('MM2C_CHECK_HOST flags a major version mismatch + warns in the logs', async () => {
+      // Force a major-version mismatch against the manifest version (e.g. 1.x vs 0.0.1).
+      await seedStorage(ext.serviceWorker, { mm2c_logs: [] });
+      // Manifest major is 0; force a different major (9.x) to trip isVersionMismatch.
+      await stubNativeMessage(ext.serviceWorker, {
+        ping: { status: 'ok', version: '9.9.9', home: '/Users/x' },
+        __default: { status: 'ok' },
+      });
+      const resp = await sendFromPage(popup, { type: 'MM2C_CHECK_HOST' });
+      expect(resp.ok).toBe(true);
+      expect(resp.versionMismatch).toBe(true);
+      expect(resp.hostVersion).toBe('9.9.9');
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_logs']);
+        return (s.mm2c_logs || []).some(
+          e => e.status === 'warn' && /version mismatch/i.test(e.message)
+        );
+      }).toBe(true);
+    });
+
+    test('MM2C_RETRY failure branch returns ok:false, logs an error, leaves failed-list intact', async () => {
+      const seeded = [{ tabId: null, title: 'Still Lost', backupPath: '/tmp/still.md', failedAt: 111 }];
+      await seedStorage(ext.serviceWorker, { mm2c_failed_list: seeded, mm2c_logs: [] });
+      await stubNativeMessage(ext.serviceWorker, {
+        retry: { status: 'error', error: 'still missing' },
+        __default: { status: 'ok' },
+      });
+      const resp = await sendFromPage(popup, {
+        type: 'MM2C_RETRY', title: 'Still Lost', backupPath: '/tmp/still.md',
+      });
+      expect(resp.ok).toBe(false);
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_logs', 'mm2c_failed_list']);
+        return (s.mm2c_logs || []).some(e => e.status === 'err' && /Retry failed/.test(e.message));
+      }).toBe(true);
+      // The failure branch logs an error but must NOT touch the failed list.
+      const after = (await getStorage(ext.serviceWorker, ['mm2c_failed_list'])).mm2c_failed_list;
+      expect(after).toEqual(seeded);
+    });
+
+    test('chrome.tabs.onRemoved prunes tab-scoped keys + capturing/failed lists for the closed tab', async () => {
+      // Open a real page so it has a genuine tab id, seed tab-scoped state for THAT
+      // id, then close it and assert the onRemoved listener cleaned everything up.
+      const page = await ext.context.newPage();
+      await page.goto('about:blank');
+      const tabId = await ext.serviceWorker.evaluate(() => new Promise((res) => {
+        chrome.tabs.query({ url: 'about:blank' }, (tabs) => res(tabs[tabs.length - 1].id));
+      }));
+
+      await seedStorage(ext.serviceWorker, {
+        [`mm2c_capture_state_${tabId}`]: 'capturing',
+        [`mm2c_last_status_${tabId}`]: 'Saved to Craft',
+        [`mm2c_last_snapshot_${tabId}`]: 'snap body',
+        mm2c_capturing_tabs: [tabId, 999999],
+        mm2c_failed_list: [
+          { tabId, title: 'For Closed Tab', backupPath: '/tmp/closed.md', failedAt: 1 },
+          { tabId: 999999, title: 'Other Tab', backupPath: '/tmp/other.md', failedAt: 2 },
+        ],
+      });
+
+      await page.close();
+
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const failed = s.mm2c_failed_list || [];
+        return {
+          captureGone: s[`mm2c_capture_state_${tabId}`] === undefined,
+          statusGone: s[`mm2c_last_status_${tabId}`] === undefined,
+          snapGone: s[`mm2c_last_snapshot_${tabId}`] === undefined,
+          capturingPruned: (s.mm2c_capturing_tabs || []).includes(tabId) === false,
+          othersKept: (s.mm2c_capturing_tabs || []).includes(999999),
+          closedFailedGone: failed.every(f => f.tabId !== tabId),
+          otherFailedKept: failed.some(f => f.tabId === 999999),
+        };
+      }).toEqual({
+        captureGone: true, statusGone: true, snapGone: true,
+        capturingPruned: true, othersKept: true,
+        closedFailedGone: true, otherFailedKept: true,
+      });
+    });
   });
 
   test.describe('popup render', () => {
     // Seed storage, then (re)open the popup so popup.js renders from it.
-    async function popupWith(state) {
+    // `nativeResponder` (optional) overrides the SW-side native-message stub so
+    // popup-init relays (e.g. MM2C_GCAL → gcal_status/gdocs_status) resolve to
+    // real values through the genuine background relay BEFORE the popup renders.
+    async function popupWith(state, nativeResponder) {
       await clearStorage(ext.serviceWorker);
-      await stubNativeMessage(ext.serviceWorker, { ping: { status: 'ok' }, __default: { status: 'ok' } });
+      await stubNativeMessage(
+        ext.serviceWorker,
+        nativeResponder || { ping: { status: 'ok' }, __default: { status: 'ok' } }
+      );
       await seedStorage(ext.serviceWorker, state);
       const page = await openPopup(ext.context, ext.extensionId);
       return page;
@@ -510,6 +659,109 @@ test.describe('extension E2E harness', () => {
       });
       await expect(page.locator('#recovery-list')).toContainText('unsent note was recovered');
       await expect(page.locator('#recovery-list #recover-send')).toBeVisible();
+      await page.close();
+    });
+
+    test('Pre-meeting brief renders the exact friendly string per error (no_meet_tab / beta_off) (P9-G)', async () => {
+      // The friendly per-error map lives in popup.js renderPreBrief(); assert the
+      // exact strings for two distinct host error codes.
+      const page = await popupWith({ mm2c_beta_enabled: true });
+      await page.click('#tab-beta');
+
+      // no_meet_tab → "Open a Google Meet tab first."
+      await page.evaluate(() => {
+        chrome.runtime.sendMessage = (msg, cb) => {
+          if (msg && msg.type === 'MM2C_PRE_BRIEF') cb({ ok: false, error: 'no_meet_tab' });
+          else if (cb) cb({});
+        };
+      });
+      await page.click('#pre-brief-btn');
+      await expect(page.locator('#pre-brief-out')).toHaveText('Open a Google Meet tab first.');
+
+      // beta_off → "Enable experimental features first."
+      await page.evaluate(() => {
+        chrome.runtime.sendMessage = (msg, cb) => {
+          if (msg && msg.type === 'MM2C_PRE_BRIEF') cb({ ok: false, error: 'beta_off' });
+          else if (cb) cb({});
+        };
+      });
+      await page.click('#pre-brief-btn');
+      await expect(page.locator('#pre-brief-out')).toHaveText('Enable experimental features first.');
+      await page.close();
+    });
+
+    test('Google Calendar status: connected shows "Connected as …" + Disconnect (5.3)', async () => {
+      // Drive the status render through the GENUINE MM2C_GCAL → host relay by
+      // stubbing the native responder before the popup init renders the panel.
+      const page = await popupWith({ mm2c_beta_enabled: true }, {
+        gcal_status: { connected: true, available: true, email: 'me@x' },
+        gdocs_status: { connected: false, available: false },
+        ping: { status: 'ok' },
+        __default: { status: 'ok' },
+      });
+      await page.click('#tab-beta');
+      await expect.poll(async () => page.locator('#gcal-status').textContent())
+        .toContain('Connected as me@x');
+      await expect(page.locator('#gcal-connect')).toHaveText('Disconnect');
+      await page.close();
+    });
+
+    test('Google Docs status: not installed shows the re-run install hint + Connect (5.7)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true }, {
+        gdocs_status: { connected: false, available: false },
+        gcal_status: { connected: false, available: false },
+        ping: { status: 'ok' },
+        __default: { status: 'ok' },
+      });
+      await page.click('#tab-beta');
+      await expect.poll(async () => page.locator('#gdocs-status').textContent())
+        .toContain('Not installed (re-run install.sh)');
+      await expect(page.locator('#gdocs-connect')).toHaveText('Connect');
+      await page.close();
+    });
+
+    test('Google Docs status: connected shows "Connected as …" + Disconnect (5.7)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true }, {
+        gdocs_status: { connected: true, available: true, email: 'me@x' },
+        gcal_status: { connected: false, available: false },
+        ping: { status: 'ok' },
+        __default: { status: 'ok' },
+      });
+      await page.click('#tab-beta');
+      await expect.poll(async () => page.locator('#gdocs-status').textContent())
+        .toContain('Connected as me@x');
+      await expect(page.locator('#gdocs-connect')).toHaveText('Disconnect');
+      await page.close();
+    });
+
+    test('Backup-cleanup clampDays clamps to [1, 3650] + persists the clamped value (UXF-13)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true });
+      await page.click('#tab-beta');
+
+      // clampDays = Math.max(1, Math.min(3650, parseInt(v,10) || 30)). A value
+      // below the floor (negative) clamps UP to 1; an over-max clamps DOWN to 3650.
+      const snapDays = page.locator('#cleanup-snap-days');
+
+      // Set the input's value directly (a number input rejects fill('-5')), then
+      // fire the real change handler the way the browser would.
+      await snapDays.evaluate((el) => { el.value = '-5'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+      await expect(snapDays).toHaveValue('1');
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_cleanup_snap_days'])).mm2c_cleanup_snap_days
+      ).toBe(1);
+
+      await snapDays.evaluate((el) => { el.value = '9999'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+      await expect(snapDays).toHaveValue('3650');
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_cleanup_snap_days'])).mm2c_cleanup_snap_days
+      ).toBe(3650);
+
+      // Toggling the snapshot-cleanup switch persists mm2c_cleanup_snap_enabled.
+      const wrap = page.locator('label.toggle-wrap', { has: page.locator('#cleanup-snap-enabled') });
+      await wrap.click();
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_cleanup_snap_enabled'])).mm2c_cleanup_snap_enabled
+      ).toBe(true);
       await page.close();
     });
   });
