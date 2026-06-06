@@ -175,6 +175,31 @@ function buildTaskUrl(app, item = {}) {
   }
 }
 
+// Pure helper — normalise the "Additional destinations" repeater array (UXF-11)
+// into a clean, storable list. Each kept entry is an object with a known `type`
+// and only that type's own config; everything else is dropped. Non-array/falsy
+// input → []. obsidian rows with a blank vaultPath are dropped (no target);
+// craft folderId is optional ('' = the default inbox). Order is preserved.
+function normalizeDestinations(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const type = entry.type;
+    if (type === 'obsidian') {
+      const vaultPath = String(entry.vaultPath || '').trim();
+      if (!vaultPath) continue; // no vault → nothing to write to
+      out.push({ type, vaultPath });
+    } else if (type === 'craft') {
+      out.push({ type, folderId: String(entry.folderId || '').trim() });
+    } else if (type === 'apple_notes') {
+      out.push({ type });
+    }
+    // unknown type → dropped
+  }
+  return out;
+}
+
 // Pure helper — split a comma-separated alias string into a clean list (UXF-7).
 function parseAliases(str) {
   return String(str || '').split(',').map(s => s.trim()).filter(Boolean);

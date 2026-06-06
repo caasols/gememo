@@ -46,6 +46,7 @@ const GLOBAL_KEYS = [
   'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
+  'mm2c_destinations',
 ];
 
 // Render the first-run setup checklist (RB-7a) from live host status + config.
@@ -451,6 +452,7 @@ function applyState(s, tabId, live = null) {
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
   $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 30;
+  renderDestinations(s.mm2c_destinations); // UXF-11 additional-destinations repeater
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -553,6 +555,108 @@ function setHostStatus(ok, error, hostVersion, versionMismatch) {
 
 function save(patch) {
   chrome.storage.local.set(patch);
+}
+
+// ── Additional destinations repeater (UXF-11) ───────────────────────────────
+// Beta feature: each row is a destination instance with its own inline config.
+// Purely additive — independent of the primary + also-send path. Rows render
+// from mm2c_destinations on load; any add/change/remove rebuilds the array from
+// the DOM, runs it through normalizeDestinations, and persists it.
+
+const _DEST_TYPES = [
+  { value: 'obsidian',    label: 'Obsidian' },
+  { value: 'apple_notes', label: 'Apple Notes' },
+  { value: 'craft',       label: 'Craft' },
+];
+
+// Build one repeater row element from a (possibly partial) destination entry.
+function buildDestinationRow(entry = {}) {
+  const type = entry.type || 'obsidian';
+  const row = document.createElement('div');
+  row.className = 'row dest-row';
+
+  const select = document.createElement('select');
+  select.className = 'dest-type';
+  select.setAttribute('aria-label', 'Destination type');
+  for (const t of _DEST_TYPES) {
+    const opt = document.createElement('option');
+    opt.value = t.value;
+    opt.textContent = t.label;
+    select.appendChild(opt);
+  }
+  select.value = type;
+
+  const config = document.createElement('input');
+  config.type = 'text';
+  config.className = 'dest-config ltr';
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'btn dest-remove';
+  removeBtn.textContent = 'Remove';
+  removeBtn.setAttribute('aria-label', 'Remove destination');
+
+  row.appendChild(select);
+  row.appendChild(config);
+  row.appendChild(removeBtn);
+
+  // Show/hide + seed the per-type config field.
+  applyDestRowType(row, type, entry);
+
+  select.addEventListener('change', () => {
+    applyDestRowType(row, select.value, {});
+    persistDestinations();
+  });
+  config.addEventListener('input', persistDestinations);
+  removeBtn.addEventListener('click', () => { row.remove(); persistDestinations(); });
+
+  return row;
+}
+
+// Configure a row's config input to match the selected type (placeholder /
+// visibility / seed value). apple_notes has no config so the field is hidden.
+function applyDestRowType(row, type, entry = {}) {
+  const config = row.querySelector('.dest-config');
+  if (type === 'obsidian') {
+    config.classList.remove('hidden');
+    config.placeholder = 'Vault folder path (e.g. ~/Obsidian/Meetings)';
+    config.setAttribute('aria-label', 'Obsidian vault folder path');
+    config.value = entry.vaultPath || '';
+  } else if (type === 'craft') {
+    config.classList.remove('hidden');
+    config.placeholder = 'Craft folder ID (optional)';
+    config.setAttribute('aria-label', 'Craft folder ID');
+    config.value = entry.folderId || '';
+  } else { // apple_notes — no extra config
+    config.classList.add('hidden');
+    config.value = '';
+  }
+}
+
+// Read the current rows out of the DOM into a raw destinations array.
+function readDestinationsFromDom() {
+  return [...document.querySelectorAll('#destinations-list .dest-row')].map(row => {
+    const type = row.querySelector('.dest-type').value;
+    const cfg = row.querySelector('.dest-config').value;
+    if (type === 'obsidian') return { type, vaultPath: cfg };
+    if (type === 'craft')    return { type, folderId: cfg };
+    return { type };
+  });
+}
+
+// Rebuild → normalize → persist. Drops invalid/blank rows from storage but
+// leaves the (possibly mid-edit) DOM untouched so typing isn't interrupted.
+function persistDestinations() {
+  save({ mm2c_destinations: normalizeDestinations(readDestinationsFromDom()) });
+}
+
+// Render the repeater rows from stored (already-normalized) destinations.
+function renderDestinations(destinations) {
+  const list = $('destinations-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (const entry of normalizeDestinations(destinations)) {
+    list.appendChild(buildDestinationRow(entry));
+  }
 }
 
 // ── Logs ───────────────────────────────────────────────────────────────────
@@ -1036,6 +1140,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const days = clampDays(e.target.value);
     e.target.value = days;
     save({ mm2c_cleanup_final_days: days });
+  });
+  // Additional destinations repeater (UXF-11) — add a fresh row.
+  $('add-destination').addEventListener('click', () => {
+    $('destinations-list').appendChild(buildDestinationRow({ type: 'obsidian' }));
+    // A new obsidian row has a blank vault → normalizeDestinations drops it
+    // until the user types a path; that's fine, we still persist on input.
+    persistDestinations();
   });
   $('my-aliases').addEventListener('change', e => {
     myAliases = e.target.value.trim();
