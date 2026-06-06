@@ -56,7 +56,7 @@ function renderSetupWizard(hostOk) {
   if (!panel) return;
   chrome.storage.local.get(['mm2c_setup_done', 'mm2c_output_app'], ({ mm2c_setup_done, mm2c_output_app }) => {
     if (mm2c_setup_done === true) { panel.classList.add('hidden'); return; }
-    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'craft' });
+    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'none' });
     $('setup-wizard-steps').innerHTML = steps.map(s =>
       `<div style="display:flex;gap:7px;align-items:center;margin-top:6px">
          <span style="color:${s.ok ? 'var(--success)' : 'var(--text-muted)'}">${s.ok ? '✓' : '○'}</span>
@@ -419,8 +419,9 @@ function applyState(s, tabId, live = null) {
   $('prompt').value = s.mm2c_prompt || DEFAULT_PROMPT;
   $('glossary').value = s.mm2c_glossary || '';
 
-  // Output app selector — default to 'craft' for existing users
-  const outputApp = s.mm2c_output_app || 'craft';
+  // Output app selector — default to 'none' so onboarding's "Choose an output
+  // app" step is a real choice (and nothing is silently saved before you pick).
+  const outputApp = s.mm2c_output_app || 'none';
   $('output-app').value = outputApp;
   $('craft-sub-options').classList.toggle('hidden', outputApp !== 'craft');
   $('obsidian-sub-options').classList.toggle('hidden', outputApp !== 'obsidian');

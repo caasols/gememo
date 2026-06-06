@@ -427,7 +427,7 @@ function buildDiagnosticsReport(info = {}) {
     `Version: ${info.version || '?'}`,
     `Extension ID: ${info.extensionId || '?'}`,
     `Native host: ${host}`,
-    `Output app: ${info.outputApp || 'craft'}`,
+    `Output app: ${info.outputApp || 'none'}`,
     `Also send to: ${alsoSend}`,
     `File backup: ${info.fileBackup ? 'on' : 'off'}`,
     `Permissions: ${perms}`,
