@@ -1566,6 +1566,16 @@
       <p class="hint">Prunes the file-backup folder on capture (once/day). Off by default. Deleting old notes also removes old recovered (<code>*-RECOVERED.md</code>) files.</p>
     </div>
 
+    <!-- Additional destinations repeater (UXF-11) — beta -->
+    <div class="widget beta">
+      <div class="widget-title">Additional destinations <span class="beta-pill">Beta</span></div>
+      <p class="hint">Send each note to extra destinations, each with its own config. Adds to — never replaces — your primary output and "Also send to". Experimental.</p>
+      <div id="destinations-list" aria-label="Additional destinations"></div>
+      <div class="row">
+        <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>
+      </div>
+    </div>
+
   </div><!-- /beta-panel -->
 
   <!-- Spacer so scrollable content is not hidden behind the fixed footer -->

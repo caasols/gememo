@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 
-HOST_VERSION = '0.2.1'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
+HOST_VERSION = '0.2.2'  # updated in lockstep with manifest.json version (major stays 0 → no reinstall)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -970,6 +970,43 @@ def send_to_extras(extras, craft_md, title, dt, label,
             pass  # best-effort secondary output
 
 
+def send_to_configured_destinations(destinations, craft_md, title, dt, label) -> None:
+    """Write the note to each "Additional destinations" repeater row (UXF-11),
+    using that row's OWN per-instance config (vault path / craft folder id) rather
+    than the legacy global singletons. Best-effort per entry — a failing row never
+    raises and never affects the primary capture or the other rows. Empty/None/
+    missing → no-op; unknown type or obsidian-without-vaultPath → skip."""
+    for entry in (destinations or []):
+        try:
+            if not isinstance(entry, dict):
+                continue
+            dest = entry.get('type')
+            if dest == 'apple_notes':
+                push_to_apple_notes(title, body_to_html(craft_md))
+                notify("Meeting Notes → Apple Notes", title)
+            elif dest == 'obsidian':
+                vault_path = str(entry.get('vaultPath') or '').strip()
+                if not vault_path:
+                    continue  # no target vault → skip this row
+                vault = Path(vault_path).expanduser()
+                vault.mkdir(parents=True, exist_ok=True)
+                slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
+                (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
+                    build_yaml_frontmatter(label, dt) + craft_md, encoding='utf-8')
+            elif dest == 'craft':
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                safe = re.sub(r'[^\w\s\-]', '', title)[:80].strip() or dt.strftime('%Y%m%d')
+                cf = CACHE_DIR / f"{safe}.md"
+                cf.write_text(craft_md, encoding='utf-8')
+                cmd = [sys.executable, str(PUSH_PY), "--title", title, "--content-file", str(cf), "--background"]
+                folder_id = str(entry.get('folderId') or '').strip()
+                if folder_id:
+                    cmd += ["--folder-id", folder_id]
+                subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+        except Exception:
+            pass  # best-effort per-row output — never affect the primary capture
+
+
 def main() -> None:
     msg = read_message()
     if not msg:
@@ -1174,6 +1211,16 @@ def main() -> None:
         send_to_extras(extras, craft_md, title, dt, label,
                        obsidian_vault_path=msg.get("obsidianVaultPath", ""),
                        craft_folder_id=msg.get("craftFolderId", "").strip())
+
+    # Per-row "Additional destinations" repeater (UXF-11) — additive, independent
+    # of the also-send path. Each row carries its own config. Background only
+    # threads this when beta is on, so OFF ⇒ [] ⇒ no-op here. Best-effort.
+    destinations = msg.get("destinations")
+    if destinations:
+        try:
+            send_to_configured_destinations(destinations, craft_md, title, dt, label)
+        except Exception:
+            pass
 
     if route_output(back_type, craft_md, title, file_path,
                     obsidian_vault_path=msg.get("obsidianVaultPath", ""),

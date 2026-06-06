@@ -1171,6 +1171,32 @@ window.MM2C_TESTS = (() => {
     assert('buildCondition: nothing → null', buildCondition([], NaN, NaN) === null);
     assert('buildCondition: single hour ignored → null', buildCondition([], 8, NaN) === null);
 
+    // UXF-11: normalizeDestinations — clean a raw "additional destinations" array.
+    assertEq('normalizeDestinations: non-array → []',
+      JSON.stringify(normalizeDestinations(null)), '[]');
+    assertEq('normalizeDestinations: falsy entry / unknown type dropped',
+      JSON.stringify(normalizeDestinations([null, { type: 'slack' }, { type: 'apple_notes' }])),
+      JSON.stringify([{ type: 'apple_notes' }]));
+    assertEq('normalizeDestinations: blank obsidian vault dropped',
+      JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '   ' }])), '[]');
+    assertEq('normalizeDestinations: obsidian vaultPath trimmed + extra props stripped',
+      JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '  ~/Vault  ', junk: 1 }])),
+      JSON.stringify([{ type: 'obsidian', vaultPath: '~/Vault' }]));
+    assertEq('normalizeDestinations: craft folderId trimmed, may be empty',
+      JSON.stringify(normalizeDestinations([{ type: 'craft', folderId: '  abc  ' }, { type: 'craft' }])),
+      JSON.stringify([{ type: 'craft', folderId: 'abc' }, { type: 'craft', folderId: '' }]));
+    assertEq('normalizeDestinations: order preserved',
+      JSON.stringify(normalizeDestinations([
+        { type: 'craft', folderId: 'f1' },
+        { type: 'obsidian', vaultPath: '/a' },
+        { type: 'apple_notes' },
+      ])),
+      JSON.stringify([
+        { type: 'craft', folderId: 'f1' },
+        { type: 'obsidian', vaultPath: '/a' },
+        { type: 'apple_notes' },
+      ]));
+
     // P5-L · findPromptRule returns the matched rule; depthInstruction maps depth → text
     const depthRules = [{ regex: 'standup', prompt: 'p', depth: 'brief' }];
     assert('findPromptRule: returns the matched rule object',
