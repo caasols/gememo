@@ -1508,6 +1508,52 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Pre-meeting brief (P9-G, beta) — ask the background to brief the active Meet
+  // tab; render the host's bullets, or a friendly message per error branch.
+  function renderPreBrief(resp) {
+    const out = $('pre-brief-out');
+    out.textContent = '';
+    if (!resp || resp.ok === false) {
+      const msg = {
+        beta_off: 'Enable experimental features first.',
+        no_meet_tab: 'Open a Google Meet tab first.',
+      }[resp && resp.error] || 'Connect Google Calendar first.';
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = msg;
+      out.appendChild(p);
+      return;
+    }
+    if (resp.matched === false || !(resp.bullets || []).length) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = 'No matching calendar event for this meeting.';
+      out.appendChild(p);
+      return;
+    }
+    const ul = document.createElement('ul');
+    ul.setAttribute('aria-label', 'Brief bullets');
+    for (const b of resp.bullets) {
+      const li = document.createElement('li');
+      li.textContent = String(b);
+      ul.appendChild(li);
+    }
+    out.appendChild(ul);
+  }
+
+  $('pre-brief-btn').addEventListener('click', () => {
+    const out = $('pre-brief-out');
+    out.textContent = '';
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Briefing…';
+    out.appendChild(p);
+    chrome.runtime.sendMessage({ type: 'MM2C_PRE_BRIEF' }, (resp) => {
+      if (chrome.runtime.lastError) { renderPreBrief({ ok: false }); return; }
+      renderPreBrief(resp);
+    });
+  });
+
   // Email the most recent note via the OS mail client (RB-3c, beta)
   $('email-note-btn').addEventListener('click', () => {
     chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => {

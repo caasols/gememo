@@ -80,6 +80,36 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
       return true; // async
 
+    case 'MM2C_PRE_BRIEF':
+      // P9-G — beta pre-meeting brief. Beta-gated: OFF ⇒ no host call. Finds the
+      // active Meet tab, parses its room code, and relays the host's bullets.
+      chrome.storage.local.get(['mm2c_beta_enabled', 'mm2c_redact_pii'], (data) => {
+        if (data.mm2c_beta_enabled !== true) {
+          sendResponse({ ok: false, error: 'beta_off' });
+          return;
+        }
+        chrome.tabs.query({ active: true }, (tabs) => {
+          const tab = (tabs || []).find(t => (t.url || '').includes('meet.google.com'));
+          if (!tab) {
+            sendResponse({ ok: false, error: 'no_meet_tab' });
+            return;
+          }
+          let meetingCode = '';
+          try { meetingCode = extractMeetingCode(new URL(tab.url).pathname); } catch (_) {}
+          chrome.runtime.sendNativeMessage(NATIVE_HOST, {
+            type: 'pre_meeting_brief',
+            meetingCode,
+            timestamp: new Date().toISOString(),
+            meetingTitle: tab.title || '',
+            redactPii: !!data.mm2c_redact_pii,
+          }, (response) => {
+            const err = chrome.runtime.lastError?.message || null;
+            sendResponse(err ? { ok: false, error: err } : (response || {}));
+          });
+        });
+      });
+      return true; // async
+
     case 'MM2C_STAT_JOINED':
       // Count a meeting attended in the background (UX-8), once per meeting.
       chrome.storage.local.get(['mm2c_stats'], ({ mm2c_stats }) => {

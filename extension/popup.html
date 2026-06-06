@@ -1545,6 +1545,16 @@
       <p class="hint">When enabled, each captured note is also created as a Google Doc. This is a separate connection from Calendar (its own consent + token). Needs the Docs scope on the consent screen — see native_host/GDOCS_SETUP.md.</p>
     </div>
 
+    <!-- Pre-meeting brief (P9-G) — beta -->
+    <div class="widget beta">
+      <div class="widget-title">Pre-meeting brief <span class="beta-pill">Beta</span></div>
+      <div class="row">
+        <button class="btn" id="pre-brief-btn" aria-label="Brief me on the active meeting">Brief me on the active meeting</button>
+      </div>
+      <div id="pre-brief-out" role="status" aria-live="polite" aria-label="Pre-meeting brief"></div>
+      <p class="hint">Pulls a 3-bullet prep brief (agenda, who, context) from the matching Calendar event for the Meet tab you have open. Needs Google Calendar connected. Manual trigger for now — automatic pre-start detection is a follow-up.</p>
+    </div>
+
     <!-- Selector hotfix (RB-1b) — beta -->
     <div class="widget">
       <div class="widget-title">Selector hotfix</div>

@@ -118,6 +118,7 @@ bash native_host/install.sh
 |---|---|---|
 | **Google Calendar enrichment** | 🧪 under testing | Read-only event metadata (attendees, agenda, recurrence, scheduled time) into note frontmatter. Live OAuth flow not yet maintainer-verified end-to-end. Setup: [`native_host/CALENDAR_SETUP.md`](native_host/CALENDAR_SETUP.md). |
 | **Google Docs output** | 🧪 under testing | Creates one Google Doc per captured note. A **separate** OAuth connect from Calendar (its own `documents` scope + token), off by default. Live OAuth + Doc creation not yet maintainer-verified end-to-end. Setup: [`native_host/GDOCS_SETUP.md`](native_host/GDOCS_SETUP.md). |
+| **Pre-meeting brief** | 🧪 under testing | A 3-bullet prep brief (agenda, who, context) for the Meet tab you have open, built from the matching Calendar event. Reuses the Calendar connection. **Manual trigger** for now (a button in the Beta tab) — automatic pre-start detection is a follow-up. Live match needs a connected Calendar + a real meeting. |
 | **Private reflection (dual output)** | 🧪 under testing | A second Gemini pass with your private prompt, saved to a separate destination. The live second pass is unverified and adds latency at leave. |
 | **Email the note** | 🧪 under testing | Opens your mail client prefilled with the note (`mailto:`). |
 | **Review before saving** | 🧪 under testing | A 15-second review/discard gate before a captured note is sent. |
