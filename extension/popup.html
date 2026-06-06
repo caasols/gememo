@@ -535,6 +535,19 @@
       overflow: hidden;
     }
 
+    /* Logs action bar — pinned to the bottom of the scrollport so Clear/Download
+       stay reachable while the log list scrolls. Opaque so logs don't show through. */
+    .logs-footer {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--gap);
+      padding: 8px 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+
     #log-list { padding: 0; }
 
     .log-entry {
@@ -1427,15 +1440,19 @@
 
     <div class="logs-toolbar">
       <span class="logs-count" id="logs-count"></span>
-      <label class="logs-debug-toggle"><input type="checkbox" id="show-debug-logs"> Diagnostics</label>
-      <button class="btn" id="download-logs">Download</button>
-      <button class="btn danger" id="clear-logs">Clear</button>
+      <label class="logs-debug-toggle beta"><input type="checkbox" id="show-debug-logs"> Developer logs</label>
     </div>
 
     <div class="log-list-wrap">
       <div id="log-list">
         <div class="log-empty">No activity yet. Notes will appear here after your meetings.</div>
       </div>
+    </div>
+
+    <!-- Sticky action footer — stays pinned to the bottom while the logs scroll. -->
+    <div class="logs-footer">
+      <button class="btn beta" id="download-logs">Download</button>
+      <button class="btn danger" id="clear-logs">Clear</button>
     </div>
 
   </div><!-- /logs-panel -->
