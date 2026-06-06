@@ -182,6 +182,21 @@ test.describe('extension E2E harness', () => {
         (await getStorage(ext.serviceWorker, ['mm2c_inflight'])).mm2c_inflight
       ).toBeUndefined();
     });
+
+    test('MM2C_RECOVER counts the recovered note\'s meeting time (STATS-1)', async () => {
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'craft',
+        mm2c_stats: { meetingsAttended: 1, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+        mm2c_inflight: { title: 'Crashed', text: 'one two three', durationMin: 42, at: Date.now() },
+      });
+      await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok', title: 'Crashed' } });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RECOVER' });
+      expect(resp.ok).toBe(true);
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_stats', 'mm2c_inflight']);
+        return { mins: s.mm2c_stats?.totalMeetingMinutes, notes: s.mm2c_stats?.notesSaved, cleared: s.mm2c_inflight };
+      }).toEqual({ mins: 42, notes: 1, cleared: undefined });
+    });
   });
 
   test.describe('popup render', () => {

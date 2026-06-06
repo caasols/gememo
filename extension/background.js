@@ -270,7 +270,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           craftFolderId:     data.mm2c_craft_folder_id || '',
           craftSpaceId:      data.mm2c_craft_space_id || '',
           obsidianVaultPath: data.mm2c_obsidian_vault_path || '',
-          attendees: [], durationMin: null, meetingCode: '', meetingType: '', titleTemplate: '', recording: false,
+          attendees: [], durationMin: note.durationMin ?? null, meetingCode: '', meetingType: '', titleTemplate: '', recording: false,
           webhookUrl:        data.mm2c_webhook_url || '',
           slackWebhookUrl:   data.mm2c_slack_webhook_url || '',
           alsoSend:          Array.isArray(data.mm2c_also_send) ? data.mm2c_also_send : [],
