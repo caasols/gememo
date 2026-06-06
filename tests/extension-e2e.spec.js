@@ -589,9 +589,12 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).not.toBeVisible();
       await expect(page.locator('#rules-toggle')).toBeVisible();
-      // Logs-tab past-meeting search is gated; the log list stays.
+      // Logs-tab: search, Developer logs + Download are gated; Clear stays.
       await page.click('#tab-logs');
       await expect(page.locator('#note-search')).not.toBeVisible();
+      await expect(page.locator('#show-debug-logs')).not.toBeVisible();
+      await expect(page.locator('#download-logs')).not.toBeVisible();
+      await expect(page.locator('#clear-logs')).toBeVisible();
       await page.close();
     });
 
@@ -610,6 +613,9 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#glossary')).toBeVisible();
       await page.click('#tab-logs');
       await expect(page.locator('#note-search')).toBeVisible();
+      await expect(page.locator('#show-debug-logs')).toBeVisible();
+      await expect(page.locator('#download-logs')).toBeVisible();
+      await expect(page.locator('#clear-logs')).toBeVisible();
       await page.close();
     });
 
