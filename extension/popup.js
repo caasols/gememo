@@ -21,7 +21,6 @@ const GLOBAL_KEYS = [
   'mm2c_logs',
   'mm2c_note_language',
   'mm2c_prompt_rules',
-  'mm2c_builtin_disabled',
   'mm2c_snapshot_interval_min',
   'mm2c_obsidian_vault_path',
   'mm2c_failed_list',
@@ -183,7 +182,7 @@ function renderRules(rules) {
   const list = $('rules-list');
   list.innerHTML = '';
   if (!rules || rules.length === 0) {
-    list.innerHTML = '<div class="rules-empty">No rules yet. Add one to use a custom prompt for specific meetings.</div>';
+    list.innerHTML = '<div class="rules-empty">No custom rules yet — switch on a template below, or add your own.</div>';
     return;
   }
   const DAYS = [[1, 'Mo'], [2, 'Tu'], [3, 'We'], [4, 'Th'], [5, 'Fr'], [6, 'Sa'], [7, 'Su']];
@@ -195,14 +194,15 @@ function renderRules(rules) {
     item.dataset.index = i;
     item.innerHTML = `
       <div class="rule-header">
-        <label class="toggle-wrap" title="${rule.enabled === false ? 'Rule disabled' : 'Rule enabled'}" style="transform:scale(0.85)">
-          <input type="checkbox" class="rule-enabled" ${rule.enabled === false ? '' : 'checked'}>
-          <span class="toggle-track"></span>
-        </label>
+        ${rule.name ? `<span class="rule-name" title="Added from a built-in template">${escapeHtml(rule.name)}</span>` : ''}
         <input class="rule-regex" type="text" placeholder="e.g. DAILY" value="${escapeHtml(rule.regex || '')}">
         <button class="btn-rule-action" data-action="up" data-index="${i}" title="Move up" aria-label="Move rule up">↑</button>
         <button class="btn-rule-action" data-action="down" data-index="${i}" title="Move down" aria-label="Move rule down">↓</button>
         <button class="btn-rule-action danger" data-action="delete" data-index="${i}" title="Delete" aria-label="Delete rule">✕</button>
+        <label class="toggle-wrap rule-toggle" title="${rule.enabled === false ? 'Rule disabled' : 'Rule enabled'}" style="transform:scale(0.85)">
+          <input type="checkbox" class="rule-enabled" ${rule.enabled === false ? '' : 'checked'}>
+          <span class="toggle-track"></span>
+        </label>
       </div>
       <textarea class="rule-prompt" rows="3" placeholder="Prompt for this meeting type">${escapeHtml(rule.prompt || '')}</textarea>
       <input class="rule-title-template" type="text" placeholder="Title template (optional) — {date} {time} {name} {type} {code}" value="${escapeHtml(rule.titleTemplate || '')}">
@@ -338,31 +338,31 @@ function renderSearchResults(results) {
     </div>`).join('');
 }
 
-// Read-only display of the non-deletable built-in prompt templates (P5-K), each
-// with an enable/disable toggle (default on). `disabled` is a string[] of
-// built-in `name`s that are OFF. The toggle is a SIBLING of <details> (not inside
-// <summary>) so clicking it doesn't also toggle the disclosure.
-function renderBuiltInRules(disabled) {
+// Built-in templates shown inline at the bottom of the rules list — OFF by
+// default. Only templates not yet added (by name) are shown; switching one ON
+// materialises it into mm2c_prompt_rules as a normal editable rule (so it joins
+// the rules above and drops out of here). The toggle is a SIBLING of <details>
+// (not inside <summary>) so clicking it doesn't also toggle the disclosure, and
+// sits on the RIGHT to match the rest of the app's toggles.
+function renderTemplates(available) {
   const container = $('builtin-rules-list');
   if (!container || typeof BUILT_IN_RULES === 'undefined') return;
-  const off = new Set(Array.isArray(disabled) ? disabled : []);
-  container.innerHTML = BUILT_IN_RULES.map(rule => {
-    const isOff = off.has(rule.name);
-    return `
+  const list = Array.isArray(available) ? available : [];
+  container.innerHTML = list.map(rule => `
     <div class="builtin-rule-row">
-      <label class="toggle-wrap" title="${isOff ? 'Template disabled' : 'Template enabled'}" style="transform:scale(0.85)">
-        <input type="checkbox" class="builtin-enabled" data-name="${escapeHtml(rule.name)}" ${isOff ? '' : 'checked'}>
-        <span class="toggle-track"></span>
-      </label>
       <details class="builtin-rule">
         <summary>
+          <span class="bi-tag">Template</span>
           <span class="bi-name">${escapeHtml(rule.name)}</span>
           <span class="bi-regex">${escapeHtml(rule.regex)}</span>
         </summary>
         <div class="bi-prompt">${escapeHtml(rule.prompt)}</div>
       </details>
-    </div>`;
-  }).join('');
+      <label class="toggle-wrap" title="Switch on to add this template as a rule" style="transform:scale(0.85)">
+        <input type="checkbox" class="builtin-enabled" data-name="${escapeHtml(rule.name)}">
+        <span class="toggle-track"></span>
+      </label>
+    </div>`).join('');
 }
 
 // Render the crash-recovery card from a persisted in-flight note (RB-1d).
@@ -514,7 +514,7 @@ function applyState(s, tabId, live = null) {
   }
 
   renderRules(s.mm2c_prompt_rules || []);
-  renderBuiltInRules(s.mm2c_builtin_disabled);
+  renderTemplates(availableTemplates(BUILT_IN_RULES, s.mm2c_prompt_rules || []));
   $('snapshot-interval').value = s.mm2c_snapshot_interval_min || 8;
 
   // Keep capture-now button in sync with capture + live meeting state
@@ -811,7 +811,7 @@ function switchTab(tabName) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadAndApplyState(activeMetTabId);
-  renderBuiltInRules();
+  renderTemplates(typeof BUILT_IN_RULES !== 'undefined' ? BUILT_IN_RULES : []);
 
   // About tab — populate from Chrome runtime
   $('about-version').textContent = `v${chrome.runtime.getManifest().version}`;
@@ -1078,9 +1078,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // on the container; DOM is left as-is (no full re-render needed on toggle).
   $('builtin-rules-list').addEventListener('change', (e) => {
     if (!e.target.classList.contains('builtin-enabled')) return;
-    const disabled = [...document.querySelectorAll('#builtin-rules-list .builtin-enabled:not(:checked)')]
-      .map(c => c.dataset.name);
-    save({ mm2c_builtin_disabled: disabled });
+    if (!e.target.checked) return; // templates only ever switch ON here → materialise
+    const name = e.target.dataset.name;
+    chrome.storage.local.get(['mm2c_prompt_rules'], ({ mm2c_prompt_rules }) => {
+      const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
+      if (rules.some(r => r && r.name === name)) return; // already added
+      const tpl = (typeof BUILT_IN_RULES !== 'undefined' ? BUILT_IN_RULES : []).find(t => t.name === name);
+      if (!tpl) return;
+      // Materialise the template into the user's rules as a normal editable rule.
+      rules.push({ name: tpl.name, regex: tpl.regex, prompt: tpl.prompt, enabled: true });
+      save({ mm2c_prompt_rules: rules });
+      renderRules(rules);
+      renderTemplates(availableTemplates(BUILT_IN_RULES, rules));
+    });
   });
 
   $('prompt').addEventListener('change', e => {

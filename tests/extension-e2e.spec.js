@@ -513,23 +513,30 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Rules tab built-in toggles reflect + persist mm2c_builtin_disabled', async () => {
-      // 'Standup' is the first real built-in (extension/constants.js BUILT_IN_RULES).
-      const page = await popupWith({ mm2c_builtin_disabled: ['Standup'] });
+    test('built-in templates are off by default and materialise into rules when switched on', async () => {
+      const page = await popupWith({}); // fresh: no user rules
       await page.click('#tab-rules');
       await page.click('#rules-toggle');
-      // Seeded-off built-in renders unchecked; the others render checked.
-      await expect(page.locator('#builtin-rules-list .builtin-enabled[data-name="Standup"]')).not.toBeChecked();
-      const others = page.locator('#builtin-rules-list .builtin-enabled:not([data-name="Standup"])');
-      const count = await others.count();
-      for (let i = 0; i < count; i++) await expect(others.nth(i)).toBeChecked();
-      // Toggle another one OFF → storage gains its name.
-      const name = await others.first().getAttribute('data-name');
-      // Click the wrapping label (the checkbox is a visually-hidden custom toggle).
-      await page.locator(`#builtin-rules-list .builtin-rule-row:has(.builtin-enabled[data-name="${name}"]) label.toggle-wrap`).click();
-      await expect.poll(async () =>
-        (await getStorage(ext.serviceWorker, ['mm2c_builtin_disabled'])).mm2c_builtin_disabled
-      ).toEqual(expect.arrayContaining([name]));
+      // Templates show as available, all OFF (off by default).
+      const toggles = page.locator('#builtin-rules-list .builtin-enabled');
+      const count = await toggles.count();
+      expect(count).toBeGreaterThan(0);
+      for (let i = 0; i < count; i++) await expect(toggles.nth(i)).not.toBeChecked();
+      // No rules yet.
+      expect((await getStorage(ext.serviceWorker, ['mm2c_prompt_rules'])).mm2c_prompt_rules || []).toEqual([]);
+      // Switch 'Standup' on → it materialises into mm2c_prompt_rules as an enabled,
+      // editable rule (with its name + regex + prompt) and leaves the template list.
+      await page.locator('#builtin-rules-list .builtin-rule-row:has(.builtin-enabled[data-name="Standup"]) label.toggle-wrap').click();
+      await expect.poll(async () => {
+        const r = (await getStorage(ext.serviceWorker, ['mm2c_prompt_rules'])).mm2c_prompt_rules || [];
+        const s = r.find(x => x.name === 'Standup');
+        return s && s.enabled === true && typeof s.regex === 'string' && typeof s.prompt === 'string';
+      }).toBe(true);
+      // The materialised template no longer appears as an available template…
+      await expect(page.locator('#builtin-rules-list .builtin-enabled[data-name="Standup"]')).toHaveCount(0);
+      // …and now appears as an editable rule (name badge + a toggle on the right).
+      await expect(page.locator('#rules-list .rule-name', { hasText: 'Standup' })).toBeVisible();
+      await expect(page.locator('#rules-list .rule-item .rule-toggle')).toHaveCount(1);
       await page.close();
     });
 
