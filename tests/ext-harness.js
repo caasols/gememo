@@ -7,19 +7,20 @@ const EXT_DIR = path.resolve(__dirname, '..', 'extension');
 
 const SERVICE_WORKER_TIMEOUT_MS = 15_000;
 
-// Launch a persistent Chromium context with the real unpacked extension loaded.
+// Shared launch core. Boots a persistent Chromium context pointed at `extDir`
+// (the real extension, or a patched copy) and waits for its MV3 service worker.
 // Uses Chromium's new headless (the only headless mode that supports MV3
-// extensions), so this runs on CI without a display.
-async function launchExtension() {
-  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gememo-e2e-'));
+// extensions), so this runs on CI without a display. Returns the common shape;
+// callers add their own cleanup metadata.
+async function _launchWithExtDir(extDir, userDataDir) {
   let context;
   try {
     context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chromium',
       headless: true,
       args: [
-        `--disable-extensions-except=${EXT_DIR}`,
-        `--load-extension=${EXT_DIR}`,
+        `--disable-extensions-except=${extDir}`,
+        `--load-extension=${extDir}`,
         '--no-sandbox',
       ],
     });
@@ -36,9 +37,46 @@ async function launchExtension() {
   }
 }
 
-async function closeExtension({ context, userDataDir }) {
+// Launch a persistent Chromium context with the real unpacked extension loaded.
+async function launchExtension() {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gememo-e2e-'));
+  return _launchWithExtDir(EXT_DIR, userDataDir);
+}
+
+// Launch a copy of the extension whose manifest also matches localhost / 127.0.0.1
+// so the content script injects on a fake Meet page served over plain HTTP.
+//
+// The extension CODE is byte-identical to EXT_DIR — only the manifest's
+// content_scripts[0].matches and host_permissions are widened. This keeps the
+// e2e test honest: the same content_meet.js runs, just on a localhost origin.
+//
+// Returns the same shape as launchExtension PLUS `extDir` (the temp copy) and
+// `userDataDir` so closeExtension can remove both.
+async function launchExtensionLocalhost() {
+  const extDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gememo-ext-'));
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gememo-e2e-'));
+  try {
+    fs.cpSync(EXT_DIR, extDir, { recursive: true });
+    const manifestPath = path.join(extDir, 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const localhostMatches = ['http://localhost/*', 'http://127.0.0.1/*'];
+    manifest.content_scripts[0].matches.push(...localhostMatches);
+    manifest.host_permissions.push(...localhostMatches);
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const launched = await _launchWithExtDir(extDir, userDataDir);
+    return { ...launched, extDir };
+  } catch (err) {
+    try { fs.rmSync(extDir, { recursive: true, force: true }); } catch (_) {}
+    try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch (_) {}
+    throw err;
+  }
+}
+
+async function closeExtension({ context, userDataDir, extDir }) {
   await context.close();
   try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch (_) {}
+  if (extDir) { try { fs.rmSync(extDir, { recursive: true, force: true }); } catch (_) {} }
 }
 
 // Stub chrome.runtime.sendNativeMessage in the SW. `responder` maps msg.type ->
@@ -87,6 +125,6 @@ async function sendFromPage(page, message) {
 }
 
 module.exports = {
-  launchExtension, closeExtension, EXT_DIR,
+  launchExtension, launchExtensionLocalhost, closeExtension, EXT_DIR,
   stubNativeMessage, getSent, seedStorage, getStorage, clearStorage, openPopup, sendFromPage,
 };
