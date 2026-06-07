@@ -508,7 +508,6 @@ test.describe('extension E2E harness', () => {
     test('Rules tab renders a seeded rule row', async () => {
       const page = await popupWith({ mm2c_prompt_rules: [{ regex: 'standup', prompt: 'Brief notes' }] });
       await page.click('#tab-rules');
-      await page.click('#rules-toggle');
       await expect(page.locator('#rules-list .rule-regex')).toHaveValue('standup');
       await page.close();
     });
@@ -516,7 +515,6 @@ test.describe('extension E2E harness', () => {
     test('built-in templates are off by default and materialise into rules when switched on', async () => {
       const page = await popupWith({}); // fresh: no user rules
       await page.click('#tab-rules');
-      await page.click('#rules-toggle');
       // Templates show as available, all OFF (off by default).
       const toggles = page.locator('#builtin-rules-list .builtin-enabled');
       const count = await toggles.count();
@@ -547,7 +545,6 @@ test.describe('extension E2E harness', () => {
         mm2c_prompt_rules: [{ name: 'Standup', regex: 'standup|stand-up|daily|scrum', prompt: 'p', enabled: true }],
       });
       await page.click('#tab-rules');
-      await page.click('#rules-toggle');
       const fits = await page.evaluate(() => {
         // The chevron is the right-most header control; its right edge must stay
         // within the popup body width (and the header must not overflow).
@@ -566,7 +563,6 @@ test.describe('extension E2E harness', () => {
         mm2c_prompt_rules: [{ name: 'Standup', regex: 'standup', prompt: 'p', enabled: true }],
       });
       await page.click('#tab-rules');
-      await page.click('#rules-toggle');
       const body = page.locator('#rules-list .rule-item .rule-body');
       const chev = page.locator('#rules-list .rule-item .rule-expand');
       await expect(chev).toHaveCount(1);
@@ -623,10 +619,10 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#preview-before-send')).not.toBeVisible();
       // Core Settings stay visible.
       await expect(page.locator('#output-app')).toBeVisible();
-      // Rules-tab Glossary is gated; Default prompt + Meeting rules stay.
+      // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).not.toBeVisible();
-      await expect(page.locator('#rules-toggle')).toBeVisible();
+      await expect(page.locator('#default-rule')).toBeVisible();
       // Logs-tab: search, Developer logs + Download are gated; Clear stays.
       await page.click('#tab-logs');
       await expect(page.locator('#note-search')).not.toBeVisible();

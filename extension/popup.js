@@ -184,10 +184,7 @@ function updateSnapshotContent(snap) {
 function renderRules(rules) {
   const list = $('rules-list');
   list.innerHTML = '';
-  if (!rules || rules.length === 0) {
-    list.innerHTML = '<div class="rules-empty">No custom rules yet — switch on a template below, or add your own.</div>';
-    return;
-  }
+  if (!rules || rules.length === 0) return; // Default row + templates are always shown
   const DAYS = [[1, 'Mo'], [2, 'Tu'], [3, 'We'], [4, 'Th'], [5, 'Fr'], [6, 'Sa'], [7, 'Su']];
   rules.forEach((rule, i) => {
     const cond = (rule.condition && typeof rule.condition === 'object') ? rule.condition : {};
@@ -1019,18 +1016,11 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_enabled: e.target.checked });
   });
 
-  $('prompt-toggle').addEventListener('click', () => {
-    const body   = $('prompt-body');
-    const btn    = $('prompt-toggle');
-    const hidden = body.classList.toggle('hidden');
-    btn.classList.toggle('open', !hidden);
-  });
-
-  $('rules-toggle').addEventListener('click', () => {
-    const body = $('rules-body');
-    const btn  = $('rules-toggle');
-    const hidden = body.classList.toggle('hidden');
-    btn.classList.toggle('open', !hidden);
+  // Default rule (always-on fallback) — expand/collapse its prompt + reset.
+  $('default-expand').addEventListener('click', () => {
+    const body = $('default-rule').querySelector('.rule-body');
+    const shown = !body.classList.toggle('hidden');
+    $('default-expand').classList.toggle('open', shown);
   });
 
   $('add-rule-btn').addEventListener('click', () => {
