@@ -729,12 +729,27 @@
     }
 
     /* Prompt rules widget */
+    /* Every rule (Default, user rules, templates) is the same rounded box. */
     .rule-item {
-      border-top: 1px solid var(--border);
-      padding-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin-bottom: 6px;
+      background: var(--surface-subtle);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+    }
+    /* Default row — the always-on fallback; muted descriptor instead of a toggle. */
+    .rule-default .rule-name { font-weight: 600; flex-shrink: 0; }
+    .rule-row-desc {
+      flex: 1;
+      min-width: 0;
+      font-size: 11px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     /* Collapsible body (prompt + title template + conditions) under a rule's header. */
     .rule-body {
@@ -742,7 +757,6 @@
       flex-direction: column;
       gap: var(--space-3);
     }
-    .rule-item:first-child { border-top: none; padding-top: 0; }
     .rule-header {
       display: flex;
       align-items: center;
@@ -1150,16 +1164,27 @@
   <!-- ── Rules panel ────────────────────────────────────────────── -->
   <div class="panel hidden" id="rules-panel" role="tabpanel" aria-labelledby="tab-rules">
 
-    <!-- Default prompt -->
+    <!-- Unified rules: Default (always-on fallback) + your rules + built-in templates -->
     <div class="widget">
-      <div class="widget-header">
-        <div class="widget-title">Default prompt</div>
-        <button class="btn-collapse" id="prompt-toggle">▶</button>
+      <div class="widget-title">Rules</div>
+      <p class="hint">A prompt is applied to each meeting. <b>Default</b> is the always-on fallback; your rules override it when a meeting title matches their regex; built-in templates are off until you switch one on.</p>
+
+      <!-- Default — the always-on fallback rule -->
+      <div class="rule-item rule-default" id="default-rule">
+        <div class="rule-header">
+          <span class="rule-name">Default</span>
+          <span class="rule-row-desc">always on · fallback</span>
+          <button class="btn-collapse rule-expand" id="default-expand" type="button" aria-label="Expand or collapse the default prompt">▶</button>
+        </div>
+        <div class="rule-body hidden">
+          <textarea id="prompt" rows="5"></textarea>
+          <a class="reset-link" id="reset-prompt">Reset to default</a>
+        </div>
       </div>
-      <div id="prompt-body" class="sub-options hidden">
-        <textarea id="prompt" rows="5"></textarea>
-        <a class="reset-link" id="reset-prompt">Reset to default</a>
-      </div>
+
+      <div id="rules-list"></div>
+      <div id="builtin-rules-list"></div>
+      <button id="add-rule-btn">Add rule</button>
     </div>
 
     <!-- Glossary (RB-4a) — beta-gated -->
@@ -1167,20 +1192,6 @@
       <div class="widget-title">Glossary <span class="beta-pill">Beta</span></div>
       <p class="hint">Names, codenames, acronyms to keep spelled exactly (comma or newline separated).</p>
       <textarea id="glossary" rows="2" placeholder="Kubernetes, Falcon, Carlos Sol"></textarea>
-    </div>
-
-    <!-- Meeting rules -->
-    <div class="widget">
-      <div class="widget-header">
-        <div class="widget-title">Meeting rules</div>
-        <button class="btn-collapse" id="rules-toggle">▶</button>
-      </div>
-      <p class="hint">Match meeting titles with a regex to apply a custom prompt instead of the default. Built-in templates are off by default — switch one on to add it as a rule you can edit.</p>
-      <div id="rules-body" class="sub-options hidden">
-        <div id="rules-list"></div>
-        <div id="builtin-rules-list"></div>
-        <button id="add-rule-btn">Add rule</button>
-      </div>
     </div>
 
   </div><!-- /rules-panel -->
