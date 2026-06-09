@@ -112,9 +112,7 @@
         inMeeting:       !!getLeaveButton(),
         geminiActive:    isGeminiAvailable(),
         nextSnapshotAt:  lastSnapshotAt > 0 ? lastSnapshotAt + snapshotIntervalMs : 0,
-        firstSnapshotAt: meetingJoinedAt > 0 && lastSnapshotAt === 0
-          ? meetingJoinedAt + snapshotIntervalMs
-          : 0,
+        firstSnapshotAt: computeFirstSnapshotAt(meetingJoinedAt, lastSnapshotAt, snapshotIntervalMs),
       });
     }
     if (msg.type === 'MM2C_CAPTURE_NOW') {
@@ -211,8 +209,7 @@
 
     // Snapshot interval — read from storage; scheduling starts when meeting joins
     // (see attachInterceptor → scheduleMeetingSnapshot).
-    const rawIntervalMin = parseInt(data.mm2c_snapshot_interval_min || '8', 10) || 8;
-    const SNAPSHOT_INTERVAL_MS = Math.max(3, Math.min(30, rawIntervalMin)) * 60 * 1000;
+    const SNAPSHOT_INTERVAL_MS = computeSnapshotIntervalMs(data.mm2c_snapshot_interval_min);
     snapshotIntervalMs = SNAPSHOT_INTERVAL_MS;
 
     document.addEventListener('visibilitychange', () => {
@@ -220,7 +217,7 @@
       // Tab just became visible — run a catch-up snapshot if the last one
       // was skipped or too long ago (more than half the interval).
       const elapsed = Date.now() - lastSnapshotAt;
-      if (elapsed >= SNAPSHOT_INTERVAL_MS / 2 && getLeaveButton() && isGeminiAvailable()) {
+      if (shouldRunCatchupSnapshot(elapsed, SNAPSHOT_INTERVAL_MS, getLeaveButton(), isGeminiAvailable())) {
         sendLog('Tab active again — running catch-up snapshot');
         lastSnapshotAt = Date.now();
         takePeriodicSnapshot();
@@ -1605,7 +1602,7 @@
     // Without the guard, the overlay can mount on the next page if the tab navigates
     // before this 0 ms timer fires.
     setTimeout(() => {
-      if (!document.hidden && getLeaveButton()) showCloseOverlay();
+      if (shouldShowOverlay(document.hidden, getLeaveButton())) showCloseOverlay();
     }, 0);
   }
 

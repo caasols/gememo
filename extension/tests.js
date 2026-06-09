@@ -994,26 +994,21 @@ window.MM2C_TESTS = (() => {
     return 'not-ready';
   }
 
-  // Re-implementation of the onBeforeUnload setTimeout guard condition.
-  // KEEP IN SYNC with the setTimeout callback in onBeforeUnload (content_meet.js).
-  function shouldShowOverlay_test(isHidden, hasLeaveButton) {
-    return !isHidden && hasLeaveButton;
-  }
-
+  // shouldShowOverlay now lives in constants.js (bucket A) — test the real helper.
   function testOnBeforeUnloadGuard() {
     console.group('onBeforeUnloadGuard');
 
     // Case 1: Guard blocks overlay when no Leave button (navigated away)
     assert('Case 1: guard returns false when no Leave button',
-      !shouldShowOverlay_test(false, false));
+      !shouldShowOverlay(false, false));
 
     // Case 2: Guard blocks overlay when tab is hidden
     assert('Case 2: guard returns false when tab is hidden',
-      !shouldShowOverlay_test(true, true));
+      !shouldShowOverlay(true, true));
 
     // Case 3: Guard allows overlay when on call page and tab visible
     assert('Case 3: guard returns true when Leave button present and tab visible',
-      shouldShowOverlay_test(false, true));
+      shouldShowOverlay(false, true));
 
     console.groupEnd();
   }
@@ -1114,22 +1109,16 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // Re-implementation of the snapshot interval clamping from content_meet.js.
-  // KEEP IN SYNC with: Math.max(3, Math.min(30, parseInt(raw || '8', 10) || 8)) * 60 * 1000
-  function computeSnapshotIntervalMs_test(rawMin) {
-    const parsed = parseInt(rawMin || '8', 10) || 8;
-    return Math.max(3, Math.min(30, parsed)) * 60_000;
-  }
-
+  // computeSnapshotIntervalMs now lives in constants.js (bucket A) — test the real helper.
   function testSnapshotInterval() {
     console.group('snapshotInterval');
 
-    assertEq('8 min (default) → 480000 ms',   computeSnapshotIntervalMs_test(8),   480_000);
-    assertEq('3 min (minimum) → 180000 ms',   computeSnapshotIntervalMs_test(3),   180_000);
-    assertEq('30 min (maximum) → 1800000 ms', computeSnapshotIntervalMs_test(30), 1_800_000);
-    assertEq('0 (falsy) → falls back to default 8 min', computeSnapshotIntervalMs_test(0), 480_000);
-    assertEq('50 → clamped to 30 min',        computeSnapshotIntervalMs_test(50), 1_800_000);
-    assertEq('empty string → defaults to 8',  computeSnapshotIntervalMs_test(''),  480_000);
+    assertEq('8 min (default) → 480000 ms',   computeSnapshotIntervalMs(8),   480_000);
+    assertEq('3 min (minimum) → 180000 ms',   computeSnapshotIntervalMs(3),   180_000);
+    assertEq('30 min (maximum) → 1800000 ms', computeSnapshotIntervalMs(30), 1_800_000);
+    assertEq('0 (falsy) → falls back to default 8 min', computeSnapshotIntervalMs(0), 480_000);
+    assertEq('50 → clamped to 30 min',        computeSnapshotIntervalMs(50), 1_800_000);
+    assertEq('empty string → defaults to 8',  computeSnapshotIntervalMs(''),  480_000);
 
     console.groupEnd();
   }
@@ -1356,35 +1345,30 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // Re-implementation of the visibilitychange catch-up condition from content_meet.js.
-  // KEEP IN SYNC with: elapsed >= SNAPSHOT_INTERVAL_MS / 2 && getLeaveButton() && isGeminiAvailable()
-  function shouldRunCatchupSnapshot_test(elapsed, intervalMs, inMeeting, geminiActive) {
-    return elapsed >= intervalMs / 2 && inMeeting && geminiActive;
-  }
-
+  // shouldRunCatchupSnapshot now lives in constants.js (bucket A) — test the real helper.
   function testVisibilityChangeCatchup() {
     console.group('visibilityChangeCatchup');
     const MS = 600_000; // 10 min — matches SNAPSHOT_INTERVAL_MS
 
     // Case 1: all conditions met → should run
     assert('Case 1: runs when elapsed >= half-interval, in meeting, gemini active',
-      shouldRunCatchupSnapshot_test(MS / 2, MS, true, true));
+      shouldRunCatchupSnapshot(MS / 2, MS, true, true));
 
     // Case 2: elapsed below threshold → should not run
     assert('Case 2: does not run when elapsed < half-interval',
-      !shouldRunCatchupSnapshot_test(MS / 2 - 1, MS, true, true));
+      !shouldRunCatchupSnapshot(MS / 2 - 1, MS, true, true));
 
     // Case 3: exactly at threshold → should run (>= is inclusive)
     assert('Case 3: runs at exactly the half-interval boundary (>= not >)',
-      shouldRunCatchupSnapshot_test(MS / 2, MS, true, true));
+      shouldRunCatchupSnapshot(MS / 2, MS, true, true));
 
     // Case 4: not in meeting → should not run
     assert('Case 4: does not run when not in meeting',
-      !shouldRunCatchupSnapshot_test(MS, MS, false, true));
+      !shouldRunCatchupSnapshot(MS, MS, false, true));
 
     // Case 5: gemini not active → should not run
     assert('Case 5: does not run when gemini not active',
-      !shouldRunCatchupSnapshot_test(MS, MS, true, false));
+      !shouldRunCatchupSnapshot(MS, MS, true, false));
 
     console.groupEnd();
   }
@@ -1812,13 +1796,7 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // KEEP IN SYNC with firstSnapshotAt computation in content_meet.js MM2C_STATUS_QUERY
-  function computeFirstSnapshotAt_test(meetingJoinedAt, lastSnapshotAt, snapshotIntervalMs) {
-    return meetingJoinedAt > 0 && lastSnapshotAt === 0
-      ? meetingJoinedAt + snapshotIntervalMs
-      : 0;
-  }
-
+  // computeFirstSnapshotAt now lives in constants.js (bucket A) — test the real helper.
   function testFirstSnapshotAt() {
     console.group('firstSnapshotAt');
     const INTERVAL = 8 * 60_000;
@@ -1826,19 +1804,19 @@ window.MM2C_TESTS = (() => {
 
     // Case 1: not in meeting → 0
     assertEq('Case 1: meetingJoinedAt=0 → 0',
-      computeFirstSnapshotAt_test(0, 0, INTERVAL), 0);
+      computeFirstSnapshotAt(0, 0, INTERVAL), 0);
 
     // Case 2: in meeting, no snapshot yet → meetingJoinedAt + interval
     assertEq('Case 2: in meeting, no snapshot → ETA',
-      computeFirstSnapshotAt_test(T, 0, INTERVAL), T + INTERVAL);
+      computeFirstSnapshotAt(T, 0, INTERVAL), T + INTERVAL);
 
     // Case 3: first snapshot already taken → 0
     assertEq('Case 3: lastSnapshotAt > 0 → 0 (already done)',
-      computeFirstSnapshotAt_test(T, T + 1000, INTERVAL), 0);
+      computeFirstSnapshotAt(T, T + 1000, INTERVAL), 0);
 
     // Case 4: interval math — 3 min interval
     assertEq('Case 4: 3-min interval → T + 3min',
-      computeFirstSnapshotAt_test(T, 0, 3 * 60_000), T + 3 * 60_000);
+      computeFirstSnapshotAt(T, 0, 3 * 60_000), T + 3 * 60_000);
 
     console.groupEnd();
   }
