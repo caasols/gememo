@@ -13,7 +13,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
-_Nothing yet — next change goes here._
+### Internal (no behavior change)
+- **Extracted pure scheduling/timing logic from `content_meet.js` into tested `constants.js` helpers** (`computeSnapshotIntervalMs`, `shouldRunCatchupSnapshot`, `shouldShowOverlay`, `computeFirstSnapshotAt`), replacing the inline expressions with calls and pointing the unit tests at the real helpers (removing hand-synced `*_test` copies). Behaviour-preserving; the helpers reproduce the original expressions exactly.
 
 ---
 
