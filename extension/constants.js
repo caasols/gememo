@@ -492,6 +492,33 @@ function assemblePrompt({ title = '', priorContext = '', glossary = '', language
     + effectiveBase;
 }
 
+// ── Snapshot / meeting-timing pure helpers (extracted from content_meet.js so
+// the scheduling math is unit-tested; a bug here means bad snapshot cadence) ──
+// Clamp the user's snapshot interval (raw storage minutes) to [3,30] and convert
+// to ms; defaults to 8 when unset/invalid.
+function computeSnapshotIntervalMs(rawMin) {
+  const parsed = parseInt(rawMin || '8', 10) || 8;
+  return Math.max(3, Math.min(30, parsed)) * 60000;
+}
+// Should the visibilitychange catch-up snapshot run? True once at least half the
+// interval has elapsed AND we're in a meeting AND Gemini is active. (Operands are
+// passed through raw, so truthiness matches the original inline condition.)
+function shouldRunCatchupSnapshot(elapsed, intervalMs, inMeeting, geminiActive) {
+  return elapsed >= intervalMs / 2 && inMeeting && geminiActive;
+}
+// Should the leave-confirmation overlay show on beforeunload? Only when the tab
+// is visible AND still on a call (Leave button present).
+function shouldShowOverlay(isHidden, hasLeaveButton) {
+  return !isHidden && hasLeaveButton;
+}
+// ETA (epoch ms) of the FIRST meeting snapshot, or 0 when not applicable (not in
+// a meeting, or a snapshot already fired).
+function computeFirstSnapshotAt(meetingJoinedAt, lastSnapshotAt, snapshotIntervalMs) {
+  return meetingJoinedAt > 0 && lastSnapshotAt === 0
+    ? meetingJoinedAt + snapshotIntervalMs
+    : 0;
+}
+
 // Pure helper — map a raw error string to friendly "what happened + what to do"
 // copy for the in-page toast and popup banner (UXC-3). The raw text is kept only
 // in the debug log; the user never sees a bare JS / native-messaging string.
