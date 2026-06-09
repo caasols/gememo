@@ -542,6 +542,42 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testGeminiNotStarted() {
+    console.group('geminiNotStarted (Meet 2026-06 off-state detection)');
+
+    // Off state (Meet 2026-06): button HAS an aria-label AND a spark_off icon.
+    // The regression was treating "has aria-label" as "started" → must be OFF here.
+    withFixture('', (c) => {
+      c.innerHTML = `<button jsname="wptEcf" aria-label="Gemini can't answer your questions at the moment" role="button">
+        <i class="quRWN-Bz112c google-symbols notranslate">spark_off</i></button>`;
+      const btn = c.querySelector('button');
+      assert('off-state button (spark_off icon + aria-label) → NOT started', geminiNotStarted(btn) === true);
+    });
+
+    // Off state by label alone (icon missing/changed but label says it can't answer).
+    withFixture('', (c) => {
+      c.innerHTML = `<button aria-label="Gemini isn't available right now"><i class="google-symbols">spark</i></button>`;
+      assert('off-state by "isn\'t available" label → NOT started', geminiNotStarted(c.querySelector('button')) === true);
+    });
+
+    // Active/started state: lit spark icon + plain "Gemini" label → started (false).
+    withFixture('', (c) => {
+      c.innerHTML = `<button jsname="wptEcf" aria-label="Gemini" role="button">
+        <i class="google-symbols notranslate">spark</i></button>`;
+      assert('active-state button (spark icon, "Gemini" label) → started', geminiNotStarted(c.querySelector('button')) === false);
+    });
+
+    // Active state with no icon (older fake-Meet button) → started.
+    withFixture('', (c) => {
+      c.innerHTML = `<button aria-label="Gemini">Gemini</button>`;
+      assert('plain "Gemini" button, no icon → started', geminiNotStarted(c.querySelector('button')) === false);
+    });
+
+    assert('geminiNotStarted(null) is safe → false', geminiNotStarted(null) === false);
+
+    console.groupEnd();
+  }
+
   function testMuteSelectors() {
     console.group('Mute selector logic');
 
@@ -2904,6 +2940,7 @@ window.MM2C_TESTS = (() => {
     testGeminiActiveDetection();
     testExtractLastResponse();
     testGeminiResponseDone();
+    testGeminiNotStarted();
     testMuteSelectors();
     testSubmitButton();
     await testWaitForForeground();

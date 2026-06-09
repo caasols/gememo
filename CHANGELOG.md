@@ -17,6 +17,13 @@ _Nothing yet — next change goes here._
 
 ---
 
+## [0.2.7] – 2026-06-09 · Meet 2026-06 auto-activation fix
+
+### Fixed
+- **Auto-activation no longer skips the hover step** (Meet 2026-06 redesign). `autoActivateGemini` decided "Gemini already started → just click to open" vs "not started → hover to reveal *Start now*" by checking whether the toolbar toggle had an `aria-label`. The redesign gave the **off-state** toggle a permanent `aria-label` ("Gemini can't answer your questions at the moment") plus a `spark_off` icon — so the off button was misread as "started", taking the click branch (which opens a dead cross-origin popup) and **never hovering to activate**. Fix: a new `geminiNotStarted(el)` decides started-vs-not by the **icon/label state** (`spark_off` icon, or a "can't answer / not available" label) instead of mere label presence; `getGeminiTriggerElement` also matches the toggle by its stable `jsname="wptEcf"`. +pure tests for `geminiNotStarted` across off/active shapes. Extension + native host → `0.2.7`.
+
+---
+
 ## [0.2.6] – 2026-06-09 · Meet 2026-06 response-detection fix
 
 ### Fixed
