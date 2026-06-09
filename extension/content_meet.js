@@ -1632,7 +1632,7 @@
   if (window.MM2C_FIXTURE_MODE) {
     window.MM2C_SELECTORS = {
       getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording,
-      extractLastResponse, waitForResponseComplete,
+      extractLastResponse, waitForResponseComplete, injectPromptWithVerification,
     };
   }
 

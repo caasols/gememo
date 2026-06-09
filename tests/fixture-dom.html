@@ -50,7 +50,7 @@
     async function run() {
       results.length = 0;
       const { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording,
-        extractLastResponse, waitForResponseComplete } =
+        extractLastResponse, waitForResponseComplete, injectPromptWithVerification } =
         window.MM2C_SELECTORS;
       const savedTitle = document.title;
 
@@ -248,6 +248,56 @@
           await p.then(() => { resolved = true; }).catch(() => {});
           assert('does not finish early on a streaming reply, then resolves once Copy appears', resolved);
         });
+
+      console.groupEnd();
+
+      // ── injectPromptWithVerification (REAL function, exposed via MM2C_FIXTURE_MODE) ──
+      // Replaces the deleted tests.js DI copy. Drives the SHIPPING function across its
+      // three branches deterministically: execCommand success, execCommand→textContent
+      // fallback, and both-paths-fail throw. (sendLog is a no-op offline because
+      // isContextValid() is false, so the real function runs cleanly here.)
+      console.group('injectPromptWithVerification (real content_meet)');
+
+      // Happy path: a writable Ask Gemini input → resolves with the prompt present.
+      await withFixture('<div aria-label="Ask Gemini" contenteditable="true" role="textbox"></div>', async (c) => {
+        const el = c.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]');
+        let ok = false;
+        await injectPromptWithVerification(el, 'PROMPT BODY TEXT', Date.now() + 5000)
+          .then(() => { ok = true; }).catch(() => {});
+        assert('resolves on a writable input', ok);
+        assert('input contains the injected prompt',
+          (el.textContent || '').includes('PROMPT BODY TEXT'), `got: ${JSON.stringify(el.textContent)}`);
+      });
+
+      // Fallback: execCommand is a no-op → Path A leaves it empty → real Path B (textContent) runs.
+      await withFixture('<div aria-label="Ask Gemini" contenteditable="true" role="textbox"></div>', async (c) => {
+        const el = c.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]');
+        const realExec = document.execCommand;
+        document.execCommand = () => false;
+        let ok = false;
+        try {
+          await injectPromptWithVerification(el, 'FALLBACK PROMPT', Date.now() + 5000)
+            .then(() => { ok = true; }).catch(() => {});
+        } finally { document.execCommand = realExec; }
+        assert('fallback (textContent) path resolves when execCommand is a no-op', ok);
+        assert('fallback path populated the input', (el.textContent || '').includes('FALLBACK PROMPT'));
+      });
+
+      // Throw: both paths leave the input empty → real function rejects with InjectionTimeoutError.
+      await withFixture('<div aria-label="Ask Gemini" contenteditable="true" role="textbox"></div>', async (c) => {
+        const el = c.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]');
+        const realExec = document.execCommand;
+        document.execCommand = () => false;
+        Object.defineProperty(el, 'textContent', { configurable: true, get() { return ''; }, set() {} });
+        let err = null;
+        try {
+          await injectPromptWithVerification(el, 'WILL FAIL', Date.now() + 5000)
+            .then(() => {}).catch(e => { err = e; });
+        } finally { document.execCommand = realExec; }
+        assert('rejects when both injection paths leave the input empty', !!err);
+        assert('throws the injection-failure error',
+          !!err && /Failed to inject prompt/.test(err.message || ''), `got: ${err && err.message}`);
+      });
 
       console.groupEnd();
 
