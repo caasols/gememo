@@ -13,7 +13,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
-_Nothing yet — next change goes here._
+### Changed
+- **`.ics for Next Steps` moved behind the Experimental toggle.** The `.ics` export row (inside File backup) now carries the `.beta` class, so it's hidden unless *Settings → Experimental features* is on — consistent with the other advanced features. UI-only gating; the export behavior is unchanged when enabled. A focused E2E asserts it's hidden/shown with Experimental off/on (with file backup enabled).
 
 ---
 

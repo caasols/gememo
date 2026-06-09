@@ -761,6 +761,21 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('.ics for Next Steps is gated behind Experimental (within file backup)', async () => {
+      // The .ics row lives inside the file-backup sub-options, so it's only shown
+      // when file backup is enabled — then it appears only with Experimental on.
+      const ics = (p) => p.getByText('.ics for Next Steps');
+      const off = await popupWith({ mm2c_file_backup_enabled: true, mm2c_beta_enabled: false });
+      await off.click('#tab-settings');
+      await expect(off.locator('#file-type')).toBeVisible();   // file-backup body open
+      await expect(ics(off)).not.toBeVisible();                 // …but .ics gated off
+      await off.close();
+      const on = await popupWith({ mm2c_file_backup_enabled: true, mm2c_beta_enabled: true });
+      await on.click('#tab-settings');
+      await expect(ics(on)).toBeVisible();
+      await on.close();
+    });
+
     test('Beta tab renders seeded additional-destination rows (UXF-11)', async () => {
       const page = await popupWith({
         mm2c_beta_enabled: true,
