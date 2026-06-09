@@ -307,13 +307,15 @@
   // Try aria-label first (reliable when present), then fall back to text-content
   // matching so the selector survives Meet UI variations.
   function getGeminiStartNowButton() {
+    // Delegated to the pure, unit-tested findStartNowButton() in constants.js,
+    // which handles Meet's 2026-06 hover tray (a non-semantic [jsaction] div
+    // wrapping a <span jsname="V67aGc">Start now</span>) as well as the older
+    // aria-label / button-text shapes. Defensive fallback if constants didn't load.
+    if (typeof findStartNowButton === 'function') return findStartNowButton(document);
     const byLabel = document.querySelector(
       'button[aria-label*="Start now" i], button[aria-label*="start gemini" i]'
     );
     if (byLabel) return byLabel;
-    // Also check role=button elements (Meet uses DIVs for some controls).
-    // Use a contains-match rather than exact-match so the star emoji prefix
-    // ("⭐ Start now") in the Ask Gemini popup doesn't break detection.
     for (const btn of document.querySelectorAll('button, [role="button"]')) {
       if (/start now/i.test(btn.textContent.trim())) return btn;
     }

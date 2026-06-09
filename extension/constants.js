@@ -729,6 +729,43 @@ function geminiNotStarted(el) {
   return /can'?t answer|cannot answer|isn'?t available|not available|unavailable/.test(label);
 }
 
+// The "Start now" control in the hover tray Meet shows over the off-state Gemini
+// toggle — clicking it begins the note-taking/Q&A session. Returns the element to
+// click (auto-activation CDP-clicks its bounding-box center), or null.
+//
+// Meet's 2026-06 redesign made this NON-trivial: the tray's "Start now" is a
+// <span jsname="V67aGc" class="YUhpIc-vQzf8d">Start now</span> whose clickable
+// wrapper is often a NON-semantic div (a [jsaction] with click:, not a <button>
+// or [role="button"]). The old detector only scanned button/[role=button] text,
+// so it missed the new tray entirely → activation fell back to the manual toast.
+// We match on the LABEL TEXT "Start now" (jsname="V67aGc" is shared with the Copy
+// button, so it can't be used alone) and climb to the nearest clickable; if none,
+// the label element itself is fine since CDP clicks by coordinates.
+function findStartNowButton(root) {
+  const r = root || (typeof document !== 'undefined' ? document : null);
+  if (!r || !r.querySelector) return null;
+  const CLICKABLE = 'button, [role="button"], [jsaction*="click"]';
+  // 1. aria-label (most reliable when Meet provides it).
+  const byLabel = r.querySelector(
+    'button[aria-label*="Start now" i], button[aria-label*="start gemini" i], [role="button"][aria-label*="Start now" i]'
+  );
+  if (byLabel) return byLabel;
+  // 2. Meet 2026-06 hover tray: the label span (jsname="V67aGc") reading "Start now".
+  for (const span of r.querySelectorAll('span[jsname="V67aGc"]')) {
+    if (/start now/i.test(span.textContent || '')) {
+      return (span.closest && span.closest(CLICKABLE)) || span;
+    }
+  }
+  // 3. Generic fallback: any clickable (incl. non-semantic [jsaction]) whose own
+  //    text is just "Start now" (± a ✦/star prefix) — anchored so we grab the tight
+  //    control, not a large container that merely contains the phrase.
+  for (const el of r.querySelectorAll(CLICKABLE)) {
+    const t = (el.textContent || '').trim();
+    if (/^[✦*\s]*start now\s*$/i.test(t)) return el;
+  }
+  return null;
+}
+
 // True once the latest Gemini reply is fully rendered — that message has its Copy
 // action button. Anchoring on the LAST message (not the whole panel) means a
 // still-streaming reply (no Copy yet) never completes on a PRIOR answer, and there

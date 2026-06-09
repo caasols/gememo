@@ -17,6 +17,13 @@ _Nothing yet — next change goes here._
 
 ---
 
+## [0.2.8] – 2026-06-09 · Meet 2026-06 "Start now" detection
+
+### Fixed
+- **Auto-activation now finds the redesigned "Start now" control** (Meet 2026-06). After 0.2.7 correctly hovered the off-state Gemini toggle, the hover tray's "Start now" still wasn't clicked automatically — the extension showed the manual "click Start now" toast instead. Cause: the redesigned tray renders "Start now" as a `<span jsname="V67aGc" class="YUhpIc-vQzf8d">Start now</span>` whose clickable wrapper is a **non-semantic `[jsaction]` div**, not a `<button>`/`[role="button"]` — so the old text scan (limited to buttons) never matched it. Fix: a new pure `findStartNowButton(root)` matches the tray by the **label text "Start now"** (the `V67aGc` jsname is shared with the Copy button, so it can't be used alone) and climbs to the nearest clickable (falling back to the label span, since CDP clicks by coordinates); it also keeps the aria-label and legacy-button paths. `getGeminiStartNowButton` delegates to it. +pure tests covering the new tray shape, the Copy-span false-positive, aria-label, legacy button, and a big-container guard. Extension + native host → `0.2.8`.
+
+---
+
 ## [0.2.7] – 2026-06-09 · Meet 2026-06 auto-activation fix
 
 ### Fixed
