@@ -2321,18 +2321,61 @@ window.MM2C_TESTS = (() => {
   }
 
   function testPromptPrefixHelpers() {
-    console.group('noteLanguagePrefix / meetingTitlePrefix (direct, drift guard)');
+    console.group('prompt prefix helpers (direct, exact-string)');
 
-    const esLang = noteLanguagePrefix('Spanish');
-    assert('noteLanguagePrefix("Spanish") non-empty', esLang.length > 0);
-    assert('noteLanguagePrefix("Spanish") mentions Spanish', esLang.includes('Spanish'));
+    // noteLanguagePrefix — exact strings (was the buildPromptWithLanguage copy)
     assertEq('noteLanguagePrefix("") → ""', noteLanguagePrefix(''), '');
     assertEq('noteLanguagePrefix() → ""', noteLanguagePrefix(), '');
+    assertEq('noteLanguagePrefix("Spanish") exact',
+      noteLanguagePrefix('Spanish'),
+      "Write all notes in Spanish. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n");
+    assertEq('noteLanguagePrefix("Japanese") exact',
+      noteLanguagePrefix('Japanese'),
+      "Write all notes in Japanese. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n");
 
-    const titlePfx = meetingTitlePrefix('Weekly Sync');
-    assert('meetingTitlePrefix("Weekly Sync") non-empty', titlePfx.length > 0);
-    assert('meetingTitlePrefix("Weekly Sync") contains the title', titlePfx.includes('Weekly Sync'));
+    // meetingTitlePrefix — exact strings (was the buildPromptWithTitle copy)
     assertEq('meetingTitlePrefix("") → ""', meetingTitlePrefix(''), '');
+    assertEq('meetingTitlePrefix(null) → ""', meetingTitlePrefix(null), '');
+    assertEq('meetingTitlePrefix("Q3 Planning") exact',
+      meetingTitlePrefix('Q3 Planning'),
+      'Meeting title: Q3 Planning. Use this context to interpret references to projects, teams, or products in the transcript.\n\n');
+    assertEq('meetingTitlePrefix em-dash title exact',
+      meetingTitlePrefix('Platform Team — Weekly Sync'),
+      'Meeting title: Platform Team — Weekly Sync. Use this context to interpret references to projects, teams, or products in the transcript.\n\n');
+
+    // attendeesPrefix — exact strings (NEW direct coverage; was only via assemblePrompt)
+    assertEq('attendeesPrefix([]) → ""', attendeesPrefix([]), '');
+    assertEq('attendeesPrefix(non-array) → ""', attendeesPrefix(undefined), '');
+    assertEq('attendeesPrefix single exact',
+      attendeesPrefix(['Alice Chen']),
+      'Meeting attendees: 1. Alice Chen. Use these exact names when assigning action items.\n\n');
+    assertEq('attendeesPrefix multi numbered exact',
+      attendeesPrefix(['Alice Chen', 'Bob Martinez', 'Carlos Rodriguez']),
+      'Meeting attendees: 1. Alice Chen, 2. Bob Martinez, 3. Carlos Rodriguez. Use these exact names when assigning action items.\n\n');
+
+    // example prefix — exercised through the real assemblePrompt (no standalone helper)
+    assertEq('assemblePrompt({example}) yields the exact example prefix',
+      assemblePrompt({ example: 'Example note content.' }),
+      'Here is an example of the exact note format to produce:\n\n---\nExample note content.\n---\n\nNow produce notes for the current meeting following this exact format:\n\n');
+    assertEq('assemblePrompt({example:""}) → "" (no example prefix)',
+      assemblePrompt({ example: '' }), '');
+
+    // ── TRANSIENT equivalence guard (a later step removes this) ───────────────
+    // Proves the real constants.js helpers are byte-identical to the tests.js
+    // copies TODAY, before those copies are deleted. Each copy is copy(base,value)
+    // → prefix+base, so copy('', value) yields just the prefix.
+    ['', 'Spanish', 'Japanese', 'Brazilian Portuguese'].forEach(L =>
+      assertEq(`equiv: noteLanguagePrefix(${JSON.stringify(L)})`,
+        noteLanguagePrefix(L), buildPromptWithLanguage_test('', L)));
+    ['', 'Weekly Sync', 'Platform Team — Weekly Sync', null].forEach(T =>
+      assertEq(`equiv: meetingTitlePrefix(${JSON.stringify(T)})`,
+        meetingTitlePrefix(T), buildPromptWithTitle_test('', T)));
+    [[], ['Alice Chen'], ['Alice Chen', 'Bob Martinez', 'Carlos Rodriguez']].forEach(A =>
+      assertEq(`equiv: attendeesPrefix(${JSON.stringify(A)})`,
+        attendeesPrefix(A), buildPromptWithAttendees_test('', A)));
+    ['', 'Example note content.', EXAMPLE_NOTES].forEach(E =>
+      assertEq(`equiv: assemblePrompt example (${E ? 'set' : 'empty'})`,
+        assemblePrompt({ example: E }), buildPromptWithExample_test('', E)));
 
     console.groupEnd();
   }
