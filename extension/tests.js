@@ -1521,36 +1521,6 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // Re-implementation of the note language prefix logic from _runGeminiFlowInner (content_meet.js).
-  // KEEP IN SYNC with: languagePrefix = mm2c_note_language ? `Write all notes in ${mm2c_note_language}. Preserve proper nouns...` : ''
-  function buildPromptWithLanguage_test(basePrompt, language) {
-    const prefix = language
-      ? `Write all notes in ${language}. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n`
-      : '';
-    return prefix + basePrompt;
-  }
-
-  function testBuildPromptWithLanguage() {
-    console.group('buildPromptWithLanguage');
-
-    // Case 1: Auto (empty language) → prompt unchanged
-    assertEq('Case 1: Auto returns base prompt unchanged',
-      buildPromptWithLanguage_test('Take notes.', ''),
-      'Take notes.');
-
-    // Case 2: Spanish → language instruction with proper noun protection prepended
-    assertEq('Case 2: Spanish prepends language instruction with proper noun protection',
-      buildPromptWithLanguage_test('Take notes.', 'Spanish'),
-      'Write all notes in Spanish. Preserve proper nouns, product names, technical acronyms, and people\'s names in their original form without translating them.\n\nTake notes.');
-
-    // Case 3: custom language → instruction prepended correctly
-    assertEq('Case 3: custom language works',
-      buildPromptWithLanguage_test('Take notes.', 'Japanese'),
-      'Write all notes in Japanese. Preserve proper nouns, product names, technical acronyms, and people\'s names in their original form without translating them.\n\nTake notes.');
-
-    console.groupEnd();
-  }
-
   // Re-implementation of the visibilitychange catch-up condition from content_meet.js.
   // KEEP IN SYNC with: elapsed >= SNAPSHOT_INTERVAL_MS / 2 && getLeaveButton() && isGeminiAvailable()
   function shouldRunCatchupSnapshot_test(elapsed, intervalMs, inMeeting, geminiActive) {
@@ -2154,15 +2124,6 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // Pure helper mirroring the examplePrefix logic in content_meet.js _runGeminiFlowInner.
-  // KEEP IN SYNC with: examplePrefix = `Here is an example...\n\n---\n${EXAMPLE_NOTES}\n---\n\n...`
-  function buildPromptWithExample_test(basePrompt, exampleNotes) {
-    const prefix = exampleNotes
-      ? `Here is an example of the exact note format to produce:\n\n---\n${exampleNotes}\n---\n\nNow produce notes for the current meeting following this exact format:\n\n`
-      : '';
-    return prefix + basePrompt;
-  }
-
   // KEEP IN SYNC with backup path extraction in popup.js log entry rendering.
   // Regex: /backup at (.+)$/ — captures everything after "backup at " to end of string.
   function extractBackupPath_test(message) {
@@ -2359,23 +2320,6 @@ window.MM2C_TESTS = (() => {
       'Here is an example of the exact note format to produce:\n\n---\nExample note content.\n---\n\nNow produce notes for the current meeting following this exact format:\n\n');
     assertEq('assemblePrompt({example:""}) → "" (no example prefix)',
       assemblePrompt({ example: '' }), '');
-
-    // ── TRANSIENT equivalence guard (a later step removes this) ───────────────
-    // Proves the real constants.js helpers are byte-identical to the tests.js
-    // copies TODAY, before those copies are deleted. Each copy is copy(base,value)
-    // → prefix+base, so copy('', value) yields just the prefix.
-    ['', 'Spanish', 'Japanese', 'Brazilian Portuguese'].forEach(L =>
-      assertEq(`equiv: noteLanguagePrefix(${JSON.stringify(L)})`,
-        noteLanguagePrefix(L), buildPromptWithLanguage_test('', L)));
-    ['', 'Weekly Sync', 'Platform Team — Weekly Sync', null].forEach(T =>
-      assertEq(`equiv: meetingTitlePrefix(${JSON.stringify(T)})`,
-        meetingTitlePrefix(T), buildPromptWithTitle_test('', T)));
-    [[], ['Alice Chen'], ['Alice Chen', 'Bob Martinez', 'Carlos Rodriguez']].forEach(A =>
-      assertEq(`equiv: attendeesPrefix(${JSON.stringify(A)})`,
-        attendeesPrefix(A), buildPromptWithAttendees_test('', A)));
-    ['', 'Example note content.', EXAMPLE_NOTES].forEach(E =>
-      assertEq(`equiv: assemblePrompt example (${E ? 'set' : 'empty'})`,
-        assemblePrompt({ example: E }), buildPromptWithExample_test('', E)));
 
     console.groupEnd();
   }
@@ -2612,101 +2556,6 @@ window.MM2C_TESTS = (() => {
       !/was not active/i.test(GEMINI_INACTIVE_MESSAGE) && !/notes was/i.test(GEMINI_INACTIVE_MESSAGE));
     assert('conveys that no notes were saved',
       /no notes were saved/i.test(GEMINI_INACTIVE_MESSAGE));
-    console.groupEnd();
-  }
-
-  function testBuildPromptWithExample() {
-    console.group('buildPromptWithExample');
-
-    // Case 1: with example → prefix prepended
-    const result1 = buildPromptWithExample_test('Take notes.', 'Example note content.');
-    assert('Case 1: example prefix is prepended',
-      result1.startsWith('Here is an example of the exact note format to produce:'));
-    assert('Case 1: example content is included between separators',
-      result1.includes('---\nExample note content.\n---'));
-    assert('Case 1: base prompt follows the example block',
-      result1.endsWith('Take notes.'));
-
-    // Case 2: empty example → no prefix, prompt unchanged
-    assertEq('Case 2: empty example → prompt unchanged',
-      buildPromptWithExample_test('Take notes.', ''),
-      'Take notes.');
-
-    // Case 3: EXAMPLE_NOTES constant works end-to-end with helper
-    const result3 = buildPromptWithExample_test('Take notes.', EXAMPLE_NOTES);
-    assert('Case 3: real EXAMPLE_NOTES produces valid prefix',
-      result3.startsWith('Here is an example') && result3.endsWith('Take notes.'));
-
-    console.groupEnd();
-  }
-
-  // Pure helper mirroring the titlePrefix logic in content_meet.js _runGeminiFlowInner.
-  // KEEP IN SYNC with: titlePrefix = currentMeetingTitle ? `Meeting title: ${currentMeetingTitle}...` : ''
-  function buildPromptWithTitle_test(basePrompt, title) {
-    const prefix = title
-      ? `Meeting title: ${title}. Use this context to interpret references to projects, teams, or products in the transcript.\n\n`
-      : '';
-    return prefix + basePrompt;
-  }
-
-  // Pure helper mirroring the attendeesPrefix logic in content_meet.js _runGeminiFlowInner.
-  // KEEP IN SYNC with: attendeesPrefix = attendees.length > 0 ? `Meeting attendees: 1. X, 2. Y...` : ''
-  function buildPromptWithAttendees_test(basePrompt, attendees) {
-    const prefix = attendees.length > 0
-      ? `Meeting attendees: ${attendees.map((n, i) => `${i + 1}. ${n}`).join(', ')}. Use these exact names when assigning action items.\n\n`
-      : '';
-    return prefix + basePrompt;
-  }
-
-  function testBuildPromptWithAttendees() {
-    console.group('buildPromptWithAttendees');
-
-    // Case 1: no attendees → prompt unchanged
-    assertEq('Case 1: empty attendees → no prefix',
-      buildPromptWithAttendees_test('Take notes.', []),
-      'Take notes.');
-
-    // Case 2: one attendee → numbered list
-    assertEq('Case 2: one attendee → numbered prefix',
-      buildPromptWithAttendees_test('Take notes.', ['Alice Chen']),
-      'Meeting attendees: 1. Alice Chen. Use these exact names when assigning action items.\n\nTake notes.');
-
-    // Case 3: multiple attendees → comma-separated numbered list
-    assertEq('Case 3: multiple attendees → numbered comma-separated',
-      buildPromptWithAttendees_test('Take notes.', ['Alice Chen', 'Bob Martinez', 'Carlos Rodriguez']),
-      'Meeting attendees: 1. Alice Chen, 2. Bob Martinez, 3. Carlos Rodriguez. Use these exact names when assigning action items.\n\nTake notes.');
-
-    // Case 4: single character name still included (filtering is in getAttendeeNames)
-    assertEq('Case 4: single-char name still included',
-      buildPromptWithAttendees_test('Take notes.', ['A']),
-      'Meeting attendees: 1. A. Use these exact names when assigning action items.\n\nTake notes.');
-
-    console.groupEnd();
-  }
-
-  function testBuildPromptWithTitle() {
-    console.group('buildPromptWithTitle');
-
-    // Case 1: no title → prompt unchanged
-    assertEq('Case 1: empty title → no prefix',
-      buildPromptWithTitle_test('Take notes.', ''),
-      'Take notes.');
-
-    // Case 2: with title → prefix prepended
-    assertEq('Case 2: title prepended with context hint',
-      buildPromptWithTitle_test('Take notes.', 'Q3 Planning'),
-      'Meeting title: Q3 Planning. Use this context to interpret references to projects, teams, or products in the transcript.\n\nTake notes.');
-
-    // Case 3: title with special characters → included verbatim
-    assertEq('Case 3: title with dash and colon included verbatim',
-      buildPromptWithTitle_test('Take notes.', 'Platform Team — Weekly Sync'),
-      'Meeting title: Platform Team — Weekly Sync. Use this context to interpret references to projects, teams, or products in the transcript.\n\nTake notes.');
-
-    // Case 4: null/undefined title → no prefix (falsy guard)
-    assertEq('Case 4: null title → no prefix',
-      buildPromptWithTitle_test('Take notes.', null),
-      'Take notes.');
-
     console.groupEnd();
   }
 
@@ -3074,12 +2923,8 @@ window.MM2C_TESTS = (() => {
     testPrivateReflectionPrompt();
     testCloseOverlayBody();
     testGeminiInactiveMessage();
-    testBuildPromptWithExample();
-    testBuildPromptWithAttendees();
-    testBuildPromptWithTitle();
     testDefaultPromptContent();
     testPromptRuleMatching();
-    testBuildPromptWithLanguage();
     testVisibilityChangeCatchup();
     testCitationSecondPass();
     await testLeaveClickFreshFirst();
