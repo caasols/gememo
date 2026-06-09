@@ -335,6 +335,10 @@
   // inside a cross-origin iframe and cannot be clicked programmatically. The
   // extension handles this gracefully — see autoActivateGemini().
   function getGeminiTriggerElement() {
+    // 0. Meet 2026-06 toolbar toggle by stable jsname (present in BOTH the off
+    //    "spark_off" state and the active state) — most robust across label changes.
+    const byJsname = document.querySelector('button[jsname="wptEcf"]');
+    if (byJsname) return byJsname;
     // 1. aria-label match (older Meet / future-proofing)
     const starBtn = document.querySelector('button[aria-label*="Gemini" i], [role="button"][aria-label*="Gemini" i]');
     if (starBtn) return starBtn;
@@ -895,10 +899,18 @@
           return;
         }
 
-        const hasLabel = !!trigger.getAttribute('aria-label');
-        sendLog(`autoActivateGemini: trigger hasAriaLabel=${hasLabel}`);
+        // Decide "started vs not started" by the toggle's ICON/label state, NOT by
+        // whether it has an aria-label. Meet's 2026-06 redesign gave the OFF-state
+        // toggle a permanent aria-label ("Gemini can't answer…") + a `spark_off`
+        // icon, so the old "hasLabel ⇒ started" proxy misrouted the off button into
+        // the click-to-open branch (which opens a dead cross-origin popup) and never
+        // hovered to reveal "Start now" — that was the activation regression.
+        const notStarted = (typeof geminiNotStarted === 'function')
+          ? geminiNotStarted(trigger)
+          : !trigger.getAttribute('aria-label');
+        sendLog(`autoActivateGemini: trigger notStarted=${notStarted} label="${trigger.getAttribute('aria-label') || ''}"`);
 
-        if (hasLabel) {
+        if (!notStarted) {
           // ── State 2→3: Gemini already started — click button to open panel ─
           sendLog(`Opening panel: click "${trigger.getAttribute('aria-label')}"`);
           trigger.click();

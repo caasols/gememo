@@ -708,6 +708,27 @@ function lastGeminiResponseEl(root) {
   return r.querySelector ? r.querySelector('aside[aria-label="Side panel"]') : null;
 }
 
+// True when the Gemini toolbar toggle is present but NOT started yet (so the
+// extension must hover it to reveal "Start now", rather than click-to-open).
+//
+// Meet's 2026-06 redesign changed how the off state looks: the toggle is now a
+// <button jsname="wptEcf"> that ALWAYS carries an aria-label — in the off state
+// it reads e.g. "Gemini can't answer your questions at the moment" and shows the
+// `spark_off` Material symbol; once started the icon switches to a lit `spark`
+// and the label becomes "Gemini"/"Ask Gemini". The OLD off-state button had no
+// aria-label at all, so callers used "has aria-label" as a proxy for "started" —
+// that proxy is now wrong (the off button HAS a label), which is exactly why
+// auto-activation regressed (it took the click-to-open branch instead of hover).
+// Detect the off state by the icon/label instead.
+function geminiNotStarted(el) {
+  if (!el || !el.querySelector) return false;
+  const iconEl = el.querySelector('i.google-symbols, .google-symbols, i.notranslate');
+  const icon = ((iconEl && iconEl.textContent) || '').trim().toLowerCase();
+  const label = ((el.getAttribute && el.getAttribute('aria-label')) || '').toLowerCase();
+  if (icon.includes('spark_off')) return true;
+  return /can'?t answer|cannot answer|isn'?t available|not available|unavailable/.test(label);
+}
+
 // True once the latest Gemini reply is fully rendered — that message has its Copy
 // action button. Anchoring on the LAST message (not the whole panel) means a
 // still-streaming reply (no Copy yet) never completes on a PRIOR answer, and there
