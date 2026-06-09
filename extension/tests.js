@@ -1013,98 +1013,53 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // Re-implementation of formatSnapshotAge for test scope.
-  // KEEP IN SYNC with formatSnapshotAge in popup.js.
-  function formatSnapshotAge_test(ts, now) {
-    const diffMs  = Math.max(0, now - ts);
-    const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return `${Math.floor(diffMs / 1000)}s ago`;
-    return `${diffMin} min ago`;
-  }
-
+  // formatSnapshotAge now lives in constants.js (bucket A) — test the real helper.
   function testFormatSnapshotAge() {
     console.group('formatSnapshotAge');
     const now = Date.now();
 
     assertEq('0s ago when ts = now',
-      formatSnapshotAge_test(now, now), '0s ago');
+      formatSnapshotAge(now, now), '0s ago');
     assertEq('30s ago when 30s elapsed',
-      formatSnapshotAge_test(now - 30000, now), '30s ago');
+      formatSnapshotAge(now - 30000, now), '30s ago');
     assertEq('1 min ago when exactly 60s elapsed',
-      formatSnapshotAge_test(now - 60000, now), '1 min ago');
+      formatSnapshotAge(now - 60000, now), '1 min ago');
     assertEq('3 min ago when 3.5 min elapsed (floor)',
-      formatSnapshotAge_test(now - 210000, now), '3 min ago');
+      formatSnapshotAge(now - 210000, now), '3 min ago');
     assertEq('59s ago when 59s elapsed (under 1 min threshold)',
-      formatSnapshotAge_test(now - 59000, now), '59s ago');
+      formatSnapshotAge(now - 59000, now), '59s ago');
 
     console.groupEnd();
   }
 
-  // Re-implementation of formatCountdown for test scope.
-  // KEEP IN SYNC with formatCountdown in popup.js.
-  function formatCountdown_test(nextAt, now) {
-    if (!nextAt) return null;
-    const ms = nextAt - now;
-    if (ms <= 0) return 'due now';
-    const totalSec = Math.round(ms / 1000);
-    const min = Math.floor(totalSec / 60);
-    const sec = totalSec % 60;
-    return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-  }
-
+  // formatCountdown now lives in constants.js (bucket A) — test the real helper.
   function testFormatCountdown() {
     console.group('formatCountdown');
     const NOW = 1_000_000_000_000;
 
     // Case 1: 0 (not scheduled) → null
     assert('Case 1: nextAt=0 → null',
-      formatCountdown_test(0, NOW) === null);
+      formatCountdown(0, NOW) === null);
 
     // Case 2: 90 seconds remaining → "1m 30s"
     assertEq('Case 2: 90s remaining → "1m 30s"',
-      formatCountdown_test(NOW + 90_000, NOW), '1m 30s');
+      formatCountdown(NOW + 90_000, NOW), '1m 30s');
 
     // Case 3: 45 seconds remaining → "45s"
     assertEq('Case 3: 45s remaining → "45s"',
-      formatCountdown_test(NOW + 45_000, NOW), '45s');
+      formatCountdown(NOW + 45_000, NOW), '45s');
 
     // Case 4: overdue (past) → "due now"
     assertEq('Case 4: overdue → "due now"',
-      formatCountdown_test(NOW - 1000, NOW), 'due now');
+      formatCountdown(NOW - 1000, NOW), 'due now');
 
     // Case 5: exactly 0ms remaining → "due now"
     assertEq('Case 5: exactly now → "due now"',
-      formatCountdown_test(NOW, NOW), 'due now');
+      formatCountdown(NOW, NOW), 'due now');
 
     // Case 6: 8 minutes → "8m 0s"
     assertEq('Case 6: 8 min → "8m 0s"',
-      formatCountdown_test(NOW + 8 * 60_000, NOW), '8m 0s');
-
-    console.groupEnd();
-  }
-
-  // Re-implementation of the capture button state logic from queryMeetingState (popup.js).
-  // KEEP IN SYNC with the mm2c_capture_state callback in queryMeetingState.
-  function captureBtnState_test(geminiActive, capturing) {
-    if (capturing)     return { disabled: true,  text: 'Capturing…' };
-    if (!geminiActive) return { disabled: true,  text: 'Start Gemini first' };
-    return             { disabled: false, text: 'Capture now' };
-  }
-
-  function testCaptureBtnState() {
-    console.group('captureBtnState');
-
-    const s1 = captureBtnState_test(true,  true);
-    assert('capturing → disabled', s1.disabled);
-    assertEq('capturing → text', s1.text, 'Capturing…');
-
-    const s2 = captureBtnState_test(false, false);
-    assert('gemini inactive → disabled', s2.disabled);
-    assertEq('gemini inactive → text', s2.text, 'Start Gemini first');
-
-    const s3 = captureBtnState_test(true,  false);
-    assert('gemini active → enabled', !s3.disabled);
-    assertEq('gemini active → text', s3.text, 'Capture now');
+      formatCountdown(NOW + 8 * 60_000, NOW), '8m 0s');
 
     console.groupEnd();
   }
@@ -1769,28 +1724,22 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // KEEP IN SYNC with backup path extraction in popup.js log entry rendering.
-  // Regex: /backup at (.+)$/ — captures everything after "backup at " to end of string.
-  function extractBackupPath_test(message) {
-    const match = (message || '').match(/backup at (.+)$/);
-    return match?.[1] ?? '';
-  }
-
+  // extractBackupPath now lives in constants.js (bucket A) — test the real helper.
   function testExtractBackupPath() {
     console.group('extractBackupPath');
 
     assertEq('extracts path from full error message',
-      extractBackupPath_test(
+      extractBackupPath(
         'Host error: Could not open Craft URL — backup at /Users/caraujo/Downloads/meeting-notes/file.md'
       ),
       '/Users/caraujo/Downloads/meeting-notes/file.md');
 
     assertEq('message without backup path → empty string',
-      extractBackupPath_test('Host error: Native host not found'),
+      extractBackupPath('Host error: Native host not found'),
       '');
 
     assertEq('empty message → empty string',
-      extractBackupPath_test(''),
+      extractBackupPath(''),
       '');
 
     console.groupEnd();
@@ -2537,7 +2486,6 @@ window.MM2C_TESTS = (() => {
     testFormatCountdown();
     testCaptureNow();
     await testAutoActivate();
-    testCaptureBtnState();
     testSnapshotInterval();
     testExtractBackupPath();
     testFirstSnapshotAt();
