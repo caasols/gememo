@@ -467,6 +467,45 @@ test.describe('extension E2E harness', () => {
         closedFailedGone: true, otherFailedKept: true,
       });
     });
+
+    test('MM2C_SNAPSHOT skips the host when file backup is disabled, forwards it when enabled', async () => {
+      // Disabled: nothing should reach the host.
+      await seedStorage(ext.serviceWorker, { mm2c_file_backup_enabled: false });
+      await sendFromPage(popup, { type: 'MM2C_SNAPSHOT', text: 'snap body disabled', meetingTitle: 'X' });
+      // Fire-and-forget — give the handler a beat, then assert no snapshot was sent.
+      await expect.poll(async () => {
+        const sent = await getSent(ext.serviceWorker);
+        return sent.some(s => s.msg.type === 'snapshot');
+      }, { timeout: 2000 }).toBe(false);
+
+      // Enabled: the snapshot payload is forwarded carrying the transcript.
+      await seedStorage(ext.serviceWorker, {
+        mm2c_file_backup_enabled: true,
+        mm2c_file_backup_type: 'markdown',
+        mm2c_file_backup_path: '~/Downloads/meeting-notes',
+      });
+      await sendFromPage(popup, { type: 'MM2C_SNAPSHOT', text: 'snap body enabled', meetingTitle: 'Y' });
+      await expect.poll(async () => {
+        const sent = await getSent(ext.serviceWorker);
+        const snap = sent.find(s => s.msg.type === 'snapshot');
+        return snap ? { transcript: snap.msg.transcript, title: snap.msg.meetingTitle } : null;
+      }).toEqual({ transcript: 'snap body enabled', title: 'Y' });
+    });
+
+    test('MM2C_SET_SNAPSHOT sets the tab-scoped key, then null removes it', async () => {
+      await sendFromPage(popup, { type: 'MM2C_SET_SNAPSHOT', snapshot: 'hello' });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const key = Object.keys(s).find(k => k.startsWith('mm2c_last_snapshot'));
+        return key ? s[key] : undefined;
+      }).toBe('hello');
+
+      await sendFromPage(popup, { type: 'MM2C_SET_SNAPSHOT', snapshot: null });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        return Object.keys(s).some(k => k.startsWith('mm2c_last_snapshot'));
+      }).toBe(false);
+    });
   });
 
   test.describe('popup render', () => {
@@ -571,6 +610,75 @@ test.describe('extension E2E harness', () => {
       await expect(body).toBeVisible();  // chevron expands the prompt/conditions
       await chev.click();
       await expect(body).toBeHidden();   // and collapses again
+      await page.close();
+    });
+
+    test('Add rule appends a new auto-expanded rule and persists it', async () => {
+      const page = await popupWith({});
+      await page.click('#tab-rules');
+      await page.click('#add-rule-btn');
+      const item = page.locator('#rules-list .rule-item');
+      await expect(item).toHaveCount(1);
+      // New rule is auto-expanded for editing (popup.js:1030 → expandedRuleIdx.add).
+      await expect(item.locator('.rule-body')).toBeVisible();
+      await expect.poll(async () =>
+        ((await getStorage(ext.serviceWorker, ['mm2c_prompt_rules'])).mm2c_prompt_rules || []).length
+      ).toBe(1);
+      await page.close();
+    });
+
+    // Regression: clicking an ↑/↓/✕ action focuses the button; the re-render then
+    // detaches it, firing a capture-phase blur → saveRuleFromEvent. Without the
+    // detached-row guard that stray save clobbered the reorder/delete (reorder →
+    // duplicate, delete → wrong survivor). These assert the real mouse-click path.
+    test('reorder (down) swaps the stored order and resets expand state', async () => {
+      const page = await popupWith({ mm2c_prompt_rules: [
+        { regex: 'aaa', prompt: 'x', enabled: true },
+        { regex: 'bbb', prompt: 'y', enabled: true },
+      ] });
+      await page.click('#tab-rules');
+      const expands = page.locator('#rules-list .rule-expand');
+      await expands.nth(0).click();
+      await expands.nth(1).click(); // expand both rows
+      await page.locator('#rules-list .rule-item').nth(0)
+        .locator('.btn-rule-action[data-action="down"]').click();
+      await expect.poll(async () => {
+        const r = (await getStorage(ext.serviceWorker, ['mm2c_prompt_rules'])).mm2c_prompt_rules || [];
+        return r.map(x => x.regex).join(',');
+      }).toBe('bbb,aaa'); // would be 'aaa,aaa' with the stale-blur bug
+      const bodies = page.locator('#rules-list .rule-item .rule-body');
+      const n = await bodies.count();
+      for (let i = 0; i < n; i++) await expect(bodies.nth(i)).toBeHidden(); // expand state cleared
+      await page.close();
+    });
+
+    test('delete removes the CORRECT rule (no stale-blur clobber)', async () => {
+      const page = await popupWith({ mm2c_prompt_rules: [
+        { regex: 'first', prompt: 'x', enabled: true },
+        { regex: 'second', prompt: 'y', enabled: true },
+      ] });
+      await page.click('#tab-rules');
+      // Delete the FIRST rule → 'second' must survive (the bug kept the wrong one).
+      await page.locator('#rules-list .rule-item').nth(0)
+        .locator('.btn-rule-action[data-action="delete"]').click();
+      await expect.poll(async () => {
+        const r = (await getStorage(ext.serviceWorker, ['mm2c_prompt_rules'])).mm2c_prompt_rules || [];
+        return r.map(x => x.regex).join(',');
+      }).toBe('second');
+      await page.close();
+    });
+
+    test('#default-expand toggles the Default rule body and chevron', async () => {
+      const page = await popupWith({});
+      await page.click('#tab-rules');
+      const body = page.locator('#default-rule .rule-body');
+      const chev = page.locator('#default-expand');
+      await expect(body).toBeHidden();              // collapsed initially
+      await chev.click();
+      await expect(body).toBeVisible();             // expands
+      await expect(chev).toHaveClass(/open/);       // chevron gets .open
+      await chev.click();
+      await expect(body).toBeHidden();              // collapses again
       await page.close();
     });
 

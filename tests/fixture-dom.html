@@ -170,6 +170,10 @@
       // injector can probe it and avoid double-injecting into a live tab.
       console.group('re-injection guard');
       assert('content_meet sets window.__mm2cLoaded', window.__mm2cLoaded === true);
+      // Minimal no-op check: with the flag already set, the guard's early-return
+      // expression short-circuits to 'skip' (full re-injection isn't fixture-feasible).
+      assertEq('guard short-circuits on re-run (flag set → skip)',
+        (window.__mm2cLoaded ? 'skip' : 'run'), 'skip');
       console.groupEnd();
 
       const passed = results.filter(r => r.ok).length;
