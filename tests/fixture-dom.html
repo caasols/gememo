@@ -117,12 +117,19 @@
         assert('aria-label button returns element', !!getGeminiTriggerElement());
       });
 
-      await withFixture('<div role="button">Geminispark_off</div>', () => {
-        assert('div role=button with Gemini text returns element', !!getGeminiTriggerElement());
+      // Meet 2026-06 toggles by stable jsname: wptEcf (off) and J4YcA (active).
+      await withFixture('<button jsname="wptEcf" aria-label="Gemini can\'t answer your questions at the moment"><i class="google-symbols">spark_off</i></button>', () => {
+        assert('off-state wptEcf toggle returns element', getGeminiTriggerElement()?.getAttribute('jsname') === 'wptEcf');
       });
 
-      await withFixture('<div role="button">Take notes with Gemini</div>', () => {
-        assert('"Take notes with Gemini" fallback returns element', !!getGeminiTriggerElement());
+      await withFixture('<button jsname="J4YcA" aria-label="Gemini uses meeting conversations to answer questions"></button>', () => {
+        assert('active-state J4YcA toggle returns element', getGeminiTriggerElement()?.getAttribute('jsname') === 'J4YcA');
+      });
+
+      // "Take notes with Gemini" (jsname ocqpFe, NO aria-label) is a DIFFERENT
+      // feature — it must NOT be returned (clicking it was the activation bug).
+      await withFixture('<div role="button" jsname="ocqpFe"><i class="google-symbols">pen_spark</i>Take notes with Gemini</div>', () => {
+        assert('"Take notes with Gemini" decoy is NOT matched', getGeminiTriggerElement() === null);
       });
 
       await withFixture('', () => {

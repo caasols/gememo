@@ -115,6 +115,77 @@ const FAKE_MEET_HTML = `<!doctype html>
 </body>
 </html>`;
 
+// ── OFF-state fake Meet ──────────────────────────────────────────────────────
+// Reproduces Meet's 2026-06 "Ask Gemini not started" state so the e2e can drive
+// content_meet's autoActivateGemini() end-to-end with PLAIN clicks (no CDP/hover):
+//   • button[jsname="wptEcf"] (icon `spark_off`, aria "Gemini can't answer…")
+//   • clicking it surfaces a "Start now" card: button[jsname="R6SlF"] >
+//     span[jsname="V67aGc"]>Start now   (exactly the live shape)
+//   • clicking "Start now" opens the Ask Gemini panel (input in viewport) and
+//     swaps the toggle to its active state (button[jsname="J4YcA"]).
+// If autoActivate mis-detects the toggle or the "Start now" control, the panel
+// input never appears and the test fails — guarding the whole activation path.
+const FAKE_MEET_OFF_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Meet - Test Meeting</title>
+  <style>
+    html, body { margin: 0; height: 100%; }
+    aside[aria-label="Side panel"] {
+      position: fixed; top: 0; right: 0; width: 360px; height: 100%;
+      box-sizing: border-box; padding: 12px; background: #fff;
+    }
+    div[aria-label="Ask Gemini"] { display: block; width: 320px; min-height: 40px; border: 1px solid #888; }
+    div[aria-label="Call controls"] { position: fixed; bottom: 0; left: 0; width: 100%; height: 64px; }
+    #gemini-card { position: fixed; bottom: 80px; left: 12px; }
+  </style>
+</head>
+<body>
+  <div aria-label="Call controls">
+    <button aria-label="Turn off microphone">Mic</button>
+    <button aria-label="Turn off camera">Cam</button>
+    <!-- OFF-state Ask Gemini toggle (the genuine control autoActivate must click) -->
+    <button jsname="wptEcf" aria-label="Gemini can't answer your questions at the moment">
+      <i class="google-symbols notranslate">spark_off</i>
+    </button>
+    <!-- A DIFFERENT feature that must NOT be mistaken for the Ask Gemini toggle -->
+    <div role="button" jsname="ocqpFe"><i class="google-symbols">pen_spark</i>Take notes with Gemini</div>
+    <button aria-label="Leave call">Leave call</button>
+  </div>
+  <div id="mount"></div>
+
+  <script>
+    (function () {
+      var mount = document.getElementById('mount');
+      var toggle = document.querySelector('button[jsname="wptEcf"]');
+
+      // Click the OFF toggle → surface the "Start now" card (live DOM shape).
+      toggle.addEventListener('click', function () {
+        if (document.querySelector('button[jsname="R6SlF"]')) return; // idempotent
+        var card = document.createElement('div');
+        card.id = 'gemini-card';
+        card.innerHTML = '<button jsname="R6SlF"><span jsname="V67aGc">Start now</span></button>';
+        mount.appendChild(card);
+        card.querySelector('button[jsname="R6SlF"]').addEventListener('click', startGemini);
+      });
+
+      // Click "Start now" → open the panel (input in viewport) + swap to active toggle.
+      function startGemini() {
+        var card = document.getElementById('gemini-card');
+        if (card) card.remove();
+        toggle.outerHTML = '<button jsname="J4YcA" aria-label="Gemini uses meeting conversations to answer questions"></button>';
+        var aside = document.createElement('aside');
+        aside.setAttribute('aria-label', 'Side panel');
+        aside.innerHTML = '<div aria-label="Ask Gemini" contenteditable="true" role="textbox"></div>'
+          + '<button aria-label="Submit">Submit</button>';
+        document.body.appendChild(aside);
+      }
+    })();
+  </script>
+</body>
+</html>`;
+
 // Start a fake-Meet HTTP server on an ephemeral port (match patterns ignore the
 // port). Serves the fake page for any path. Returns { server, port, url } where
 // url uses a Meet-style room-code path so extractMeetingCode() has something real.
@@ -154,4 +225,4 @@ function closeFakeMeet(server) {
   });
 }
 
-module.exports = { startFakeMeet, closeFakeMeet, FAKE_MEET_HTML, SENTINEL_TRANSCRIPT };
+module.exports = { startFakeMeet, closeFakeMeet, FAKE_MEET_HTML, FAKE_MEET_OFF_HTML, SENTINEL_TRANSCRIPT };

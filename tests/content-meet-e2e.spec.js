@@ -16,7 +16,7 @@ const {
   seedStorage,
   getStorage,
 } = require('./ext-harness');
-const { startFakeMeet, closeFakeMeet, SENTINEL_TRANSCRIPT } = require('./fake-meet');
+const { startFakeMeet, closeFakeMeet, FAKE_MEET_OFF_HTML, SENTINEL_TRANSCRIPT } = require('./fake-meet');
 
 // Send a runtime message to the content script in the fake-Meet tab, from the
 // service worker (real sender.tab path). Resolves the content script's reply.
@@ -189,6 +189,42 @@ test.describe('content_meet e2e (fake Meet over localhost)', () => {
         .toBe(true);
     } finally {
       await page.close();
+    }
+  });
+
+  // ── 2d (auto-activation) — OFF → "Start now" → panel, via plain clicks ───────
+  // Guards the activation path that regressed against Meet's 2026-06 redesign.
+  // The OFF-state fixture starts with the spark_off Ask Gemini toggle (jsname
+  // wptEcf) and a decoy "Take notes with Gemini" (jsname ocqpFe). On join,
+  // autoActivateGemini() must: pick the GENUINE toggle (not the decoy) → click it
+  // → the "Start now" card appears (span[jsname=V67aGc] in button[jsname=R6SlF])
+  // → click it → the Ask Gemini panel input enters the viewport. All with plain
+  // element.click() (no CDP/hover). If trigger detection or findStartNowButton
+  // break, the panel never opens and this fails.
+  test('autoActivateGemini drives OFF → "Start now" → open panel with plain clicks', async () => {
+    test.setTimeout(60_000);
+
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+    });
+
+    const off = await startFakeMeet(FAKE_MEET_OFF_HTML);
+    const page = await ext.context.newPage();
+    try {
+      await page.goto(off.url, { waitUntil: 'domcontentloaded' });
+
+      // The Ask Gemini panel input appears ONLY if autoActivate clicked the right
+      // toggle and then the right "Start now" control.
+      await expect(page.locator('div[aria-label="Ask Gemini"][contenteditable="true"]'))
+        .toBeVisible({ timeout: 20_000 });
+      // …and the toggle swapped to its active state (proves "Start now" was clicked,
+      // not the decoy "Take notes" control).
+      await expect(page.locator('button[jsname="J4YcA"]')).toHaveCount(1);
+      await expect(page.locator('button[jsname="wptEcf"]')).toHaveCount(0);
+    } finally {
+      await page.close();
+      await closeFakeMeet(off.server);
     }
   });
 });
