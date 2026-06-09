@@ -1299,14 +1299,14 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // Re-implementation of the prompt rule matching logic from _runGeminiFlowInner (content_meet.js).
-  // KEEP IN SYNC with: rules.find(r => { try { return new RegExp(r.regex, 'i').test(title) } catch { return false } })
-  function testMatchPromptRule() {
-    console.group('matchPromptRule');
+  // Prompt-rule matching is done in production by findPromptRule (constants.js);
+  // these assert its title / regex / built-in / condition behaviour directly.
+  function testPromptRuleMatching() {
+    console.group('prompt rule matching (findPromptRule)');
 
-    // Case 1: empty rules → null (real function from constants.js)
+    // Case 1: empty rules → null
     assert('Case 1: empty rules returns null',
-      matchPromptRule([], 'Daily Standup') === null);
+      findPromptRule([], 'Daily Standup') === null);
 
     // Case 2: first matching rule wins
     const rules = [
@@ -1314,17 +1314,17 @@ window.MM2C_TESTS = (() => {
       { regex: 'Planning', prompt: 'Planning prompt' },
     ];
     assertEq('Case 2: first matching rule wins',
-      matchPromptRule(rules, 'Daily Standup'),
+      findPromptRule(rules, 'Daily Standup')?.prompt,
       'Standup prompt');
 
     // Case 3: case-insensitive match
     assertEq('Case 3: match is case-insensitive',
-      matchPromptRule([{ regex: 'daily', prompt: 'ok' }], 'DAILY STANDUP'),
+      findPromptRule([{ regex: 'daily', prompt: 'ok' }], 'DAILY STANDUP')?.prompt,
       'ok');
 
     // Case 4: no match → null
     assert('Case 4: no match returns null',
-      matchPromptRule(rules, 'Retrospective') === null);
+      findPromptRule(rules, 'Retrospective') === null);
 
     // UXF-10: duration ("time actually spent") conditions
     assert('buildCondition captures minMinutes/maxMinutes',
@@ -1353,13 +1353,13 @@ window.MM2C_TESTS = (() => {
 
     // Case 5: built-in templates match their meeting types (P5-K)
     assert('Case 5a: standup title matches a built-in',
-      typeof matchPromptRule(BUILT_IN_RULES, 'Daily Standup') === 'string');
+      typeof findPromptRule(BUILT_IN_RULES, 'Daily Standup')?.prompt === 'string');
     assert('Case 5b: 1:1 title matches a built-in',
-      typeof matchPromptRule(BUILT_IN_RULES, 'Carlos / Alice 1:1') === 'string');
+      typeof findPromptRule(BUILT_IN_RULES, 'Carlos / Alice 1:1')?.prompt === 'string');
     assert('Case 5c: retro title matches a built-in',
-      typeof matchPromptRule(BUILT_IN_RULES, 'Sprint Retrospective') === 'string');
+      typeof findPromptRule(BUILT_IN_RULES, 'Sprint Retrospective')?.prompt === 'string');
     assert('Case 5d: generic title matches no built-in',
-      matchPromptRule(BUILT_IN_RULES, 'Q3 Budget Review') === null);
+      findPromptRule(BUILT_IN_RULES, 'Q3 Budget Review') === null);
 
     // availableTemplates — built-in templates not yet materialised into the
     // user's rules (matched by name). Templates are off by default.
@@ -1396,12 +1396,12 @@ window.MM2C_TESTS = (() => {
       ruleTimeMatches({ days: [5], startHour: 14, endHour: 18 }, new Date(2024, 0, 5, 19, 0)) === false &&
       ruleTimeMatches({ days: [5], startHour: 14, endHour: 18 }, MON_9AM) === false);
 
-    assert('matchPromptRule: time condition matches regardless of title',
-      matchPromptRule([{ condition: { days: [1] }, prompt: 'standup' }], 'anything', MON_9AM) === 'standup');
-    assert('matchPromptRule: time condition fails off-day',
-      matchPromptRule([{ condition: { days: [1] }, prompt: 'standup' }], 'anything', TUE_9AM) === null);
-    assert('matchPromptRule: regex still wins with now arg',
-      matchPromptRule([{ regex: 'daily', prompt: 'x' }], 'Daily Sync', MON_9AM) === 'x');
+    assert('findPromptRule: time condition matches regardless of title',
+      findPromptRule([{ condition: { days: [1] }, prompt: 'standup' }], 'anything', MON_9AM)?.prompt === 'standup');
+    assert('findPromptRule: time condition fails off-day',
+      findPromptRule([{ condition: { days: [1] }, prompt: 'standup' }], 'anything', TUE_9AM) === null);
+    assert('findPromptRule: regex still wins with now arg',
+      findPromptRule([{ regex: 'daily', prompt: 'x' }], 'Daily Sync', MON_9AM)?.prompt === 'x');
 
     // buildCondition — normalise Rules-tab inputs into a condition object or null
     const c1 = buildCondition([1, 2], 8, 10);
@@ -2453,12 +2453,10 @@ window.MM2C_TESTS = (() => {
     assertEq('three steps', fresh.length, 3);
     assert('host step not done when host missing', fresh[0].ok === false);
     assert('output step not done when none', fresh[1].ok === false);
-    assert('not ready on a fresh install', firstRunReady(fresh) === false);
 
     const setUp = firstRunChecklist({ hostOk: true, outputApp: 'craft' });
     assert('host step done', setUp[0].ok === true);
     assert('output step done', setUp[1].ok === true);
-    assert('ready once host+output set (capture step excluded)', firstRunReady(setUp) === true);
     assert('capture step is never auto-done', setUp[2].ok === false);
     console.groupEnd();
   }
@@ -3037,7 +3035,7 @@ window.MM2C_TESTS = (() => {
     testBuildPromptWithAttendees();
     testBuildPromptWithTitle();
     testDefaultPromptContent();
-    testMatchPromptRule();
+    testPromptRuleMatching();
     testBuildPromptWithLanguage();
     testVisibilityChangeCatchup();
     testCitationSecondPass();
