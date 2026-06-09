@@ -16,6 +16,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ### Internal (no behavior change)
 - **Extracted pure scheduling/timing logic from `content_meet.js` into tested `constants.js` helpers** (`computeSnapshotIntervalMs`, `shouldRunCatchupSnapshot`, `shouldShowOverlay`, `computeFirstSnapshotAt`), replacing the inline expressions with calls and pointing the unit tests at the real helpers (removing hand-synced `*_test` copies). Behaviour-preserving; the helpers reproduce the original expressions exactly.
 - **Moved `popup.js` display formatters `formatSnapshotAge`/`formatCountdown` into `constants.js`** (popup now uses the shared globals) and extracted `extractBackupPath` from the inline log-rendering regex, pointing the unit tests at the real helpers. Also removed `captureBtnState_test`, a drifted copy asserting button text the real popup no longer produces (the live capture-button rendering is covered by the popup-render E2E). Behaviour-preserving.
+- **Pointed the send-dedup unit test at the real `shouldSkipDuplicate`** (already in `constants.js`, used by `background.js`) and deleted the redundant `isDuplicateSend_test` copy. The copy had drifted on the empty-title edge case; the test now asserts prod's actual behaviour (untitled meetings are deduped within the window — protecting one untitled meeting from a double-send). Behaviour-preserving (prod unchanged).
 
 ---
 
