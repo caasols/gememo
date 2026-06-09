@@ -376,8 +376,13 @@
   // reply. We split on that label and take the last segment, then strip UI chrome.
 
   function extractLastResponse() {
-    return extractLastResponseFromEl(
-      document.querySelector('aside[aria-label="Side panel"]'));
+    // The Gemini conversation lives in role="listitem" rows, NOT in the (now empty)
+    // aside[aria-label="Side panel"] (Meet 2026-06 redesign). lastGeminiResponseEl
+    // resolves the latest reply element (with a legacy side-panel fallback).
+    const el = (typeof lastGeminiResponseEl === 'function')
+      ? lastGeminiResponseEl()
+      : document.querySelector('aside[aria-label="Side panel"]');
+    return extractLastResponseFromEl(el);
   }
 
   // ── Wait for response to finish streaming ──────────────────────────────────
@@ -397,8 +402,11 @@
 
   function waitForResponseComplete(timeoutMs = 120000) {
     return new Promise((resolve, reject) => {
-      const aside = document.querySelector('aside[aria-label="Side panel"]');
-      if (!aside) return reject(new Error('Gemini side panel not found'));
+      // Observe the whole document: the Gemini conversation is no longer scoped to
+      // aside[aria-label="Side panel"] (Meet 2026-06 moved replies into a role="list"
+      // outside it). The check() below resolves the latest reply itself.
+      const observeRoot = document.body;
+      if (!observeRoot) return reject(new Error('document.body not ready'));
 
       const deadline = Date.now() + timeoutMs;
       let lastText = '';
@@ -428,36 +436,29 @@
           return;
         }
 
-        // Primary signal (robust to Meet's 2026-06 redesign): the response is done
-        // the moment its "Copy" action button is present and nothing is streaming.
-        // Avoids the infinite re-inject loop when the old text-stability anchor
-        // ("Gemini response" label / "Stop" button) no longer matches the DOM.
-        if (current.length > 10 && typeof geminiResponseDone === 'function' &&
-            geminiResponseDone(aside, { copy: effectiveSelectors.geminiCopy, stop: effectiveSelectors.geminiStop })) {
+        // Primary signal (robust to Meet's 2026-06 redesign): the LATEST reply is
+        // done the moment that message has its "Copy" action button. Anchoring on
+        // the last message means a still-streaming reply (no Copy yet) never
+        // completes on a prior answer — and there's no fragile "Stop" heuristic.
+        if (current.length > 10 && typeof geminiResponseDone === 'function' && geminiResponseDone()) {
           return finish();
         }
 
-        // Wall-clock stability: resolve once the response hasn't changed for 3 s.
-        // Avoids the staleCount cascade: a single trailing token no longer forces
-        // 3 more full check cycles. The 3 s window is short enough to feel instant
-        // but long enough to let Gemini finish any final formatting pass.
+        // Backstop — wall-clock stability: resolve once the extracted reply hasn't
+        // changed for 3 s (in case the Copy button isn't detected on some DOM). In
+        // the normal flow the Copy-button signal above fires first, as soon as the
+        // reply completes, so this rarely triggers.
         if (current !== lastText) {
           lastText = current;
           lastChangeAt = Date.now();
         } else if (lastChangeAt > 0 && current.length > 10 && Date.now() - lastChangeAt >= 3000) {
-          // Before resolving, check Gemini isn't still regenerating.
-          // The Stop button is visible whenever Gemini is actively streaming a response.
-          if (aside.querySelector('button[aria-label*="Stop"]')) {
-            lastChangeAt = 0; // reset stability clock — regeneration in progress
-            return;
-          }
-          finish(); // response stable for ≥ 3 s and no Stop button visible
+          finish();
         }
       };
 
       // MutationObserver fires on every streaming token — not timer-throttled
       const observer = new MutationObserver(check);
-      observer.observe(aside, { childList: true, subtree: true, characterData: true });
+      observer.observe(observeRoot, { childList: true, subtree: true, characterData: true });
 
       // Fallback: poll every 2 s in case mutations stop after streaming ends.
       // In heavily throttled tabs Chrome clamps this to ~1 s/call — acceptable.

@@ -74,16 +74,19 @@ const FAKE_MEET_HTML = `<!doctype html>
       var SENTINEL = ${JSON.stringify(SENTINEL_TRANSCRIPT)};
       var answered = false;
 
-      // Render the response in Meet's 2026-06 DOM shape: NO "Gemini response"
-      // label — just the answer text followed by an action row whose Copy button
-      // (jsname="WmNl5c") signals completion. This exercises the Copy-anchored
-      // extraction + geminiResponseDone() completion path. Idempotent guard
-      // mirrors Meet streaming a single reply per submit.
+      // Render the reply in Meet's 2026-06 DOM shape: a role="listitem" row holding
+      // a "Gemini response" label, the answer text, then an action row with the Copy
+      // button (jsname="WmNl5c"). This exercises lastGeminiResponseEl (last list-item)
+      // + geminiResponseDone (that item has a Copy button). Idempotent guard mirrors
+      // Meet streaming a single reply per submit.
       function answer() {
         if (answered) return;
         answered = true;
-        var bubble = document.createElement('div');
-        bubble.className = 'gemini-response';
+        var item = document.createElement('div');
+        item.setAttribute('role', 'listitem');
+        item.className = 'gemini-response';
+        var label = document.createElement('div');
+        label.textContent = 'Gemini response';
         var text = document.createElement('div');
         text.textContent = SENTINEL;
         var actions = document.createElement('div');
@@ -95,9 +98,10 @@ const FAKE_MEET_HTML = `<!doctype html>
         reportBtn.textContent = 'Report';
         actions.appendChild(copyBtn);
         actions.appendChild(reportBtn);
-        bubble.appendChild(text);
-        bubble.appendChild(actions);
-        responses.appendChild(bubble);
+        item.appendChild(label);
+        item.appendChild(text);
+        item.appendChild(actions);
+        responses.appendChild(item);
       }
 
       // content_meet submits via Enter keydown on the focused input AND a

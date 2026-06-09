@@ -13,9 +13,18 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+_Nothing yet — next change goes here._
+
+---
+
+## [0.2.6] – 2026-06-09 · Meet 2026-06 response-detection fix
+
+### Fixed
+- **Capture no longer hangs on "Waiting for Gemini…" / never reaches the output app** (Meet 2026-06 redesign). The capture flow read the reply and detected completion within `aside[aria-label="Side panel"]` — but the redesign **moved the Gemini conversation out of that panel** (now empty) into a `role="list"` of `role="listitem"` rows. So the prompt injected, the reply rendered, but the extension found nothing in the (empty) side panel → `waitForResponseComplete` timed out and the leave/snapshot path retried forever, never pushing to Craft. Fix: a new `lastGeminiResponseEl()` resolves the **latest reply list-item** (the row with a Copy action button or the "Gemini response" label; legacy/side-panel fallback kept), and completion (`geminiResponseDone()`) now means **that last message has its Copy button** — which also means a still-streaming reply (no Copy yet) can't complete on a *prior* answer, with no fragile "Stop button" heuristic. `extractLastResponse` and `waitForResponseComplete` (now observing `document.body`) operate on the reply element instead of the empty aside. *Diagnosed by inspecting the live Meet DOM.* +new pure tests for `lastGeminiResponseEl`/`geminiResponseDone` (incl. the streaming-no-premature-completion case) and the real list-item text shape; the fake-Meet E2E now renders the `role="listitem"` structure. Extension + native host → `0.2.6`.
+
 ### Changed
-- **Native host version bumped to `0.2.5`** to restore lockstep with the extension. The recent fixes were extension-only, so the host code is unchanged — this is just a label sync. Re-run `bash native_host/install.sh` to refresh the version the popup shows; not required for compatibility (the major version is unchanged, so the 0.2.4 host stays fully compatible).
 - **`.ics for Next Steps` moved behind the Experimental toggle.** The `.ics` export row (inside File backup) now carries the `.beta` class, so it's hidden unless *Settings → Experimental features* is on — consistent with the other advanced features. UI-only gating; the export behavior is unchanged when enabled. A focused E2E asserts it's hidden/shown with Experimental off/on (with file backup enabled).
+- **Extension + native host bumped to `0.2.6` (lockstep).** Re-run `bash native_host/install.sh` to refresh the version the popup shows; not required for compatibility (major unchanged).
 
 ---
 
