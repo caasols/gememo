@@ -13,8 +13,19 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+_Nothing yet — next change goes here._
+
+---
+
+## [0.2.11] – 2026-06-09 · Dead-code cleanup + real-code test coverage
+
+### Removed
+- **Dead code identified by a full audit** (no behavior change): the unused `TASK_APPS` constant and the vestigial `geminiStop` selector entry (the "Stop button" heuristic it served was dropped in the response-detection rewrite) from `constants.js`; the test-only wrappers `matchPromptRule()` (production uses `findPromptRule`) and `firstRunReady()` (production uses `firstRunChecklist`); the unused `timezone` import in `meeting_minutes_host.py`; and the stale `native_host/io.gememo.host.json` template (`install.sh` writes the host manifest inline). The `matchPromptRule` tests were **redirected to `findPromptRule`** so built-in-template and day-condition coverage is preserved.
+
 ### Tests (internal, no behavior change)
-- **Cover the response-extraction + streaming-completion logic against the REAL `content_meet.js`.** `extractLastResponse` and `waitForResponseComplete` are now exposed in `MM2C_FIXTURE_MODE` and exercised by `tests/fixture-dom.html` — so the code that actually ships is tested (previously this regression-prone logic was only covered indirectly). New cases: latest-reply extraction, multi-reply (returns the last), no-reply, legacy side-panel fallback; and the streaming state machine (resolves on the Copy button, no premature finish on a prior answer, times out when no reply appears). (+6 dom-fixture assertions → 31/31; full suite green: 513 pure JS + 73 Playwright + 332 Python.)
+- **Cover the response-extraction + streaming-completion logic against the REAL `content_meet.js`.** `extractLastResponse` and `waitForResponseComplete` are now exposed in `MM2C_FIXTURE_MODE` and exercised by `tests/fixture-dom.html` — so the code that actually ships is tested (previously this regression-prone logic was only covered indirectly). New cases: latest-reply extraction, multi-reply (returns the last), no-reply, legacy side-panel fallback; and the streaming state machine (resolves on the Copy button, no premature finish on a prior answer, times out when no reply appears).
+
+Extension + native host → `0.2.11`. Suite green: 511 pure JS + 73 Playwright (dom_fixtures 31/31) + 332 Python.
 
 ---
 
