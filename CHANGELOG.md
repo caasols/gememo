@@ -17,6 +17,13 @@ _Nothing yet — next change goes here._
 
 ---
 
+## [0.2.10] – 2026-06-09 · Remove dead CDP code + `debugger` permission
+
+### Removed
+- **`chrome.debugger`/CDP machinery, now unused.** The 0.2.9 rewrite drives Ask Gemini auto-activation with plain `element.click()`, so the CDP path is dead code. Removed the `MM2C_CDP_HOVER` / `MM2C_CDP_CLICK` / `MM2C_CDP_CLICK_KEEP` / `MM2C_CDP_DETACH` handlers from `background.js` and dropped the **`debugger`** permission from `manifest.json` — which also removes Chrome's "Gememo started debugging this browser" infobar. No behavior change (the CDP path had no test coverage and was no longer invoked). Extension + native host → `0.2.10`.
+
+---
+
 ## [0.2.9] – 2026-06-09 · Meet 2026-06 auto-activation, rebuilt from live DOM
 
 ### Fixed
