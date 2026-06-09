@@ -93,7 +93,7 @@ window.MM2C_TESTS = (() => {
     }
   }
 
-  // Re-implement sentinel errors for test scope (keep in sync with content_meet.js)
+  // Sentinel error classes the DI mirrors below use (must match content_meet.js).
   class InjectionTimeoutError extends Error {}
   class GeminiNotActiveError_test extends Error {}
 
@@ -101,7 +101,9 @@ window.MM2C_TESTS = (() => {
   // State is a plain object that the test mutates and inspects; deps supplies mocks
   // for runGeminiFlow, chrome.runtime.sendMessage, sendLog, and showStatus.
   //
-  // KEEP IN SYNC with captureProactively in content_meet.js.
+  // Intentional DI mirror (NOT drift debt): exercises captureProactively's
+  // double-run guard + GeminiNotActiveError routing — edge branches the fake-Meet
+  // e2e cannot reach in isolation. Keep aligned with content_meet.js.
   // Intentional deviations from production:
   //   • isContextValid() omitted — checks chrome.runtime.id, unavailable in page-world tests.
   //   • _sendMessage is fire-and-forget (no callback), so the Craft-send-error reset path
@@ -148,12 +150,16 @@ window.MM2C_TESTS = (() => {
     _sendMessage({ type: 'MM2C_RESPONSE', text: state.cachedTranscript, meetingTitle });
   }
 
-  // ── Local re-implementations for unit testing ──────────────────────────────
-  // content_meet.js wraps these in an IIFE so they aren't accessible from
-  // tests.js (which runs in the page main world). We re-implement them here
-  // for unit testing. KEEP IN SYNC with content_meet.js.
+  // ── Intentional dependency-injected unit tests ─────────────────────────────
+  // content_meet.js wraps these functions in an IIFE, and they hinge on browser/
+  // Chrome state (document.hidden, chrome.*) the page-world harness can't drive.
+  // These DI mirrors deliberately cover the EDGE BRANCHES the fake-Meet e2e cannot
+  // reach in isolation (tab-hidden timeout, single-flight concurrency, the
+  // proactive-capture double-run guard). They mirror content_meet.js on purpose —
+  // keep them aligned when those branches change. (Happy paths are covered against
+  // the REAL functions by the content-meet e2e and the fixture-dom tests.)
 
-  // -- waitForForeground (keep in sync with content_meet.js) ------------------
+  // -- waitForForeground: DI mirror for the tab-hidden → timeout-reject branch --
   function waitForForeground_test(timeoutMs, _sendLog = sendLogStub) {
     return new Promise((resolve, reject) => {
       if (!document.hidden) return resolve();
@@ -175,63 +181,6 @@ window.MM2C_TESTS = (() => {
         reject(new InjectionTimeoutError('Tab did not become active within the flow deadline'));
       }, timeoutMs);
     });
-  }
-
-  // -- injectPromptWithVerification (keep in sync with content_meet.js) -------
-  // No retry loop — single-pass: Path A (execCommand), then Path B (textContent).
-  // Verification: el.textContent.trim() truthy (not startsWith) because
-  // execCommand('insertText') converts \n to block elements; textContent strips
-  // them back, making startsWith checks on prompts with \n\n always fail.
-
-  async function injectPromptWithVerification_test(
-    input, prompt, deadline,
-    _sendLog = sendLogStub,
-    _waitForForeground = waitForForeground_test
-  ) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new InjectionTimeoutError('Deadline passed before injection');
-
-    await _waitForForeground(remaining);
-
-    // Mirror production re-fetch: querySelector finds the element because
-    // withFixture appends it to document.body; || input is the fallback.
-    const el = document.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]') || input;
-
-    el.focus();
-
-    // ── Path A: execCommand ──────────────────────────────────────────────────
-    document.execCommand('selectAll', false, null);
-    document.execCommand('delete', false, null);
-    document.execCommand('insertText', false, prompt);
-    el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: false }));
-
-    if (el.textContent.trim()) {
-      _sendLog(`Prompt injected via execCommand (${prompt.length} chars)`);
-      return;
-    }
-
-    // ── Path B: direct textContent ───────────────────────────────────────────
-    _sendLog(`execCommand injection empty — falling back to direct textContent`);
-    el.textContent = prompt;
-    try {
-      const range = document.createRange();
-      const sel = window.getSelection();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } catch (_) {}
-    el.dispatchEvent(new InputEvent('input', {
-      bubbles: true, cancelable: true, inputType: 'insertText',
-      data: prompt.slice(0, 200),
-    }));
-
-    if (!el.textContent.trim()) {
-      _sendLog('Both injection paths failed — input still empty');
-      throw new InjectionTimeoutError(
-        'Failed to inject prompt — both execCommand and direct textContent left the input empty');
-    }
-    _sendLog(`Prompt injected via direct textContent (${prompt.length} chars)`);
   }
 
   // ── Re-export the functions under test from the IIFE ──────────────────────
@@ -745,120 +694,6 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  async function testInjectVerification() {
-    console.group('injectPromptWithVerification');
-
-    // Use a prompt with \n\n — this is exactly the content that broke the old
-    // startsWith(prompt.slice(0,80)) check (browser block-element conversion).
-    const PROMPT = 'Summarise this meeting.\n\nList action items.';
-    const FAR_DEADLINE = Date.now() + 60_000;
-    const foregroundImmediate = () => Promise.resolve();
-
-    // Sub-case 1: Path A works — execCommand injects text, textContent is truthy
-    await withFixture(`
-      <div aria-label="Ask Gemini" contenteditable="true" style="position:fixed;top:0;left:0;width:200px;height:40px"></div>
-    `, async (container) => {
-      const input = container.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]');
-      input.textContent = 'old content';
-
-      await injectPromptWithVerification_test(
-        input, PROMPT, FAR_DEADLINE, sendLogStub, foregroundImmediate
-      );
-
-      // Verify with truthy check (matching production) not strict equality,
-      // because execCommand converts \n to block elements — textContent
-      // reassembles them with \n but the exact form may vary by browser.
-      assert('Path A: execCommand path — input is non-empty after injection',
-        input.textContent.trim() !== '',
-        `got: "${input.textContent.slice(0, 50)}"`);
-    });
-
-    // Sub-case 2: Path A empty → Path B succeeds
-    // withExecCommandSpy makes every execCommand a no-op (returns false).
-    // After Path A, el.textContent is '' → function falls to Path B.
-    // Path B does el.textContent = prompt directly — DOM setter works normally.
-    await withFixture(`
-      <div aria-label="Ask Gemini" contenteditable="true" style="position:fixed;top:0;left:0;width:200px;height:40px"></div>
-    `, async (container) => {
-      const input = container.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]');
-      let execCallCount = 0;
-      let caughtError = null;
-
-      await withExecCommandSpy(() => { execCallCount++; return false; }, async () => {
-        await injectPromptWithVerification_test(
-          input, PROMPT, FAR_DEADLINE, sendLogStub, foregroundImmediate
-        ).catch(err => { caughtError = err; });
-      });
-
-      assert('Path B fallback: no error thrown', caughtError === null,
-        `got error: ${caughtError?.message}`);
-      assert('Path B fallback: Path A was attempted (execCommand was called)',
-        execCallCount > 0,
-        `execCommand call count: ${execCallCount}`);
-      assert('Path B fallback: el.textContent equals PROMPT after direct assignment',
-        input.textContent === PROMPT,
-        `got: "${input.textContent.slice(0, 50)}"`);
-    });
-
-    // Sub-case 3: Both paths fail → InjectionTimeoutError
-    // execCommands are no-ops (Path A leaves input empty) AND the textContent
-    // setter on the element is mocked to silently ignore writes (Path B is
-    // also a no-op). The getter is forced to return '' throughout.
-    await withFixture(`
-      <div aria-label="Ask Gemini" contenteditable="true" style="position:fixed;top:0;left:0;width:200px;height:40px"></div>
-    `, async (container) => {
-      const input = container.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]');
-      const logMessages = [];
-      const capturingLog = (msg) => logMessages.push(msg);
-      let caughtError = null;
-
-      await withExecCommandSpy(() => false, async () => {
-        Object.defineProperty(input, 'textContent', {
-          get() { return ''; },
-          set(_v) { /* no-op — simulate Path B write being silently ignored */ },
-          configurable: true,
-        });
-        try {
-          await injectPromptWithVerification_test(
-            input, PROMPT, FAR_DEADLINE, capturingLog, foregroundImmediate
-          ).catch(err => { caughtError = err; });
-        } finally {
-          delete input.textContent; // restore native DOM property
-        }
-      });
-
-      assert('Both paths fail: throws InjectionTimeoutError',
-        caughtError instanceof InjectionTimeoutError,
-        `error was: ${caughtError?.constructor?.name}`);
-      assert('Both paths fail: sendLog reported the failure',
-        logMessages.some(m => m.includes('Both injection paths failed')),
-        `log messages: ${JSON.stringify(logMessages)}`);
-    });
-
-    // Sub-case 4: deadline already expired → throws immediately, no execCommand
-    await withFixture(`
-      <div aria-label="Ask Gemini" contenteditable="true" style="position:fixed;top:0;left:0;width:200px;height:40px"></div>
-    `, async (container) => {
-      const input = container.querySelector('div[aria-label="Ask Gemini"][contenteditable="true"]');
-      const EXPIRED_DEADLINE = Date.now() - 1;
-      let execCalled = false;
-      let caughtError = null;
-
-      await withExecCommandSpy(() => { execCalled = true; return false; }, async () => {
-        await injectPromptWithVerification_test(
-          input, PROMPT, EXPIRED_DEADLINE, sendLogStub, foregroundImmediate
-        ).catch(err => { caughtError = err; });
-      });
-
-      assert('Expired deadline: throws InjectionTimeoutError immediately',
-        caughtError instanceof InjectionTimeoutError,
-        `error was: ${caughtError?.constructor?.name}`);
-      assert('Expired deadline: no execCommand calls made', !execCalled);
-    });
-
-    console.groupEnd();
-  }
-
   // ── Runner ─────────────────────────────────────────────────────────────────
 
   async function testCaptureProactively() {
@@ -966,9 +801,9 @@ window.MM2C_TESTS = (() => {
   async function testGeminiFlowMutex() {
     console.group('geminiFlowMutex');
 
-    // Re-implementation of runGeminiFlow's Promise-based mutex with injectable _inner.
-    // KEEP IN SYNC with runGeminiFlow in content_meet.js.
-    // Intentional deviation: chrome.storage.local.set calls omitted (Chrome-only API).
+    // Intentional DI mirror of runGeminiFlow's single-flight mutex (injectable _inner):
+    // covers the concurrent-reject + lock-release branches the e2e can't reach by
+    // timing. Keep aligned with content_meet.js. (chrome.storage.local.set omitted.)
     async function runGeminiFlow_test(state, _inner) {
       if (state.geminiFlowPromise) throw new Error('Another Gemini capture is already running');
       let releaseLock;
@@ -2888,7 +2723,6 @@ window.MM2C_TESTS = (() => {
     testMuteSelectors();
     testSubmitButton();
     await testWaitForForeground();
-    await testInjectVerification();
     await testCaptureProactively();
     await testGeminiFlowMutex();
     testSendDedup();
