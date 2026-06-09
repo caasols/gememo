@@ -405,6 +405,19 @@ window.MM2C_TESTS = (() => {
       assert('Keeps summary text before Note', result === 'Summary text here.');
     });
 
+    // Real Meet 2026-06 list-item text shape (captured live): label + answer +
+    // citation digits + "N source" + the Copy/Report/thumbs feedback row, all
+    // newline-separated. The cleanup must yield just the answer.
+    withFixture('', (c) => {
+      const li = document.createElement('div');
+      li.setAttribute('role', 'listitem');
+      li.innerText = "Gemini response\nNo one is currently screen sharing in the meeting, so you shouldn't see any indicators related to that on your screen.1\n1\n1 source\nCopy\nReport\nGood response\nBad response";
+      c.appendChild(li);
+      const result = extractLastResponse(li);
+      assertEq('Real list-item text → clean answer (label/citations/feedback stripped)', result,
+        "No one is currently screen sharing in the meeting, so you shouldn't see any indicators related to that on your screen.");
+    });
+
     // ── New Meet DOM (2026-06 redesign): no "Gemini response" label; the answer
     //    ends with a Copy action button. Extraction must anchor on that button. ──
     // Mirrors the real markup the maintainer captured (jsname="WmNl5c", data-action-type="15").
@@ -452,7 +465,41 @@ window.MM2C_TESTS = (() => {
   }
 
   function testGeminiResponseDone() {
-    console.group('geminiResponseDone / findGeminiCopyButton (new Meet DOM)');
+    console.group('lastGeminiResponseEl / geminiResponseDone / findGeminiCopyButton (Meet 2026-06 DOM)');
+
+    // New DOM: replies are role="listitem" rows. The LAST reply with a Copy button = done.
+    withFixture('', (c) => {
+      c.innerHTML = `<div role="list">
+        <div role="listitem" id="m1">Gemini response<button jsname="WmNl5c"><span>Copy</span></button></div>
+        <div role="listitem" id="m2">Gemini response<button jsname="WmNl5c"><span>Copy</span></button></div>
+      </div>`;
+      assert('lastGeminiResponseEl returns the LAST reply item', lastGeminiResponseEl(c)?.id === 'm2');
+      assert('geminiResponseDone true when the last reply has a Copy button', geminiResponseDone(c) === true);
+    });
+
+    // KEY: a still-streaming last reply (label, NO Copy yet) must NOT complete on a
+    // prior answer — anchoring on the LAST message prevents premature completion.
+    withFixture('', (c) => {
+      c.innerHTML = `<div role="list">
+        <div role="listitem" id="done">Gemini response done<button jsname="WmNl5c"><span>Copy</span></button></div>
+        <div role="listitem" id="streaming">Gemini response partial…</div>
+      </div>`;
+      assert('lastGeminiResponseEl returns the streaming (last) item', lastGeminiResponseEl(c)?.id === 'streaming');
+      assert('geminiResponseDone false while the last reply is still streaming (no Copy)', geminiResponseDone(c) === false);
+    });
+
+    // No reply rows → not done.
+    withFixture('', (c) => {
+      c.innerHTML = `<div role="list"><div role="listitem">Carlos Sol (participant)</div></div>`;
+      assert('geminiResponseDone false with no Gemini reply rows', geminiResponseDone(c) === false);
+    });
+
+    // Legacy / fake-Meet fallback: no listitems, reply lives in aside[Side panel].
+    withFixture('', (c) => {
+      c.innerHTML = `<aside aria-label="Side panel"><div class="actions"><button jsname="WmNl5c"><span>Copy</span></button></div></aside>`;
+      assert('lastGeminiResponseEl falls back to the side panel', lastGeminiResponseEl(c)?.tagName === 'ASIDE');
+      assert('geminiResponseDone true via the side-panel fallback', geminiResponseDone(c) === true);
+    });
 
     withFixture('', (c) => {
       const aside = document.createElement('aside');
@@ -460,25 +507,12 @@ window.MM2C_TESTS = (() => {
       aside.innerHTML = `<div class="actions"><button jsname="WmNl5c" data-action-type="15"><span>Copy</span></button></div>`;
       c.appendChild(aside);
       assert('findGeminiCopyButton finds the WmNl5c button', !!findGeminiCopyButton(aside));
-      assert('geminiResponseDone true when Copy present + no Stop', geminiResponseDone(aside) === true);
     });
 
     withFixture('', (c) => {
       const aside = document.createElement('aside');
-      aside.setAttribute('aria-label', 'Side panel');
-      // Still streaming: Stop button present alongside the (not-yet-final) Copy.
-      aside.innerHTML = `<button aria-label="Stop">stop</button>
-        <div class="actions"><button jsname="WmNl5c" data-action-type="15"><span>Copy</span></button></div>`;
-      c.appendChild(aside);
-      assert('geminiResponseDone false while Stop button is visible', geminiResponseDone(aside) === false);
-    });
-
-    withFixture('', (c) => {
-      const aside = document.createElement('aside');
-      aside.setAttribute('aria-label', 'Side panel');
       aside.innerHTML = `<div>no actions yet</div>`;
       c.appendChild(aside);
-      assert('geminiResponseDone false when no Copy button', geminiResponseDone(aside) === false);
       assert('findGeminiCopyButton returns null when absent', findGeminiCopyButton(aside) === null);
     });
 

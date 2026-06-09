@@ -692,17 +692,29 @@ function findGeminiCopyButton(root, copySelectors) {
   return last;
 }
 
-// True once the latest Gemini response is fully rendered: a Copy action button is
-// present and nothing is actively streaming (no Stop button). Robust to the Meet
-// 2026-06 redesign that removed the "Gemini response" text label.
-function geminiResponseDone(root, opts) {
-  if (!root || !root.querySelector) return false;
-  const o = opts || {};
-  const stopSels = o.stop || ((typeof SELECTORS !== 'undefined' && SELECTORS.geminiStop) || []);
-  for (const s of stopSels) {
-    try { if (root.querySelector(s)) return false; } catch { /* bad selector */ }
-  }
-  return !!findGeminiCopyButton(root, o.copy);
+// The element holding the LATEST Gemini reply. In Meet's 2026-06 redesign the
+// conversation moved OUT of aside[aria-label="Side panel"] (now empty) into a
+// role="list" of role="listitem" rows — so we pick the last list-item that is a
+// Gemini reply (has a Copy action button OR the "Gemini response" label). Falls
+// back to the legacy side panel for older / test DOM that keeps replies there.
+function lastGeminiResponseEl(root) {
+  const r = root || (typeof document !== 'undefined' ? document : null);
+  if (!r || !r.querySelectorAll) return null;
+  const isReply = (li) =>
+    li.querySelector('button[jsname="WmNl5c"], button[data-action-type="15"]') ||
+    /(^|\n)\s*Gemini response\b/i.test(li.innerText || '');
+  const items = [...r.querySelectorAll('[role="listitem"]')].filter(isReply);
+  if (items.length) return items[items.length - 1];
+  return r.querySelector ? r.querySelector('aside[aria-label="Side panel"]') : null;
+}
+
+// True once the latest Gemini reply is fully rendered — that message has its Copy
+// action button. Anchoring on the LAST message (not the whole panel) means a
+// still-streaming reply (no Copy yet) never completes on a PRIOR answer, and there
+// is no fragile "Stop button" heuristic to misfire.
+function geminiResponseDone(root) {
+  const el = lastGeminiResponseEl(root);
+  return !!(el && findGeminiCopyButton(el));
 }
 
 // Extract the last Gemini response text from the side-panel element.
