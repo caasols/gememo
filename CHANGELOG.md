@@ -17,6 +17,18 @@ _Nothing yet — next change goes here._
 
 ---
 
+## [0.2.12] – 2026-06-09 · Remove obsolete Craft importDocument path
+
+### Removed
+- **The dead `craftdocs://x-callback-url/importDocument` subsystem in `scripts/push_to_craft.py`.** Craft's sandbox blocked it from reading staged files on macOS 26.5+, so the host switched to the inline-content `craftdocs://createdocument` path; the old code was only reachable from tests. Removed `build_import_url`, `wait_for_craft_callback`, `_CallbackHandler`, `stage_for_craft`, `_prune_craft_uploads`, and `CRAFT_UPLOADS_DIR`, plus their tests and the now-unused imports (`threading`, `http.server`, `urllib.parse.urlparse/parse_qs`); rewrote the module docstring (the `createdocument` path returns only exit 0/2 — the x-callback exit 3 is gone).
+
+### Tests
+- **Added a guard** that `build_createdocument_url` carries a large (~25 KB) note inline in full without our code truncating it — locking in that the committed path handles real-world note sizes before the fallback was removed. *(An OS-level `craftdocs://` URL-length ceiling, if any, is separate and outside the builder.)*
+
+Extension + native host → `0.2.12`. Suite green: 511 pure JS + 73 Playwright + 327 Python.
+
+---
+
 ## [0.2.11] – 2026-06-09 · Dead-code cleanup + real-code test coverage
 
 ### Removed
