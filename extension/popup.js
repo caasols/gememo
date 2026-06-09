@@ -141,26 +141,8 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function formatSnapshotAge(ts, now = Date.now()) {
-  const diffMs  = Math.max(0, now - ts);
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) {
-    return `${Math.floor(diffMs / 1000)}s ago`;
-  }
-  return `${diffMin} min ago`;
-}
-
-// Returns a "Xm Ys" string for the time remaining until nextAt (ms timestamp).
-// Returns null when nextAt is 0 (no snapshot scheduled yet).
-function formatCountdown(nextAt, now = Date.now()) {
-  if (!nextAt) return null;
-  const ms = nextAt - now;
-  if (ms <= 0) return 'due now';
-  const totalSec = Math.round(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-}
+// formatSnapshotAge + formatCountdown now live in constants.js (loaded before
+// this script) — shared so they're unit-tested directly against the real code.
 
 // Shows/hides widget AND updates content. Only called from MM2C_STATUS_QUERY callback.
 function renderSnapshotWidget(snap) {
@@ -750,9 +732,9 @@ function renderLogs(logs) {
       const dotClass = entry.status === 'ok' ? 'ok' : entry.status === 'warn' ? 'warn' : entry.status === 'err' ? 'err' : 'info';
       const time = formatTimeOnly(entry.ts);
       const message = entry.message || '';
-      const backupMatch = entry.status === 'err' ? message.match(/backup at (.+)$/) : null;
-      const retryChip = backupMatch
-        ? `<button class="btn log-retry-btn" data-title="${escapeHtml(entry.title || group.title || '')}" data-backup="${escapeHtml(backupMatch[1])}">Retry</button>`
+      const backupPath = entry.status === 'err' ? extractBackupPath(message) : '';
+      const retryChip = backupPath
+        ? `<button class="btn log-retry-btn" data-title="${escapeHtml(entry.title || group.title || '')}" data-backup="${escapeHtml(backupPath)}">Retry</button>`
         : '';
       return `
         <div class="log-entry">

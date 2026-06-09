@@ -519,6 +519,30 @@ function computeFirstSnapshotAt(meetingJoinedAt, lastSnapshotAt, snapshotInterva
     : 0;
 }
 
+// ── Popup display formatters (pure; shared so they're unit-tested directly) ──
+// "Xs ago" / "X min ago" for a snapshot timestamp.
+function formatSnapshotAge(ts, now = Date.now()) {
+  const diffMs  = Math.max(0, now - ts);
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return `${Math.floor(diffMs / 1000)}s ago`;
+  return `${diffMin} min ago`;
+}
+// "Xm Ys" / "Xs" / "due now" until nextAt (ms ts); null when nextAt is 0 (unscheduled).
+function formatCountdown(nextAt, now = Date.now()) {
+  if (!nextAt) return null;
+  const ms = nextAt - now;
+  if (ms <= 0) return 'due now';
+  const totalSec = Math.round(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+}
+// The "<path>" captured from a "…backup at <path>" log message, or '' when absent.
+function extractBackupPath(message) {
+  const m = String(message || '').match(/backup at (.+)$/);
+  return m ? m[1] : '';
+}
+
 // Pure helper — map a raw error string to friendly "what happened + what to do"
 // copy for the in-page toast and popup banner (UXC-3). The raw text is kept only
 // in the debug log; the user never sees a bare JS / native-messaging string.
