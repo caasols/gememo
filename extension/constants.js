@@ -583,6 +583,13 @@ const SELECTORS = {
   submit:       ['button[aria-label="Submit"]'],
   sidePanel:    ['aside[aria-label="Side panel"]'],
   callControls: ['div[aria-label="Call controls"]'],
+  // The "Copy" action button Meet renders under a COMPLETED Gemini response
+  // (action row: Copy / Report / 👍 / 👎). Its presence is the reliable
+  // "the answer has finished" signal — the old "Gemini response" text label
+  // was dropped in Meet's 2026-06 redesign.
+  geminiCopy:   ['button[jsname="WmNl5c"]', 'button[data-action-type="15"]'],
+  // Visible while Gemini is actively streaming a response.
+  geminiStop:   ['button[aria-label*="Stop"]'],
 };
 
 // Selectors that should always be present once a meeting is joined. Their
@@ -651,11 +658,9 @@ function mergeSelectorOverrides(base, overrides) {
 // reply with UI chrome stripped, or null if no response is present.
 // content_meet.js wraps this with a live document.querySelector call;
 // tests.js passes a mock element directly.
-function extractLastResponseFromEl(el) {
-  const full = el?.innerText?.trim() || '';
-  const parts = full.split('Gemini response\n');
-  if (parts.length < 2) return null;
-  return parts[parts.length - 1]
+// Strip Gemini's trailing UI chrome + citation artefacts from a raw response string.
+function cleanGeminiResponse(text) {
+  return String(text || '')
     .replace(/\n\n\nNote:.*$/s, '')       // "Note: No relevant info..." disclaimer
     .replace(/\n+Copy\n.*$/s, '')          // Copy / Report / thumbs feedback row
     .replace(/\n*(\d+\n){1,4}\d+ source.*$/s, '') // citation footer e.g. "1\n1 source"
@@ -665,6 +670,73 @@ function extractLastResponseFromEl(el) {
     // Uses single-digit [1-9] to avoid corrupting "Python 3.11" (digit precedes digit → no match)
     .replace(/(?<=[a-zA-Z"'])([1-9])(?=[\s\n]|$)/gm, '')
     .trim();
+}
+
+// Find the "Copy" action button under a completed Gemini response. `copySelectors`
+// defaults to SELECTORS.geminiCopy; a locale-dependent text match ("copy") is the
+// last resort. Returns the element or null.
+function findGeminiCopyButton(root, copySelectors) {
+  if (!root || !root.querySelectorAll) return null;
+  const sels = Array.isArray(copySelectors) ? copySelectors
+    : ((typeof SELECTORS !== 'undefined' && SELECTORS.geminiCopy) || []);
+  // Return the LAST match — the latest response's action row is the relevant one.
+  for (const s of sels) {
+    try { const els = root.querySelectorAll(s); if (els.length) return els[els.length - 1]; }
+    catch { /* bad selector */ }
+  }
+  let last = null;
+  for (const b of root.querySelectorAll('button')) {
+    const label = ((b.getAttribute && b.getAttribute('aria-label')) || b.textContent || '').trim().toLowerCase();
+    if (label === 'copy') last = b;
+  }
+  return last;
+}
+
+// True once the latest Gemini response is fully rendered: a Copy action button is
+// present and nothing is actively streaming (no Stop button). Robust to the Meet
+// 2026-06 redesign that removed the "Gemini response" text label.
+function geminiResponseDone(root, opts) {
+  if (!root || !root.querySelector) return false;
+  const o = opts || {};
+  const stopSels = o.stop || ((typeof SELECTORS !== 'undefined' && SELECTORS.geminiStop) || []);
+  for (const s of stopSels) {
+    try { if (root.querySelector(s)) return false; } catch { /* bad selector */ }
+  }
+  return !!findGeminiCopyButton(root, o.copy);
+}
+
+// Extract the last Gemini response text from the side-panel element.
+// Fast path: legacy panels labelled each reply with "Gemini response\n".
+// Fallback (new DOM, no label): anchor on the latest response's Copy action
+// button, walk up to its message bubble, drop the action buttons/icons, read text.
+function extractLastResponseFromEl(el) {
+  if (!el) return null;
+  const full = el.innerText ? el.innerText.trim() : '';
+
+  if (full.includes('Gemini response\n')) {
+    const parts = full.split('Gemini response\n');
+    const out = cleanGeminiResponse(parts[parts.length - 1]);
+    if (out) return out;
+  }
+
+  const copy = findGeminiCopyButton(el);
+  if (!copy || !copy.parentElement) return null;
+  const toolbar = copy.parentElement;
+  const baseLen = (toolbar.innerText || '').trim().length;
+  let bubble = null;
+  let node = toolbar;
+  while (node && node !== el) {
+    const t = (node.innerText || '').trim();
+    // Stop before climbing into the composer / suggestion chips.
+    if (/Ask Gemini|Summarise the discussion|can make mistakes/i.test(t)) break;
+    // First ancestor with clearly more than the action-row text = the message bubble.
+    if (t.length > baseLen + 40) { bubble = node; break; }
+    node = node.parentElement;
+  }
+  if (!bubble || !bubble.cloneNode) return null;
+  const clone = bubble.cloneNode(true);
+  clone.querySelectorAll('button, [role="button"], svg').forEach(n => n.remove());
+  return cleanGeminiResponse(clone.innerText) || null;
 }
 
 // Pure helper — should this send be skipped as a duplicate (D2)? True when the

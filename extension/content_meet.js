@@ -421,6 +421,15 @@
           return;
         }
 
+        // Primary signal (robust to Meet's 2026-06 redesign): the response is done
+        // the moment its "Copy" action button is present and nothing is streaming.
+        // Avoids the infinite re-inject loop when the old text-stability anchor
+        // ("Gemini response" label / "Stop" button) no longer matches the DOM.
+        if (current.length > 10 && typeof geminiResponseDone === 'function' &&
+            geminiResponseDone(aside, { copy: effectiveSelectors.geminiCopy, stop: effectiveSelectors.geminiStop })) {
+          return finish();
+        }
+
         // Wall-clock stability: resolve once the response hasn't changed for 3 s.
         // Avoids the staleCount cascade: a single trailing token no longer forces
         // 3 more full check cycles. The 3 s window is short enough to feel instant
