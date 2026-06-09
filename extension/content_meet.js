@@ -322,37 +322,27 @@
     return null;
   }
 
-  // Returns the element that opens/toggles the Ask Gemini panel.
-  // Meet shows different UI entry points depending on state (confirmed 2026-05-30):
+  // Returns the Ask Gemini toolbar TOGGLE (the control that opens/starts Ask
+  // Gemini). Confirmed against live Meet DOM (2026-06):
   //
-  //   1. <button aria-label*="Gemini"> — older Meet versions (aria-label present)
-  //   2. DIV[role="button"] text "Gemini<icon>" (e.g. "Geminispark_off") — newer
-  //      Meet, no aria-label. This is the star/spark toggle in the toolbar.
-  //      Clicking it opens the Ask Gemini popup or the panel directly.
-  //   3. DIV[role="button"] text "Take notes with Gemini<icon>" — a DIFFERENT
-  //      feature (AI-generated notes, not the Ask Gemini chat). Clicking it has no
-  //      effect on the Ask Gemini panel. Used only as a last-resort fallback.
+  //   • OFF    — <button jsname="wptEcf">, icon `spark_off`,
+  //              aria-label "Gemini can't answer your questions at the moment"
+  //   • ACTIVE — <button jsname="J4YcA">,
+  //              aria-label "Gemini uses meeting conversations to answer questions"
   //
-  // NOTE: "Start now" in the popup that appears after clicking (2) is rendered
-  // inside a cross-origin iframe and cannot be clicked programmatically. The
-  // extension handles this gracefully — see autoActivateGemini().
+  // IMPORTANT: "Take notes with Gemini" (<div role="button" jsname="ocqpFe">,
+  // icon `pen_spark`, NO aria-label) is a SEPARATE feature (AI meeting notes, not
+  // the Ask Gemini chat). Clicking it CANNOT open Ask Gemini — the old last-resort
+  // fallback to it is exactly what caused auto-activation to mis-click ("click null")
+  // and never start, so it has been removed.
   function getGeminiTriggerElement() {
-    // 0. Meet 2026-06 toolbar toggle by stable jsname (present in BOTH the off
-    //    "spark_off" state and the active state) — most robust across label changes.
-    const byJsname = document.querySelector('button[jsname="wptEcf"]');
+    // 1. Stable jsname (off + active toggles). Most robust across label changes.
+    const byJsname = document.querySelector('button[jsname="wptEcf"], button[jsname="J4YcA"]');
     if (byJsname) return byJsname;
-    // 1. aria-label match (older Meet / future-proofing)
-    const starBtn = document.querySelector('button[aria-label*="Gemini" i], [role="button"][aria-label*="Gemini" i]');
-    if (starBtn) return starBtn;
-    // 2. Gemini star/spark toolbar button (text starts with "Gemini", NOT "Take notes")
-    for (const el of document.querySelectorAll('[role="button"]')) {
-      const t = el.textContent.trim();
-      if (/^Gemini/i.test(t) && !/take notes/i.test(t)) return el;
-    }
-    // 3. "Take notes with Gemini" fallback
-    for (const el of document.querySelectorAll('[role="button"]')) {
-      if (/take notes with gemini/i.test(el.textContent)) return el;
-    }
+    // 2. Fallback: any control whose aria-label mentions Gemini. The "Take notes"
+    //    feature has no aria-label, so it is never matched here.
+    const byLabel = document.querySelector('button[aria-label*="Gemini" i], [role="button"][aria-label*="Gemini" i]');
+    if (byLabel) return byLabel;
     return null;
   }
 
@@ -832,37 +822,23 @@
   //   the Gemini button opens that card — we then look for "Start now" and click
   //   it to actually begin the recording session.
 
-  // Resolves with button[aria-label*="Gemini"] as soon as it appears in DOM, or
-  // null after timeout. Used after clicking "Start now" to detect when Meet
-  // creates the active-state Gemini toggle (which can then be clicked to open
-  // the panel). Distinguished from the no-aria-label "Geminispark_off" button.
-  function waitForActiveGeminiButton(timeoutMs) {
-    return waitForCondition(
-      () => document.querySelector('button[aria-label*="Gemini" i]'), timeoutMs);
-  }
-
-  // ── Auto-activation state machine ─────────────────────────────────────────
-  // Meet has three Gemini states (confirmed 2026-05-30 live DOM inspection):
+  // ── Auto-activation flow ──────────────────────────────────────────────────
+  // Verified against live Meet DOM (2026-06). Ask Gemini has three states:
   //
-  //   State 1 — "not started"
-  //     Toolbar: DIV role=button text="Geminispark_off" (no aria-label)
-  //              DIV role=button text="Take notes with Geminipen_spark"
-  //     To start: hover "Geminispark_off" → hover tray appears in MAIN DOM with
-  //               BUTTON text="sparkStart now" → click it → Gemini begins recording
-  //     Clicking (not hovering) opens a CROSS-ORIGIN IFRAME popup — inaccessible.
+  //   1. OFF   — button[jsname="wptEcf"] (icon `spark_off`). A PLAIN click opens
+  //              an in-page "Start now" card (NOT a cross-origin popup, NO hover
+  //              needed). The card's "Start now" is span[jsname="V67aGc"] inside a
+  //              button — clicking it starts the session.
+  //   2. STARTED, panel closed — button[jsname="J4YcA"] / aria-label*="Gemini".
+  //              A click opens the panel.
+  //   3. PANEL OPEN — div[aria-label="Ask Gemini"][contenteditable] in viewport.
   //
-  //   State 2 — "started, panel closed"
-  //     Toolbar: button[aria-label="Gemini"] (proper <button>, accessible)
-  //     To open: click the button → panel slides in, input enters viewport
-  //
-  //   State 3 — "panel open"
-  //     div[aria-label="Ask Gemini"][contenteditable="true"] in viewport → can inject
-  //
-  // The extension must drive State 1→2→3 automatically on meeting join.
-  // State 1→2 requires a real hover (synthetic events don't trigger the jsaction).
-  // We try ArrowDown keyboard shortcut (tooltip: "Press down arrow to open tray")
-  // as a programmatic alternative to hover. If that also fails, we show guidance
-  // and let the MutationObserver retry when Gemini becomes active.
+  // We drive 1→2→3 with ordinary element.click() calls. (Earlier builds used a
+  // chrome.debugger/CDP "trusted hover" because a *hover tray* once gated "Start
+  // now"; this Meet build surfaces it on click, so no CDP/hover is required —
+  // isTrusted=false clicks are honoured for these controls.) geminiActivating is
+  // released in finally so the MutationObserver can retry if the toggle isn't in
+  // the DOM yet (Meet auto-hides toolbar controls when the mouse is idle).
 
   async function autoActivateGemini() {
     if (panelAutoOpened || geminiActivating) {
@@ -887,115 +863,50 @@
         return;
       }
 
-      // ── State 1→2: "Start now" hover tray already open ───────────────────
-      // (e.g. extension reloaded while hover was active, or panel showed itself)
+      // ── "Start now" card already open? click it straight away. ───────────
+      // (e.g. a prior attempt opened the card, or Meet showed it on its own.)
       let startNow = getGeminiStartNowButton();
       sendLog(`autoActivateGemini: immediateStartNow=${!!startNow}`);
 
       if (!startNow) {
-        // Find the Gemini toolbar button
+        // Find the GENUINE Ask Gemini toggle (wptEcf when off, J4YcA when active).
+        // getGeminiTriggerElement no longer falls back to "Take notes with Gemini"
+        // (jsname=ocqpFe) — clicking that can't open Ask Gemini and was the cause of
+        // the "Opening panel: click null" mis-click that left the panel never opening.
         const trigger = await waitForGeminiTrigger(2500);
-        sendLog(`autoActivateGemini: trigger=${!trigger ? 'null' : (trigger.getAttribute('aria-label') || trigger.textContent.trim().slice(0,40))}`);
+        sendLog(`autoActivateGemini: trigger=${!trigger ? 'null' : (trigger.getAttribute('aria-label') || trigger.getAttribute('jsname') || '?')}`);
         if (!trigger) {
-          sendLog('autoActivateGemini: trigger not found — retry on next mutation');
+          sendLog('autoActivateGemini: Ask Gemini toggle not present yet — retry on next mutation');
           return;
         }
 
-        // Decide "started vs not started" by the toggle's ICON/label state, NOT by
-        // whether it has an aria-label. Meet's 2026-06 redesign gave the OFF-state
-        // toggle a permanent aria-label ("Gemini can't answer…") + a `spark_off`
-        // icon, so the old "hasLabel ⇒ started" proxy misrouted the off button into
-        // the click-to-open branch (which opens a dead cross-origin popup) and never
-        // hovered to reveal "Start now" — that was the activation regression.
+        // Off vs started, by the toggle's icon/label state (spark_off ⇒ off).
         const notStarted = (typeof geminiNotStarted === 'function')
           ? geminiNotStarted(trigger)
           : !trigger.getAttribute('aria-label');
-        sendLog(`autoActivateGemini: trigger notStarted=${notStarted} label="${trigger.getAttribute('aria-label') || ''}"`);
+        sendLog(`autoActivateGemini: notStarted=${notStarted} label="${trigger.getAttribute('aria-label') || ''}"`);
 
-        if (!notStarted) {
-          // ── State 2→3: Gemini already started — click button to open panel ─
-          sendLog(`Opening panel: click "${trigger.getAttribute('aria-label')}"`);
-          trigger.click();
-          // waitForPanelVisible handles the rest below
-        } else {
-          // ── State 1→2: Gemini not started ("spark_off" button) ────────────
-          // Chrome's dispatchEvent always produces isTrusted=false, which Meet's
-          // jsaction framework ignores for hover events — so synthetic mouseenter/
-          // keydown don't open the hover tray.
-          //
-          // Use chrome.debugger + CDP Input.dispatchMouseEvent instead. CDP sends
-          // events through Chrome's OS-level input pipeline, producing isTrusted=true.
-          // Flow: CDP mouseMoved → hover tray appears in main DOM → wait for
-          // "Start now" button → CDP mousePressed/mouseReleased on it.
-          //
-          // Coordinates are the button's CSS-pixel center from getBoundingClientRect
-          // (already in viewport coordinates, no screen-scale conversion needed for CDP).
-          const r = trigger.getBoundingClientRect();
-          const btnX = Math.round(r.x + r.width  / 2);
-          const btnY = Math.round(r.y + r.height / 2);
+        // A PLAIN click opens the in-page Ask Gemini card / panel — verified live
+        // (2026-06): no cross-origin popup, no hover/CDP required.
+        sendLog(`autoActivateGemini: clicking toggle to ${notStarted ? 'reveal "Start now"' : 'open panel'}`);
+        trigger.click();
 
-          sendLog(`Gemini not started — CDP hover at (${btnX}, ${btnY}) to open hover tray...`);
-
-          // Step 1: CDP mouseMoved — triggers hover tray to appear
-          const hoverRes = await new Promise(resolve =>
-            chrome.runtime.sendMessage({ type: 'MM2C_CDP_HOVER', x: btnX, y: btnY }, resolve)
-          );
-          if (!hoverRes?.ok) {
-            sendLog(`CDP hover failed (${hoverRes?.error}) — showing manual guidance`);
-            showStatus('Hover over the ✦ Gemini button → click "Start now" to enable notes', 'warn');
-            return;
-          }
-
-          // Step 2: Wait for the hover tray's "Start now" button to appear in the DOM
-          startNow = await waitForStartNowButton(2000);
-          sendLog(`autoActivateGemini: startNow after CDP hover=${!!startNow}`);
-
+        if (notStarted) {
+          // OFF → the click surfaces the "Start now" card; grab and click it below.
+          startNow = await waitForStartNowButton(3000);
+          sendLog(`autoActivateGemini: startNow after toggle click=${!!startNow}`);
           if (!startNow) {
-            // Hover tray didn't appear (CDP approach may not work in this Meet version)
-            sendLog('Hover tray did not open via CDP — showing manual guidance');
-            chrome.runtime.sendMessage({ type: 'MM2C_CDP_DETACH' });
-            showStatus('Hover over the ✦ Gemini button → click "Start now" to enable notes', 'warn');
+            sendLog('No "Start now" surfaced — showing manual guidance');
+            showStatus('Click the ✦ Gemini button → "Start now" to enable notes', 'warn');
             return;
           }
-
-          // Found "Start now" — use KEEP variant so debugger stays attached
-          // for the subsequent panel-toggle click (also needs isTrusted=true)
-          sendLog('Using CDP_CLICK_KEEP for "Start now" — will follow up with panel toggle click');
         }
       }
 
-      // ── Click "Start now" if we have it ──────────────────────────────────
+      // ── Click "Start now" to begin the session (plain click works) ───────
       if (startNow) {
-        const sr = startNow.getBoundingClientRect();
-        const snX = Math.round(sr.x + sr.width  / 2);
-        const snY = Math.round(sr.y + sr.height / 2);
-        sendLog(`Clicking "Start now" via CDP_KEEP at (${snX}, ${snY})...`);
-
-        // Use KEEP variant — debugger stays attached for the panel toggle click below.
-        // Both "Start now" and the panel toggle button require isTrusted=true;
-        // plain .click() (isTrusted=false) only works for "warm" panels (already initialised).
-        const clickRes = await new Promise(resolve =>
-          chrome.runtime.sendMessage({ type: 'MM2C_CDP_CLICK_KEEP', x: snX, y: snY }, resolve)
-        );
-        sendLog(`CDP_KEEP click result: ${clickRes?.ok ? 'ok' : (clickRes?.error || 'no response')}`);
-
-        // After "Start now": wait for button[aria-label="Gemini"] then CDP-click it to open the panel.
-        sendLog('Waiting for active Gemini button (3 s)...');
-        const activeBtn = await waitForActiveGeminiButton(3000);
-        sendLog(`autoActivateGemini: activeBtn=${!activeBtn ? 'null' : activeBtn.getAttribute('aria-label')}`);
-        if (activeBtn) {
-          const ar = activeBtn.getBoundingClientRect();
-          const abX = Math.round(ar.x + ar.width  / 2);
-          const abY = Math.round(ar.y + ar.height / 2);
-          sendLog(`Opening panel: CDP click "${activeBtn.getAttribute('aria-label')}" at (${abX}, ${abY})`);
-          // Final CDP click — detaches debugger after this
-          await new Promise(resolve =>
-            chrome.runtime.sendMessage({ type: 'MM2C_CDP_CLICK', x: abX, y: abY }, resolve)
-          );
-        } else {
-          // No panel button found — detach to clean up
-          chrome.runtime.sendMessage({ type: 'MM2C_CDP_DETACH' });
-        }
+        sendLog('Clicking "Start now"...');
+        startNow.click();
       }
 
       // ── State 3: Wait for panel to enter viewport ─────────────────────────
@@ -1008,7 +919,7 @@
         );
         if (!inputInDom) {
           sendLog('Panel input never appeared — Gemini not started');
-          showStatus('Hover over ✦ Gemini button → click "Start now" to enable notes', 'warn');
+          showStatus('Click the ✦ Gemini button → "Start now" to enable notes', 'warn');
         } else {
           sendLog(`Panel never entered viewport — may be admin-disabled`);
           showStatus('Gemini may be disabled for your account — check with your Google Admin', 'warn');

@@ -17,6 +17,16 @@ _Nothing yet — next change goes here._
 
 ---
 
+## [0.2.9] – 2026-06-09 · Meet 2026-06 auto-activation, rebuilt from live DOM
+
+### Fixed
+- **Auto-activation now actually starts Ask Gemini** (Meet 2026-06). Root-caused via a live DOM session, which overturned two assumptions the previous fixes were built on:
+  - **It was clicking the wrong control.** When `autoActivateGemini` ran, the genuine Ask Gemini toggle often wasn't in the DOM yet (Meet **auto-hides/removes toolbar controls when the mouse is idle**), so `getGeminiTriggerElement` fell through to its last-resort **"Take notes with Gemini"** match (`div[role=button][jsname="ocqpFe"]`, `pen_spark`, no aria-label) — a *different feature*. It clicked that (`"Opening panel: click null"`) and the panel never opened. **Fix:** `getGeminiTriggerElement` now resolves only the real toggle — `button[jsname="wptEcf"]` (off) / `button[jsname="J4YcA"]` (active) / `aria-label*="Gemini"` — and the "Take notes" fallback is removed. If the toggle isn't present yet, it retries on the next mutation instead of mis-clicking.
+  - **No CDP/hover is needed.** The old code attached `chrome.debugger` to do a "trusted hover" because a hover *tray* once gated "Start now", and believed a click opened a dead cross-origin popup. Live DOM shows the opposite: a **plain `element.click()`** on the toggle opens an in-page "Start now" card (`span[jsname="V67aGc"]` inside `button[jsname="R6SlF"]`), and clicking that starts Gemini — no popup, no hover, `isTrusted=false` clicks are honoured. **Fix:** the whole flow is now ordinary clicks (`toggle → "Start now" → panel`); the CDP-hover path is gone.
+- New **e2e** drives the full path against an OFF-state fake-Meet fixture (toggle → "Start now" card → panel opens), incl. a decoy "Take notes" control to prove it isn't mistaken for the toggle; DOM-fixture assertions updated to the new toggle contract. Extension + native host → `0.2.9`.
+
+---
+
 ## [0.2.8] – 2026-06-09 · Meet 2026-06 "Start now" detection
 
 ### Fixed
