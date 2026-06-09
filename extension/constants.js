@@ -150,14 +150,6 @@ function parseActionItems(body) {
   return items;
 }
 
-// Task managers Gememo can route action items to via their URL schemes (RB-3a).
-// No OAuth — the same x-callback-url pattern as the Craft/Bear push.
-const TASK_APPS = {
-  things:    'Things',
-  todoist:   'Todoist',
-  omnifocus: 'OmniFocus',
-};
-
 // Pure helper — build a task-manager URL for one action item (RB-3a). Owner +
 // deadline become the task note. Returns '' for an unknown app or empty task.
 function buildTaskUrl(app, item = {}) {
@@ -364,11 +356,6 @@ function findPromptRule(rules, meetingTitle, now = new Date(), ctx = {}) {
   return null;
 }
 
-// Pure helper — the matched rule's prompt, or null (thin wrapper over findPromptRule).
-function matchPromptRule(rules, meetingTitle, now = new Date()) {
-  return findPromptRule(rules, meetingTitle, now)?.prompt?.trim() || null;
-}
-
 // Pure helper — is this meeting title on the capture blocklist (RB-5a)?
 // patterns may be an array or a comma/newline-separated string of regexes.
 function titleBlocked(title, patterns) {
@@ -456,12 +443,6 @@ function firstRunChecklist({ hostOk = false, outputApp = '' } = {}) {
     { id: 'output',  label: 'Choose an output app',     ok: !!outputApp && outputApp !== 'none' },
     { id: 'capture', label: 'Capture your first meeting', ok: false },
   ];
-}
-
-// Pure helper — is setup ready to capture (RB-7a)? True once the host + output
-// steps are done; the capture step is informational and excluded.
-function firstRunReady(list) {
-  return (Array.isArray(list) ? list : []).filter(s => s.id !== 'capture').every(s => s.ok);
 }
 
 // Pure helper — build a prefilled GitHub "new issue" URL (RB-1c).
@@ -588,8 +569,6 @@ const SELECTORS = {
   // "the answer has finished" signal — the old "Gemini response" text label
   // was dropped in Meet's 2026-06 redesign.
   geminiCopy:   ['button[jsname="WmNl5c"]', 'button[data-action-type="15"]'],
-  // Visible while Gemini is actively streaming a response.
-  geminiStop:   ['button[aria-label*="Stop"]'],
 };
 
 // Selectors that should always be present once a meeting is joined. Their
