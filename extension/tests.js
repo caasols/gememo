@@ -578,6 +578,59 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  function testFindStartNowButton() {
+    console.group('findStartNowButton (Meet 2026-06 hover tray)');
+
+    // Meet 2026-06: "Start now" label is a <span jsname="V67aGc"> inside a
+    // NON-semantic clickable (div with click jsaction) — the case the old
+    // button/[role=button] scan missed. Must return the clickable wrapper.
+    withFixture('', (c) => {
+      c.innerHTML = `<div id="tray"><div id="startclick" jsaction="click:abc123">
+        <span jsname="V67aGc" class="YUhpIc-vQzf8d">Start now</span></div></div>`;
+      const found = findStartNowButton(c);
+      assert('finds the [jsaction] wrapper of the V67aGc "Start now" span',
+        found && found.id === 'startclick', `got: "${found && found.id}"`);
+    });
+
+    // V67aGc span with no clickable ancestor → returns the span itself (CDP clicks by coords).
+    withFixture('', (c) => {
+      c.innerHTML = `<span jsname="V67aGc" id="bare">Start now</span>`;
+      const found = findStartNowButton(c);
+      assert('falls back to the label span when there is no clickable wrapper',
+        found && found.id === 'bare', `got: "${found && found.id}"`);
+    });
+
+    // jsname="V67aGc" is ALSO the Copy button label — must NOT match it (text gate).
+    withFixture('', (c) => {
+      c.innerHTML = `<button jsname="WmNl5c"><span jsname="V67aGc">Copy</span></button>`;
+      assert('does NOT match a V67aGc "Copy" span', findStartNowButton(c) === null);
+    });
+
+    // aria-label path (when Meet provides it).
+    withFixture('', (c) => {
+      c.innerHTML = `<button aria-label="Start now" id="al">x</button>`;
+      assert('matches an aria-label="Start now" button', findStartNowButton(c)?.id === 'al');
+    });
+
+    // Legacy/popup shape: a real <button> whose text is "Start now" (± star prefix).
+    withFixture('', (c) => {
+      c.innerHTML = `<button id="legacy">✦ Start now</button>`;
+      assert('matches a legacy button by anchored "Start now" text', findStartNowButton(c)?.id === 'legacy');
+    });
+
+    // A large container that merely CONTAINS the phrase must not be returned by the
+    // anchored text fallback (we want the tight control, not its wrapper).
+    withFixture('', (c) => {
+      c.innerHTML = `<div role="button" id="big">Some heading. Start now to enable Gemini notes for everyone.</div>`;
+      assert('anchored fallback ignores a big container that merely contains the phrase',
+        findStartNowButton(c) === null);
+    });
+
+    assert('findStartNowButton on an empty root is safe', findStartNowButton(document.createElement('div')) === null);
+
+    console.groupEnd();
+  }
+
   function testMuteSelectors() {
     console.group('Mute selector logic');
 
@@ -2941,6 +2994,7 @@ window.MM2C_TESTS = (() => {
     testExtractLastResponse();
     testGeminiResponseDone();
     testGeminiNotStarted();
+    testFindStartNowButton();
     testMuteSelectors();
     testSubmitButton();
     await testWaitForForeground();
