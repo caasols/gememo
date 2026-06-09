@@ -15,6 +15,13 @@
 (function () {
   'use strict';
 
+  // Re-injection guard: if a content script is already live in this tab (manifest
+  // injection on page load, or a background chrome.scripting injection into an
+  // already-open tab), don't run a second copy — duplicate listeners would
+  // double-capture. The background's onInstalled injector probes this flag.
+  if (window.__mm2cLoaded) return;
+  window.__mm2cLoaded = true;
+
   // Remove any status toast left behind by a previous content script instance
   // (e.g. "Waiting for Gemini…" stuck on screen after an extension reload)
   (() => { const s = document.getElementById('mm2c-status'); if (s) s.remove(); })();
