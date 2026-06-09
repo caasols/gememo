@@ -1065,6 +1065,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function saveRuleFromEvent(e) {
+    // Only persist edits to actual rule FIELDS (regex / prompt / conditions /
+    // toggle / depth). A blur from an ↑/↓/✕ action button must NOT trigger a
+    // save: clicking one focuses it, and the resulting blur would fire a save
+    // that races the reorder/delete handler's own save and clobbers it
+    // (reorder → duplicated row, delete → wrong survivor).
+    if (!e.target.matches || !e.target.matches('input, textarea, select')) return;
     const item = e.target.closest('.rule-item');
     if (!item) return;
     const idx = parseInt(item.dataset.index, 10);

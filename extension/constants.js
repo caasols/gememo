@@ -752,6 +752,12 @@ function isVersionMismatch(extVersion, hostVersion) {
   return String(extVersion).split('.')[0] !== String(hostVersion).split('.')[0];
 }
 
+// True when the background's onInstalled injector should inject the content
+// script into a tab — i.e. the probe found NO existing script there.
+function shouldInjectContentScript(probeResults) {
+  return !(Array.isArray(probeResults) && probeResults[0] && probeResults[0].result);
+}
+
 // Pure helper — produces the tab-scoped storage key name.
 // Used by popup.js and background.js (background.js defines its own
 // one-liner copy since it cannot import constants.js as a service worker).

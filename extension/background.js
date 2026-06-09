@@ -540,7 +540,7 @@ chrome.runtime.onInstalled.addListener(() => {
         // (a global fn in any version); content_meet sets window.__mm2cLoaded.
         func: () => (typeof extractLastResponseFromEl !== 'undefined') || !!window.__mm2cLoaded,
       }).then((results) => {
-        if (results && results[0] && results[0].result) return; // a script is already live — leave it
+        if (!shouldInjectContentScript(results)) return; // a script is already live — leave it
         return chrome.scripting.executeScript({
           target: { tabId: tab.id },
           files: ['design_tokens.js', 'constants.js', 'content_meet.js'],
