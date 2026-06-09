@@ -405,6 +405,83 @@ window.MM2C_TESTS = (() => {
       assert('Keeps summary text before Note', result === 'Summary text here.');
     });
 
+    // ── New Meet DOM (2026-06 redesign): no "Gemini response" label; the answer
+    //    ends with a Copy action button. Extraction must anchor on that button. ──
+    // Mirrors the real markup the maintainer captured (jsname="WmNl5c", data-action-type="15").
+    const newDomPanel = (answer) => `
+      <div class="msg">
+        <div class="answer">${answer}</div>
+        <div class="actions">
+          <button jsname="WmNl5c" data-action-type="15"><span jsname="V67aGc">Copy</span></button>
+          <button jsname="other">Report</button>
+        </div>
+      </div>
+      <div class="chips"><div>Summarise the discussion so far</div><div>What was discussed in the past two minutes</div></div>
+      <div class="composer">Ask Gemini</div>
+      <div>Gemini in Workspace can make mistakes. Learn more</div>`;
+
+    withFixture('', (c) => {
+      const aside = document.createElement('aside');
+      aside.setAttribute('aria-label', 'Side panel');
+      aside.innerHTML = newDomPanel('Summary\n\nThe team reviewed KPIs. Action item: Carlos to confirm timeline.');
+      c.appendChild(aside);
+      const result = extractLastResponse(aside);
+      assert('New DOM: extracts the answer via the Copy button', result?.includes('Action item: Carlos'));
+      assert('New DOM: excludes the composer ("Ask Gemini")', !result?.includes('Ask Gemini'));
+      assert('New DOM: excludes the suggestion chips', !result?.includes('Summarise the discussion'));
+      assert('New DOM: strips the Copy/Report action buttons', !/\bCopy\b|\bReport\b/.test(result || ''));
+    });
+
+    // New DOM with TWO responses — must return only the LAST answer.
+    withFixture('', (c) => {
+      const aside = document.createElement('aside');
+      aside.setAttribute('aria-label', 'Side panel');
+      aside.innerHTML = `
+        <div class="msg"><div class="answer">First answer about pricing.</div>
+          <div class="actions"><button jsname="WmNl5c" data-action-type="15"><span>Copy</span></button><button>Report</button></div></div>
+        <div class="msg"><div class="answer">Second answer about migration. Action item: ship it.</div>
+          <div class="actions"><button jsname="WmNl5c" data-action-type="15"><span>Copy</span></button><button>Report</button></div></div>
+        <div class="composer">Ask Gemini</div>`;
+      c.appendChild(aside);
+      const result = extractLastResponse(aside);
+      assertEq('New DOM: returns the LAST answer', result, 'Second answer about migration. Action item: ship it.');
+      assert('New DOM: does not include the first answer', !result?.includes('First answer'));
+    });
+
+    console.groupEnd();
+  }
+
+  function testGeminiResponseDone() {
+    console.group('geminiResponseDone / findGeminiCopyButton (new Meet DOM)');
+
+    withFixture('', (c) => {
+      const aside = document.createElement('aside');
+      aside.setAttribute('aria-label', 'Side panel');
+      aside.innerHTML = `<div class="actions"><button jsname="WmNl5c" data-action-type="15"><span>Copy</span></button></div>`;
+      c.appendChild(aside);
+      assert('findGeminiCopyButton finds the WmNl5c button', !!findGeminiCopyButton(aside));
+      assert('geminiResponseDone true when Copy present + no Stop', geminiResponseDone(aside) === true);
+    });
+
+    withFixture('', (c) => {
+      const aside = document.createElement('aside');
+      aside.setAttribute('aria-label', 'Side panel');
+      // Still streaming: Stop button present alongside the (not-yet-final) Copy.
+      aside.innerHTML = `<button aria-label="Stop">stop</button>
+        <div class="actions"><button jsname="WmNl5c" data-action-type="15"><span>Copy</span></button></div>`;
+      c.appendChild(aside);
+      assert('geminiResponseDone false while Stop button is visible', geminiResponseDone(aside) === false);
+    });
+
+    withFixture('', (c) => {
+      const aside = document.createElement('aside');
+      aside.setAttribute('aria-label', 'Side panel');
+      aside.innerHTML = `<div>no actions yet</div>`;
+      c.appendChild(aside);
+      assert('geminiResponseDone false when no Copy button', geminiResponseDone(aside) === false);
+      assert('findGeminiCopyButton returns null when absent', findGeminiCopyButton(aside) === null);
+    });
+
     console.groupEnd();
   }
 
@@ -2731,6 +2808,7 @@ window.MM2C_TESTS = (() => {
     testSelectors();
     testGeminiActiveDetection();
     testExtractLastResponse();
+    testGeminiResponseDone();
     testMuteSelectors();
     testSubmitButton();
     await testWaitForForeground();
