@@ -13,7 +13,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
-_Nothing yet — next change goes here._
+### Tests (internal, no behavior change)
+- **Cover the response-extraction + streaming-completion logic against the REAL `content_meet.js`.** `extractLastResponse` and `waitForResponseComplete` are now exposed in `MM2C_FIXTURE_MODE` and exercised by `tests/fixture-dom.html` — so the code that actually ships is tested (previously this regression-prone logic was only covered indirectly). New cases: latest-reply extraction, multi-reply (returns the last), no-reply, legacy side-panel fallback; and the streaming state machine (resolves on the Copy button, no premature finish on a prior answer, times out when no reply appears). (+6 dom-fixture assertions → 31/31; full suite green: 513 pure JS + 73 Playwright + 332 Python.)
 
 ---
 

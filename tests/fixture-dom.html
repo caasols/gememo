@@ -49,7 +49,8 @@
 
     async function run() {
       results.length = 0;
-      const { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording } =
+      const { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording,
+        extractLastResponse, waitForResponseComplete } =
         window.MM2C_SELECTORS;
       const savedTitle = document.title;
 
@@ -169,6 +170,84 @@
       await withFixture('<div data-tooltip="Stop recording"></div>', () => {
         assert('data-tooltip recording → true', isRecording() === true);
       });
+
+      console.groupEnd();
+
+      // ── extractLastResponse (REAL wiring: lastGeminiResponseEl → clean) ───────
+      // Exercises the SHIPPING function (not a tests.js copy) end-to-end against
+      // realistic Meet 2026-06 DOM, so the response-location + extraction logic
+      // that broke on past redesigns is covered by the code that actually runs.
+      console.group('extractLastResponse (real content_meet wiring)');
+
+      // Block-level rows so innerText has predictable newlines, with the real
+      // trailing action line (Copy → Report) that cleanGeminiResponse strips.
+      const reply = (answer) =>
+        '<div role="listitem"><div>Gemini response</div><div>' + answer + '</div>' +
+        '<div><button jsname="WmNl5c"><span>Copy</span></button></div><div>Report</div></div>';
+
+      await withFixture('<div role="list">' + reply('The roadmap is on track for Q3.') + '</div>', () => {
+        const out = extractLastResponse();
+        assert('extracts the cleaned answer from the listitem reply',
+          out && out.includes('The roadmap is on track for Q3') && !/Copy|Gemini response/i.test(out),
+          `got: ${JSON.stringify(out)}`);
+      });
+
+      await withFixture('<div role="list">' + reply('First answer here, long enough.') + reply('Second and latest answer.') + '</div>', () => {
+        const out = extractLastResponse();
+        assert('returns the LAST reply, not an earlier one',
+          out && out.includes('Second and latest answer') && !out.includes('First answer'),
+          `got: ${JSON.stringify(out)}`);
+      });
+
+      await withFixture('', () => {
+        const out = extractLastResponse();
+        assert('no reply present → no answer (falsy)', !out, `got: ${JSON.stringify(out)}`);
+      });
+
+      await withFixture(
+        '<aside aria-label="Side panel"><div>Gemini response</div><div>Legacy side-panel answer.</div>' +
+        '<div><button jsname="WmNl5c"><span>Copy</span></button></div><div>Report</div></aside>', () => {
+        const out = extractLastResponse();
+        assert('falls back to the legacy side panel when no listitems',
+          out && out.includes('Legacy side-panel answer') && !/Copy/i.test(out),
+          `got: ${JSON.stringify(out)}`);
+      });
+
+      console.groupEnd();
+
+      // ── waitForResponseComplete (REAL streaming-completion state machine) ─────
+      // The async completion logic (resolve on Copy button, no premature finish on
+      // a prior answer, timeout) is otherwise untested against the real code.
+      console.group('waitForResponseComplete (real streaming state machine)');
+
+      await withFixture('<div role="list">' + reply('A complete answer that is well over ten chars.') + '</div>', async () => {
+        let resolved = false;
+        await waitForResponseComplete(2000).then(() => { resolved = true; }).catch(() => {});
+        assert('resolves immediately when the latest reply already has its Copy button', resolved);
+      });
+
+      await withFixture('', async () => {
+        let rejected = false;
+        await waitForResponseComplete(150).then(() => {}).catch(() => { rejected = true; });
+        assert('rejects (times out) when no Gemini reply ever appears', rejected);
+      });
+
+      await withFixture(
+        '<div role="list"><div role="listitem" id="streaming"><div>Gemini response</div><div>Partial streamed answer text…</div></div></div>',
+        async (c) => {
+          const li = c.querySelector('#streaming');
+          const p = waitForResponseComplete(2000);
+          // Simulate streaming completing: the Copy button appears a tick later.
+          setTimeout(() => {
+            const btn = document.createElement('button');
+            btn.setAttribute('jsname', 'WmNl5c');
+            btn.innerHTML = '<span>Copy</span>';
+            li.appendChild(btn);
+          }, 50);
+          let resolved = false;
+          await p.then(() => { resolved = true; }).catch(() => {});
+          assert('does not finish early on a streaming reply, then resolves once Copy appears', resolved);
+        });
 
       console.groupEnd();
 

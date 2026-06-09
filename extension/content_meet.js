@@ -1626,8 +1626,14 @@
 
   // Expose DOM-reading functions for offline fixture tests.
   // Only active when MM2C_FIXTURE_MODE = true (set by fixture-dom.html).
+  // These are the REAL functions (not test re-implementations), so fixture-dom
+  // tests exercise the exact code that ships — covering the response-extraction
+  // and streaming-completion logic that has repeatedly broken on Meet redesigns.
   if (window.MM2C_FIXTURE_MODE) {
-    window.MM2C_SELECTORS = { getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording };
+    window.MM2C_SELECTORS = {
+      getMeetingTitle, getAttendeeNames, getGeminiTriggerElement, getLeaveButton, isRecording,
+      extractLastResponse, waitForResponseComplete,
+    };
   }
 
 })();
