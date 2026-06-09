@@ -74,17 +74,30 @@ const FAKE_MEET_HTML = `<!doctype html>
       var SENTINEL = ${JSON.stringify(SENTINEL_TRANSCRIPT)};
       var answered = false;
 
-      // Append the canonical "Gemini response\\n<transcript>" block once, so
-      // extractLastResponse() reads back the sentinel. Idempotent guard mirrors
-      // Meet streaming a single reply per submit.
+      // Render the response in Meet's 2026-06 DOM shape: NO "Gemini response"
+      // label — just the answer text followed by an action row whose Copy button
+      // (jsname="WmNl5c") signals completion. This exercises the Copy-anchored
+      // extraction + geminiResponseDone() completion path. Idempotent guard
+      // mirrors Meet streaming a single reply per submit.
       function answer() {
         if (answered) return;
         answered = true;
-        var block = document.createElement('div');
-        block.className = 'gemini-response';
-        // \\n after "Gemini response" is the exact delimiter content_meet splits on.
-        block.textContent = 'Gemini response\\n' + SENTINEL;
-        responses.appendChild(block);
+        var bubble = document.createElement('div');
+        bubble.className = 'gemini-response';
+        var text = document.createElement('div');
+        text.textContent = SENTINEL;
+        var actions = document.createElement('div');
+        var copyBtn = document.createElement('button');
+        copyBtn.setAttribute('jsname', 'WmNl5c');
+        copyBtn.setAttribute('data-action-type', '15');
+        copyBtn.innerHTML = '<span jsname="V67aGc">Copy</span>';
+        var reportBtn = document.createElement('button');
+        reportBtn.textContent = 'Report';
+        actions.appendChild(copyBtn);
+        actions.appendChild(reportBtn);
+        bubble.appendChild(text);
+        bubble.appendChild(actions);
+        responses.appendChild(bubble);
       }
 
       // content_meet submits via Enter keydown on the focused input AND a
