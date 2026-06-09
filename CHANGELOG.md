@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Changed
+- **Native host version bumped to `0.2.5`** to restore lockstep with the extension. The recent fixes were extension-only, so the host code is unchanged — this is just a label sync. Re-run `bash native_host/install.sh` to refresh the version the popup shows; not required for compatibility (the major version is unchanged, so the 0.2.4 host stays fully compatible).
 - **`.ics for Next Steps` moved behind the Experimental toggle.** The `.ics` export row (inside File backup) now carries the `.beta` class, so it's hidden unless *Settings → Experimental features* is on — consistent with the other advanced features. UI-only gating; the export behavior is unchanged when enabled. A focused E2E asserts it's hidden/shown with Experimental off/on (with file backup enabled).
 
 ---
