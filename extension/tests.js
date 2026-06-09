@@ -913,7 +913,8 @@ window.MM2C_TESTS = (() => {
   }
 
   // Re-implementation of the admin-disabled detection logic in autoActivateGemini.
-  // KEEP IN SYNC with the waitForPanelVisible try/catch block in content_meet.js.
+  // Intentional DI mirror (edge branch the e2e can't reach in isolation); keep
+  // aligned with the waitForPanelVisible try/catch block in content_meet.js.
   // Intentional deviation: geminiWasActive and panelAutoOpened are tracked via state
   // object rather than IIFE-scoped module variables.
   async function autoActivateAdminDisabled_test(state, deps) {
@@ -976,7 +977,8 @@ window.MM2C_TESTS = (() => {
   }
 
   // Re-implements the stability guard condition from waitForResponseComplete's check().
-  // KEEP IN SYNC with the else-if branch in content_meet.js.
+  // Intentional DI mirror (edge branch the e2e can't reach in isolation); keep
+  // aligned with the else-if branch in content_meet.js.
   // Returns 'blocked', 'resolve', or 'not-ready'.
   function checkStabilityGuard_test(state, isRegenerating) {
     if (state.lastChangeAt > 0 && state.contentLength > 10 && state.elapsed >= 3000) {
@@ -1324,7 +1326,8 @@ window.MM2C_TESTS = (() => {
   }
 
   // Re-implementation of autoActivateGemini with injectable state and deps.
-  // KEEP IN SYNC with autoActivateGemini in content_meet.js.
+  // Intentional DI mirror (covers branches the e2e can't reach in isolation); keep
+  // aligned with autoActivateGemini in content_meet.js.
   // Intentional deviations: _isContextValid and _getLeaveButton are injectable
   // (they check chrome.runtime.id and live DOM — unavailable in page-world tests).
   async function autoActivateGemini_test(state, deps) {
@@ -1468,7 +1471,8 @@ window.MM2C_TESTS = (() => {
       'MM2C_CAPTURE_NOW' === 'MM2C_CAPTURE_NOW');
 
     // Re-implement the handler logic with an injectable mock.
-    // KEEP IN SYNC with the MM2C_CAPTURE_NOW handler in content_meet.js.
+    // Intentional DI mirror (edge branch the e2e can't reach in isolation); keep
+    // aligned with the MM2C_CAPTURE_NOW handler in content_meet.js.
     let snapshotCalled = false;
     const mockTakePeriodicSnapshot = () => { snapshotCalled = true; };
     const responses = [];
@@ -1624,8 +1628,9 @@ window.MM2C_TESTS = (() => {
   // Re-implementation of the timer-drift condition in takePeriodicSnapshot.
   // ── 3. Leave click fresh-first capture logic ──────────────────────────────
   // Re-implementation of the fresh-first capture path in onLeaveClick.
-  // KEEP IN SYNC with the `if (true)` fresh-first block in onLeaveClick
-  // (content_meet.js) and the subsequent cache fallback.
+  // Intentional DI mirror (edge branch the e2e can't reach in isolation); keep
+  // aligned with the `if (true)` fresh-first block in onLeaveClick (content_meet.js)
+  // and the subsequent cache fallback.
   // GeminiNotActiveError_test already declared at top of IIFE
 
   async function onLeaveClickFreshFirst_test({
@@ -1779,7 +1784,7 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // Mirror of content_meet.js safeSend (A3). KEEP IN SYNC.
+  // Intentional DI mirror of content_meet.js safeSend (A3); keep aligned.
   // Injectable deps so we can simulate a throwing sendMessage + dead context.
   function safeSend_test(msg, { _send, _contextValid, _warn }) {
     try {
@@ -2526,7 +2531,8 @@ window.MM2C_TESTS = (() => {
   // ── onLeaveClick send-path test helper ────────────────────────────────────
   // Re-implements only the "send MM2C_RESPONSE when transcript is available"
   // branch of onLeaveClick, with injectable deps.
-  // KEEP IN SYNC with onLeaveClick send block in content_meet.js.
+  // Intentional DI mirror (edge branch the e2e can't reach in isolation); keep
+  // aligned with the onLeaveClick send block in content_meet.js.
   //
   // Intentional simplifications vs production:
   //   • No fresh Gemini flow attempt — tests the send path only.
