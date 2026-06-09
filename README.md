@@ -74,8 +74,8 @@ bash native_host/install.sh
 
 ### Prompt & output
 
-- **Default prompt** — structured sections: Attendees, Summary, Key Points, Decisions Made, Action Items, Next Steps, Open Questions. Fully customisable from the Rules tab
-- **Built-in templates** — Standup, 1:1, and Retro formats auto-applied when the meeting title matches (e.g. `daily standup` → Blockers/Done/Next). Shown read-only in the Rules tab; your own rules always take precedence
+- **Default prompt** — structured sections: Attendees, Summary, Key Points, Decisions Made, Action Items, Next Steps, Open Questions. It's the always-on fallback rule (used when no other rule matches) and is fully customisable from the unified Rules tab
+- **Built-in templates** — Standup, 1:1, and Retro starting points listed in the Rules tab, **off by default**. Switch one on and it's added to your rules as a normal, fully-editable rule (title regex → prompt) you can then tweak, reorder, or delete — so nothing auto-applies until you opt in
 - **Per-meeting rules** — match a meeting by **title regex** and/or a **time window** (days of week + hour range) to apply a different prompt, with an optional **summary depth** (Brief / Standard / Detailed) per rule
 - **Recurring-meeting context** — for a repeating meeting, the previous session's summary and open action items are fed back into the prompt so notes build on each other
 - **Note language** — write notes in any language while preserving proper nouns, product names, and technical acronyms in their original form
@@ -100,7 +100,7 @@ bash native_host/install.sh
 - **Extension badge** — shows 'REC' (green) during active capture, '!' on error
 - **Snapshot countdown** — "Next in: Xm Ys" and "First snapshot in: Xm Ys" in the popup
 - **Action items** — extracted from each capture into a popup checklist with a "Copy as tasks" button (Markdown `- [ ]`)
-- **Logs tab** — activity grouped by meeting with a capture-outcome dot per group, per-entry Retry, and a Diagnostics toggle that hides routine internal events by default
+- **Logs tab** — activity grouped by meeting with a capture-outcome dot per group, per-entry Retry, and a pinned footer with **Clear** (always available) / **Download** (Experimental). A **Developer logs** toggle (Experimental) reveals the routine internal events that are hidden by default
 - **Search past meetings** — local full-text search across your backup notes (title, date, snippet) with date-range and attendee filters; no API, runs on your machine
 - **Theme** — tri-state **System / Light / Dark** appearance control (defaults to System)
 - **Logs** — grouped under **date sections** (Today / Yesterday / date), collapsed by default with your expand/collapse state remembered
@@ -127,7 +127,7 @@ bash native_host/install.sh
 | **Obsidian & Bear output** | 🧪 untested | Implemented but not yet verified against a live app (see the table below). |
 | **Additional destinations** | 🧪 under testing | A repeater (Beta tab) to send each note to **N** extra destinations, each with its **own** inline config — e.g. two different Obsidian vaults, or a Craft folder + Apple Notes — independent of the primary/​"Also send to" picker. Purely additive; off by default. |
 
-**Also behind the Experimental toggle (stable, just tucked away for a lean default):** Glossary, Your name (action-item aliases), "Also send to", Wikilinks for graph apps, Webhook (generic + Slack), Privacy controls (PII redaction, keywords, capture blocklist), Action items (in-popup checklist + task-manager routing), and past-meeting search. These work and are tested — they're hidden from the default UI to keep onboarding focused, and reappear in their usual tabs when Experimental is on.
+**Also behind the Experimental toggle (stable, just tucked away for a lean default):** Glossary, Your name (action-item aliases), "Also send to", Wikilinks for graph apps, Webhook (generic + Slack), Privacy controls (PII redaction, keywords, capture blocklist), Action items (in-popup checklist + task-manager routing), past-meeting search, Note language, and Review-before-saving. These work and are tested — they're hidden from the default UI to keep onboarding focused, and reappear in their usual tabs when Experimental is on.
 
 If you try one of these, please [report an issue](https://github.com/caasols/gememo/issues/new) with what worked or broke — that's how they graduate out of beta.
 
@@ -149,7 +149,7 @@ Open the extension popup → **Settings tab**:
 
 | Setting | Description | Default |
 |---|---|---|
-| Output app | Where notes are saved | Craft |
+| Output app | Where notes are saved | None (pick one on first run) |
 | Also send to | Additional apps to send each note to | — |
 | Craft folder ID / Space ID | Destination folder / Craft space (blank = defaults) | — |
 | Obsidian vault | Path to your Obsidian vault | — |
@@ -162,6 +162,8 @@ Open the extension popup → **Settings tab**:
 | File backup | Save a local `.md` copy of every note | Off |
 | .ics for Next Steps | Write a calendar file next to each note | Off |
 | Backup folder | Where backup files are written | `~/Downloads/meeting-notes` |
+
+> Several of these (Also send to, Note language, Glossary, Webhook, Privacy) live behind the **Experimental features** toggle — turn it on in Settings to reveal them (see [Beta / experimental features](#beta--experimental-features-) above).
 
 ## Troubleshooting
 
