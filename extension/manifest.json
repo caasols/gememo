@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Gememo",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Bot-free AI meeting notes from Google Meet — saved to Craft, Obsidian, Bear or Apple Notes when you leave.",
   "permissions": [
     "nativeMessaging",
     "storage",
     "tabs",
-    "debugger"
+    "debugger",
+    "scripting"
   ],
   "host_permissions": [
     "https://meet.google.com/*"

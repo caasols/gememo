@@ -523,6 +523,33 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
+// On install/update, inject the content script into any already-open Meet tabs
+// that don't have one yet (e.g. Gememo was installed/enabled while a meeting was
+// already open). Chrome cannot hot-replace a RUNNING content script — re-injecting
+// over it throws on `const` redeclaration and double-binds listeners — so we PROBE
+// for an existing script and skip those tabs (they need a manual reload to pick up
+// new code). We never reload the tab, so a live call is never interrupted.
+chrome.runtime.onInstalled.addListener(() => {
+  if (!chrome.scripting) return; // requires the "scripting" permission
+  chrome.tabs.query({ url: 'https://meet.google.com/*' }, (tabs) => {
+    for (const tab of tabs || []) {
+      if (!tab.id) continue;
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        // Probe the isolated world: constants.js declares extractLastResponseFromEl
+        // (a global fn in any version); content_meet sets window.__mm2cLoaded.
+        func: () => (typeof extractLastResponseFromEl !== 'undefined') || !!window.__mm2cLoaded,
+      }).then((results) => {
+        if (results && results[0] && results[0].result) return; // a script is already live — leave it
+        return chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['design_tokens.js', 'constants.js', 'content_meet.js'],
+        });
+      }).catch(() => { /* restricted/closed tab, or redeclaration on a stale tab — ignore */ });
+    }
+  });
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   chrome.storage.local.remove([
     _tabKey('mm2c_capture_state', tabId),

@@ -165,6 +165,13 @@
 
       console.groupEnd();
 
+      // ── Re-injection guard ───────────────────────────────────────────────────
+      // content_meet.js sets window.__mm2cLoaded so the background onInstalled
+      // injector can probe it and avoid double-injecting into a live tab.
+      console.group('re-injection guard');
+      assert('content_meet sets window.__mm2cLoaded', window.__mm2cLoaded === true);
+      console.groupEnd();
+
       const passed = results.filter(r => r.ok).length;
       return { passed, total: results.length, results };
     }
