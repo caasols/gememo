@@ -482,6 +482,29 @@ window.MM2C_TESTS = (() => {
       assert('findGeminiCopyButton returns null when absent', findGeminiCopyButton(aside) === null);
     });
 
+    // Text-fallback branch: no jsname/data-action-type buttons, two "Copy"/"copy"
+    // labelled buttons → the accumulator returns the LAST match.
+    withFixture('', (c) => {
+      const aside = document.createElement('aside');
+      aside.setAttribute('aria-label', 'Side panel');
+      aside.innerHTML = `<button id="copy-a">Copy</button><button id="copy-b">copy</button>`;
+      c.appendChild(aside);
+      const found = findGeminiCopyButton(aside);
+      assert('findGeminiCopyButton text-fallback returns the LAST "Copy" button',
+        found && found.id === 'copy-b', `got: "${found && found.id}"`);
+    });
+
+    // Selector path last-match-wins: two button[jsname="WmNl5c"] → returns the 2nd.
+    withFixture('', (c) => {
+      const aside = document.createElement('aside');
+      aside.setAttribute('aria-label', 'Side panel');
+      aside.innerHTML = `<button jsname="WmNl5c" id="wm-1">Copy</button><button jsname="WmNl5c" id="wm-2">Copy</button>`;
+      c.appendChild(aside);
+      const found = findGeminiCopyButton(aside);
+      assert('findGeminiCopyButton returns the SECOND WmNl5c button (last-match on selector path)',
+        found && found.id === 'wm-2', `got: "${found && found.id}"`);
+    });
+
     console.groupEnd();
   }
 
@@ -1723,6 +1746,15 @@ window.MM2C_TESTS = (() => {
         result?.includes('0.5'), `got: "${result}"`);
     });
 
+    // Direct cleanGeminiResponse calls — exercise the 2nd-pass regex without the
+    // extractLastResponse DOM wrapper (covers the digit-after-letter/quote branch).
+    assertEq('cleanGeminiResponse: "Carlos Sol1" → "Carlos Sol"',
+      cleanGeminiResponse('Carlos Sol1'), 'Carlos Sol');
+    assertEq('cleanGeminiResponse: \'"move."1\' → \'"move."\'',
+      cleanGeminiResponse('"move."1'), '"move."');
+    assertEq('cleanGeminiResponse: "Python 3.11" unchanged (digit-after-digit not stripped)',
+      cleanGeminiResponse('Python 3.11'), 'Python 3.11');
+
     console.groupEnd();
   }
 
@@ -2150,6 +2182,35 @@ window.MM2C_TESTS = (() => {
     assert('version: same major → no mismatch', isVersionMismatch('0.1.130', '0.1.99') === false);
     assert('version: different major → mismatch', isVersionMismatch('1.0.0', '0.9.0') === true);
     assert('version: blank host → no mismatch (first run)', isVersionMismatch('0.1.130', null) === false);
+
+    // shouldInjectContentScript — the onInstalled inject/skip predicate.
+    assert('inject: probe found script (result:true) → skip',
+      shouldInjectContentScript([{ result: true }]) === false);
+    assert('inject: probe found no script (result:false) → inject',
+      shouldInjectContentScript([{ result: false }]) === true);
+    assert('inject: empty probe results → inject',
+      shouldInjectContentScript([]) === true);
+    assert('inject: null probe → inject',
+      shouldInjectContentScript(null) === true);
+    assert('inject: undefined probe → inject',
+      shouldInjectContentScript(undefined) === true);
+    console.groupEnd();
+  }
+
+  function testPromptPrefixHelpers() {
+    console.group('noteLanguagePrefix / meetingTitlePrefix (direct, drift guard)');
+
+    const esLang = noteLanguagePrefix('Spanish');
+    assert('noteLanguagePrefix("Spanish") non-empty', esLang.length > 0);
+    assert('noteLanguagePrefix("Spanish") mentions Spanish', esLang.includes('Spanish'));
+    assertEq('noteLanguagePrefix("") → ""', noteLanguagePrefix(''), '');
+    assertEq('noteLanguagePrefix() → ""', noteLanguagePrefix(), '');
+
+    const titlePfx = meetingTitlePrefix('Weekly Sync');
+    assert('meetingTitlePrefix("Weekly Sync") non-empty', titlePfx.length > 0);
+    assert('meetingTitlePrefix("Weekly Sync") contains the title', titlePfx.includes('Weekly Sync'));
+    assertEq('meetingTitlePrefix("") → ""', meetingTitlePrefix(''), '');
+
     console.groupEnd();
   }
 
@@ -2831,6 +2892,7 @@ window.MM2C_TESTS = (() => {
     testSafeSend();
     testMyActionItems();
     testHandlerPredicates();
+    testPromptPrefixHelpers();
     testInflightRecoverable();
     testSelectorRegistry();
     testSelectorHotfix();
