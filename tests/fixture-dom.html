@@ -249,6 +249,25 @@
           assert('does not finish early on a streaming reply, then resolves once Copy appears', resolved);
         });
 
+      // Live-confirmed regression (2026-06-10): Meet inserts the Copy button HIDDEN
+      // (width 0) during streaming and only makes it VISIBLE at completion. A
+      // present-but-hidden Copy must NOT finish the wait; revealing it must.
+      await withFixture(
+        '<div role="list"><div role="listitem" id="hidden-copy"><div>Gemini response</div><div>Streaming answer…</div>' +
+        '<button jsname="WmNl5c" style="display:none"><span>Copy</span></button></div></div>',
+        async (c) => {
+          const btn = c.querySelector('#hidden-copy button[jsname="WmNl5c"]');
+          const p = waitForResponseComplete(2500);
+          // Reveal the button (Meet finishing) + a childList mutation so the observer fires.
+          setTimeout(() => {
+            btn.style.display = '';
+            c.querySelector('#hidden-copy').appendChild(document.createTextNode(' '));
+          }, 60);
+          let resolved = false;
+          await p.then(() => { resolved = true; }).catch(() => {});
+          assert('waits while Copy is present-but-HIDDEN, resolves when it becomes VISIBLE', resolved);
+        });
+
       console.groupEnd();
 
       // ── injectPromptWithVerification (REAL function, exposed via MM2C_FIXTURE_MODE) ──
