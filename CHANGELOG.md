@@ -13,6 +13,15 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+_Nothing yet — next change goes here._
+
+---
+
+## [0.2.13] – 2026-06-10 · Fix premature/partial capture (Copy-button visibility)
+
+### Fixed
+- **Snapshots/notes were captured mid-stream and truncated** (sometimes down to just the Attendees section). Root-caused with a live DOM probe: Meet's redesigned Ask Gemini inserts the reply's **Copy button into the DOM while it is still HIDDEN** (width 0) part-way through streaming, and only makes it **visible** when the response actually finishes. `geminiResponseDone()` checked the button's **presence only**, so completion fired early and `extractLastResponse()` grabbed a fragment. **Fix:** require the Copy button to be **visible** (non-zero box) — the reliable completion signal (Ask Gemini shows no "Stop" button to lean on). Also hardened the 3 s stability backstop to fire only once a Copy button is present, so it can't trip during an early "thinking" pause (the probe observed a ~10 s mid-stream pause). +unit test (`geminiResponseDone` hidden vs visible) and an end-to-end fixture-dom test on the real `waitForResponseComplete` (waits while the Copy button is hidden, resolves when it becomes visible). Extension + native host → `0.2.13`.
+
 ### Internal (no behavior change)
 - **Test-refactor: retired hand-synced `*_test` mirrors in favour of testing the real shipping code.** Replaced the prompt-prefix copies with exact-string tests on the real `constants.js` helpers; covered the real `extractLastResponse` / `waitForResponseComplete` / `injectPromptWithVerification` via the `fixture-dom` harness; and deleted a ghost (`waitForActiveGeminiButton_test` — its function was removed in 0.2.9) plus two drifted copies (`getGeminiTriggerElement_test`, `captureBtnState_test`) that were silently passing on logic the real code no longer has. The remaining `*_test` mirrors are relabeled as intentional dependency-injected tests of browser-only edge branches (tab-hidden timeout, single-flight concurrency, double-run guard).
 - **Extracted pure scheduling/timing logic from `content_meet.js` into tested `constants.js` helpers** (`computeSnapshotIntervalMs`, `shouldRunCatchupSnapshot`, `shouldShowOverlay`, `computeFirstSnapshotAt`), replacing the inline expressions with calls and pointing the unit tests at the real helpers (removing hand-synced `*_test` copies). Behaviour-preserving; the helpers reproduce the original expressions exactly.
