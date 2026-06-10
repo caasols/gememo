@@ -438,13 +438,18 @@
         }
 
         // Backstop — wall-clock stability: resolve once the extracted reply hasn't
-        // changed for 3 s (in case the Copy button isn't detected on some DOM). In
-        // the normal flow the Copy-button signal above fires first, as soon as the
-        // reply completes, so this rarely triggers.
+        // changed for 3 s, but ONLY once a Copy button is at least present on the
+        // reply. Gating on Copy-presence stops the backstop firing during an early
+        // "thinking" pause before any Copy button exists (a live probe on 2026-06-10
+        // saw a ~10 s mid-stream pause) — it's a fallback for the rare case where the
+        // primary signal misses the Copy button becoming visible, not a timer race.
+        const copyPresent = typeof lastGeminiResponseEl === 'function'
+          && typeof findGeminiCopyButton === 'function'
+          && !!findGeminiCopyButton(lastGeminiResponseEl());
         if (current !== lastText) {
           lastText = current;
           lastChangeAt = Date.now();
-        } else if (lastChangeAt > 0 && current.length > 10 && Date.now() - lastChangeAt >= 3000) {
+        } else if (copyPresent && lastChangeAt > 0 && current.length > 10 && Date.now() - lastChangeAt >= 3000) {
           finish();
         }
       };

@@ -426,6 +426,23 @@ window.MM2C_TESTS = (() => {
       assert('geminiResponseDone true when the last reply has a Copy button', geminiResponseDone(c) === true);
     });
 
+    // Live-confirmed regression (2026-06-10): Meet inserts the Copy button into the
+    // reply while it is still HIDDEN (width 0) during streaming, and only makes it
+    // VISIBLE when the response actually finishes. Presence alone must NOT count as
+    // "done" — otherwise we extract a partial fragment (the truncated-snapshot bug).
+    withFixture('', (c) => {
+      c.innerHTML = `<div role="list"><div role="listitem">Gemini response<div>partial…</div>` +
+        `<button jsname="WmNl5c" style="display:none"><span>Copy</span></button></div></div>`;
+      assert('geminiResponseDone FALSE when the Copy button is present but HIDDEN (still streaming)',
+        geminiResponseDone(c) === false);
+    });
+    withFixture('', (c) => {
+      c.innerHTML = `<div role="list"><div role="listitem">Gemini response<div>the full answer</div>` +
+        `<button jsname="WmNl5c"><span>Copy</span></button></div></div>`;
+      assert('geminiResponseDone true when the Copy button is VISIBLE (done)',
+        geminiResponseDone(c) === true);
+    });
+
     // KEY: a still-streaming last reply (label, NO Copy yet) must NOT complete on a
     // prior answer — anchoring on the LAST message prevents premature completion.
     withFixture('', (c) => {

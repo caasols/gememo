@@ -796,13 +796,27 @@ function findStartNowButton(root) {
   return null;
 }
 
+// True when an element is laid out / visible (non-zero box).
+function isElementVisible(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function') return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0;
+}
+
 // True once the latest Gemini reply is fully rendered — that message has its Copy
-// action button. Anchoring on the LAST message (not the whole panel) means a
-// still-streaming reply (no Copy yet) never completes on a PRIOR answer, and there
-// is no fragile "Stop button" heuristic to misfire.
+// action button AND that button is VISIBLE. Anchoring on the LAST message (not the
+// whole panel) means a still-streaming reply never completes on a PRIOR answer.
+//
+// VISIBILITY is essential (confirmed via a live DOM probe, 2026-06-10): Meet inserts
+// the Copy button into a reply while it is still HIDDEN (width 0) part-way through
+// streaming, and only makes it visible when the response actually finishes. Checking
+// mere presence captured a partial fragment (the truncated-snapshot bug). There is no
+// "Stop generating" button in Ask Gemini to lean on, so the Copy button becoming
+// visible is the reliable completion signal.
 function geminiResponseDone(root) {
   const el = lastGeminiResponseEl(root);
-  return !!(el && findGeminiCopyButton(el));
+  const btn = el && findGeminiCopyButton(el);
+  return !!(btn && isElementVisible(btn));
 }
 
 // Extract the last Gemini response text from the side-panel element.
