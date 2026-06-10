@@ -1375,6 +1375,34 @@
 
     </div>
 
+    <!-- Backup-folder auto-cleanup (UXF-13) — promoted to production. Sits next to File backup since it prunes that same folder. -->
+    <div class="widget">
+      <div class="widget-title">Backup cleanup</div>
+      <div class="row">
+        <span class="label">Delete old snapshots</span>
+        <label class="toggle-wrap"><input type="checkbox" id="cleanup-snap-enabled"><span class="toggle-track"></span></label>
+      </div>
+      <div class="row">
+        <span class="label">…older than</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="cleanup-snap-days" min="1" max="3650" value="30">
+          <span class="unit-label">days</span>
+        </div>
+      </div>
+      <div class="row">
+        <span class="label">Delete old notes</span>
+        <label class="toggle-wrap"><input type="checkbox" id="cleanup-final-enabled"><span class="toggle-track"></span></label>
+      </div>
+      <div class="row">
+        <span class="label">…older than</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="cleanup-final-days" min="1" max="3650" value="30">
+          <span class="unit-label">days</span>
+        </div>
+      </div>
+      <p class="hint">Prunes the file-backup folder on capture (once/day). Off by default. Deleting old notes also removes old recovered (<code>*-RECOVERED.md</code>) files.</p>
+    </div>
+
     <!-- Review before send (RB-4b) — beta-gated -->
     <div class="widget beta">
       <div class="widget-title">Review <span class="beta-pill">Beta</span></div>
@@ -1427,7 +1455,17 @@
       <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
     </div>
 
-    <!-- Experimental features toggle (UXF-1) -->
+    <!-- Additional destinations repeater (UXF-11) — promoted to production -->
+    <div class="widget">
+      <div class="widget-title">Additional destinations</div>
+      <p class="hint">Send each note to extra destinations, each with its own config. Adds to — never replaces — your primary output and "Also send to".</p>
+      <div id="destinations-list" aria-label="Additional destinations"></div>
+      <div class="row">
+        <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>
+      </div>
+    </div>
+
+    <!-- Experimental features toggle (UXF-1) — always the LAST widget in Settings. -->
     <div class="widget">
       <div class="widget-title">Experimental</div>
       <div class="row">
@@ -1438,44 +1476,6 @@
         </label>
       </div>
       <p class="hint">Reveal in-progress features marked Beta. They may change or disappear.</p>
-    </div>
-
-    <!-- Backup-folder auto-cleanup (UXF-13) — promoted to production -->
-    <div class="widget">
-      <div class="widget-title">Backup cleanup</div>
-      <div class="row">
-        <span class="label">Delete old snapshots</span>
-        <label class="toggle-wrap"><input type="checkbox" id="cleanup-snap-enabled"><span class="toggle-track"></span></label>
-      </div>
-      <div class="row">
-        <span class="label">…older than</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" id="cleanup-snap-days" min="1" max="3650" value="30">
-          <span class="unit-label">days</span>
-        </div>
-      </div>
-      <div class="row">
-        <span class="label">Delete old notes</span>
-        <label class="toggle-wrap"><input type="checkbox" id="cleanup-final-enabled"><span class="toggle-track"></span></label>
-      </div>
-      <div class="row">
-        <span class="label">…older than</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" id="cleanup-final-days" min="1" max="3650" value="30">
-          <span class="unit-label">days</span>
-        </div>
-      </div>
-      <p class="hint">Prunes the file-backup folder on capture (once/day). Off by default. Deleting old notes also removes old recovered (<code>*-RECOVERED.md</code>) files.</p>
-    </div>
-
-    <!-- Additional destinations repeater (UXF-11) — promoted to production -->
-    <div class="widget">
-      <div class="widget-title">Additional destinations</div>
-      <p class="hint">Send each note to extra destinations, each with its own config. Adds to — never replaces — your primary output and "Also send to".</p>
-      <div id="destinations-list" aria-label="Additional destinations"></div>
-      <div class="row">
-        <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>
-      </div>
     </div>
 
   </div><!-- /settings-panel -->
