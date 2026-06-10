@@ -716,17 +716,20 @@ test.describe('extension E2E harness', () => {
     test('advanced features are hidden when Experimental is OFF (beta gating)', async () => {
       const page = await popupWith({ mm2c_beta_enabled: false });
       await page.click('#tab-settings');
-      // Settings-tab gated widgets: Your name, Webhook, Privacy, action-item routing, also-send, wikilinks.
+      // Settings-tab gated widgets: Your name, Webhook, Privacy, action-item routing, wikilinks.
       await expect(page.locator('#my-aliases')).not.toBeVisible();
       await expect(page.locator('#webhook-url')).not.toBeVisible();
       await expect(page.locator('#redact-keywords')).not.toBeVisible();
       await expect(page.locator('#task-app')).not.toBeVisible();
       await expect(page.getByText('Wikilinks for graph apps')).not.toBeVisible();
-      await expect(page.locator('.also-send')).not.toBeVisible();
       await expect(page.locator('#note-language')).not.toBeVisible();
       await expect(page.locator('#preview-before-send')).not.toBeVisible();
-      // Core Settings stay visible.
+      // Core Settings stay visible. "Also send to" + Additional destinations were
+      // promoted out of beta — visible regardless of the Experimental toggle.
       await expect(page.locator('#output-app')).toBeVisible();
+      await expect(page.locator('.also-send')).toBeVisible();
+      await expect(page.locator('#add-destination')).toBeVisible();
+      await expect(page.getByText('Backup cleanup')).toBeVisible();
       // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).not.toBeVisible();
@@ -795,8 +798,8 @@ test.describe('extension E2E harness', () => {
     });
 
     test('Adding + filling an additional destination persists to storage (UXF-11)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true, mm2c_destinations: [] });
-      await page.click('#tab-beta');
+      const page = await popupWith({ mm2c_destinations: [] });
+      await page.click('#tab-settings'); // promoted out of beta — now in Settings
       await page.click('#add-destination');
       const row = page.locator('#destinations-list .dest-row').first();
       // Default new row is obsidian; fill its vault path and assert it persists.
@@ -968,8 +971,8 @@ test.describe('extension E2E harness', () => {
     });
 
     test('Backup-cleanup clampDays clamps to [1, 3650] + persists the clamped value (UXF-13)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      await page.click('#tab-beta');
+      const page = await popupWith({});
+      await page.click('#tab-settings'); // promoted out of beta — now in Settings
 
       // clampDays = Math.max(1, Math.min(3650, parseInt(v,10) || 30)). A value
       // below the floor (negative) clamps UP to 1; an over-max clamps DOWN to 3650.
