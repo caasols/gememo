@@ -139,7 +139,10 @@
       background-clip: content-box;
     }
 
-    #capture-footer-spacer { height: 52px; }
+    /* Reserve clearance for the fixed Capture-now footer (≈53px). flex-shrink:0
+       is required — as a flex child of #main-content it would otherwise collapse
+       to 0 when the panel overflows, letting the footer cover the last widget. */
+    #capture-footer-spacer { height: 56px; flex-shrink: 0; }
 
     .title-row {
       display: flex;
