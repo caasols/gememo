@@ -57,14 +57,18 @@ const GLOBAL_KEYS = [
 function renderSetupWizard(hostOk) {
   const panel = $('setup-wizard');
   if (!panel) return;
-  chrome.storage.local.get(['mm2c_setup_done', 'mm2c_output_app'], ({ mm2c_setup_done, mm2c_output_app }) => {
+  chrome.storage.local.get(['mm2c_setup_done', 'mm2c_output_app', 'mm2c_stats'], ({ mm2c_setup_done, mm2c_output_app, mm2c_stats }) => {
     if (mm2c_setup_done === true) { panel.classList.add('hidden'); return; }
-    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'none' });
+    const captured = !!(mm2c_stats && typeof mm2c_stats === 'object' && (mm2c_stats.notesSaved || 0) > 0);
+    const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'none', captured });
     $('setup-wizard-steps').innerHTML = steps.map(s =>
       `<div style="display:flex;gap:7px;align-items:center;margin-top:6px">
          <span style="color:${s.ok ? 'var(--success)' : 'var(--text-muted)'}">${s.ok ? '✓' : '○'}</span>
          <span style="color:var(--text)">${escapeHtml(s.label)}</span>
        </div>`).join('');
+    // Once every step is complete the card has served its purpose — dismiss it
+    // so it doesn't linger after the user is fully onboarded.
+    if (steps.every(s => s.ok)) { chrome.storage.local.set({ mm2c_setup_done: true }); panel.classList.add('hidden'); return; }
     panel.classList.remove('hidden');
   });
 }
