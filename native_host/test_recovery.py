@@ -47,3 +47,14 @@ class TestRecoverFreshestText:
         msg = {"meetingTitle": "no snaps here", "fileBackupType": "markdown",
                "fileBackupPath": str(tmp_path)}
         assert _recover_freshest_text("the inflight note", msg) == "the inflight note"
+
+    def test_falls_back_to_inflight_on_error(self, tmp_path, monkeypatch):
+        import meeting_minutes_host as mh
+
+        def boom(*a, **k):
+            raise OSError("disk error")
+
+        monkeypatch.setattr(mh, "find_latest_snapshot", boom)
+        msg = {"meetingTitle": "x", "fileBackupType": "markdown",
+               "fileBackupPath": str(tmp_path)}
+        assert mh._recover_freshest_text("keep me", msg) == "keep me"
