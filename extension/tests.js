@@ -2049,7 +2049,10 @@ window.MM2C_TESTS = (() => {
     const setUp = firstRunChecklist({ hostOk: true, outputApp: 'craft' });
     assert('host step done', setUp[0].ok === true);
     assert('output step done', setUp[1].ok === true);
-    assert('capture step is never auto-done', setUp[2].ok === false);
+    assert('capture step not done before first capture', setUp[2].ok === false);
+
+    const captured = firstRunChecklist({ hostOk: true, outputApp: 'craft', captured: true });
+    assert('capture step done after first note saved', captured[2].ok === true);
     console.groupEnd();
   }
 
