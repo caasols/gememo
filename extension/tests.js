@@ -2261,6 +2261,19 @@ window.MM2C_TESTS = (() => {
   assert('removeFailureByPath: tolerates non-array',
     Array.isArray(removeFailureByPath(undefined, '/a')) && removeFailureByPath(undefined, '/a').length === 0);
 
+  // findFailureByPath — real function from constants.js. Used on a successful
+  // retry to recover the note's words/durationMin so the impact stats count it.
+  const flf = [
+    { tabId: 1, title: 'A', backupPath: '/a', words: 120, durationMin: 18 },
+    { tabId: 2, title: 'B', backupPath: '/b', words: 50, durationMin: null },
+  ];
+  assert('findFailureByPath: returns the matching entry with its stats',
+    findFailureByPath(flf, '/a')?.words === 120 && findFailureByPath(flf, '/a')?.durationMin === 18);
+  assert('findFailureByPath: undefined when path absent',
+    findFailureByPath(flf, '/zzz') === undefined);
+  assert('findFailureByPath: tolerates non-array',
+    findFailureByPath(undefined, '/a') === undefined);
+
   // resolveMeetTab — inline definition matching popup.js
   const resolveMeetTab = (meetTabs, activeTab) => {
     const isMeet = url => url?.startsWith('https://meet.google.com/');

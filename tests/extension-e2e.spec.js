@@ -295,6 +295,31 @@ test.describe('extension E2E harness', () => {
       ).toBe(0);
     });
 
+    test('MM2C_RETRY counts the recovered note in the usage stats (STATS-2)', async () => {
+      // A note that failed at send time stashed words/durationMin on its
+      // failed-list entry; a successful retry must fold those into the stats so
+      // recovered meetings aren't missing from the impact numbers.
+      await seedStorage(ext.serviceWorker, {
+        mm2c_stats: { meetingsAttended: 2, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+        mm2c_failed_list: [{ tabId: null, title: 'Lost', backupPath: '/tmp/lost.md', failedAt: Date.now(), words: 137, durationMin: 23 }],
+      });
+      await stubNativeMessage(ext.serviceWorker, { retry: { status: 'ok', title: 'Lost', source: 'file' }, __default: { status: 'ok' } });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RETRY', title: 'Lost', backupPath: '/tmp/lost.md' });
+      expect(resp.ok).toBe(true);
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_stats']);
+        return { notes: s.mm2c_stats?.notesSaved, words: s.mm2c_stats?.wordsCaptured, mins: s.mm2c_stats?.totalMeetingMinutes };
+      }).toEqual({ notes: 1, words: 137, mins: 23 });
+
+      // Idempotency: retrying the same path again (entry already gone) must NOT
+      // count a second time.
+      const resp2 = await sendFromPage(popup, { type: 'MM2C_RETRY', title: 'Lost', backupPath: '/tmp/lost.md' });
+      expect(resp2.ok).toBe(true);
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.notesSaved
+      ).toBe(1);
+    });
+
     test('MM2C_RECOVER re-sends the in-flight note and clears it (RB-1d)', async () => {
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
@@ -350,11 +375,16 @@ test.describe('extension E2E harness', () => {
         return {
           entryTitle: entry?.title,
           entryPath: entry?.backupPath,
+          // words/durationMin are stashed on the entry so a later retry can count
+          // the recovered note (STATS-2). 'host error body' → 3 words; no duration
+          // was sent, so durationMin is null.
+          entryWords: entry?.words,
+          entryDuration: entry?.durationMin,
           // friendlyError('disk full') → generic "Something went wrong" banner,
           // prefixed with "Error:" so resolveBanner classifies it as an error.
           statusIsError: /^Error/.test(status) || /^Couldn/.test(status),
         };
-      }).toEqual({ entryTitle: 'Fail Me', entryPath: '/tmp/x.md', statusIsError: true });
+      }).toEqual({ entryTitle: 'Fail Me', entryPath: '/tmp/x.md', entryWords: 3, entryDuration: null, statusIsError: true });
     });
 
     test('MM2C_RESPONSE skips a duplicate send within the dedup window (shouldSkipDuplicate)', async () => {

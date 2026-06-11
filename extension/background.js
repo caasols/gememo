@@ -267,11 +267,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (response?.status === 'ok') {
           // Remove this entry from mm2c_failed_list by backupPath — the only
           // identity both retry paths carry (the log-retry path has no tabId).
+          // Before removing, fold the recovered note into the usage stats
+          // (UX-8): the original send failed and never counted, so a successful
+          // retry is when this meeting's note/words/minutes should be tallied.
+          // We only count when a matching entry still exists, which keeps the
+          // count idempotent — a second retry of the same path finds nothing.
           if (backupPath) {
-            chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
-              chrome.storage.local.set({
-                mm2c_failed_list: removeFailureByPath(mm2c_failed_list, backupPath),
-              });
+            chrome.storage.local.get(['mm2c_failed_list', 'mm2c_stats'], ({ mm2c_failed_list, mm2c_stats }) => {
+              const entry = findFailureByPath(mm2c_failed_list, backupPath);
+              const next = { mm2c_failed_list: removeFailureByPath(mm2c_failed_list, backupPath) };
+              if (entry) {
+                next.mm2c_stats = updateStats(mm2c_stats, {
+                  durationMin: entry.durationMin ?? null,
+                  words: entry.words || 0,
+                });
+              }
+              chrome.storage.local.set(next);
             });
           }
           const statusLabel = `Retry succeeded: ${response.title}`;
@@ -562,7 +573,11 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
           chrome.storage.local.get(['mm2c_failed_list'], ({ mm2c_failed_list }) => {
             const updated = addFailure(
               removeFailure(mm2c_failed_list, tabId),
-              { tabId: tabId || null, title: meetingTitle, backupPath: response.backupPath, failedAt: Date.now() }
+              // words + durationMin are stashed here so a later successful retry
+              // can fold them into the usage stats (UX-8) — the failure path
+              // skips updateStats, so a recovered note must be counted on retry.
+              { tabId: tabId || null, title: meetingTitle, backupPath: response.backupPath,
+                failedAt: Date.now(), words: countWords(transcript), durationMin: durationMin ?? null }
             );
             chrome.storage.local.set({ mm2c_failed_list: updated });
           });
