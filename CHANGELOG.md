@@ -13,7 +13,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
-_Nothing yet — next change goes here._
+### Fixed
+- **Rules tab: the "Default" rule name now matches the built-in template names** (bold, full-strength text) instead of the muted grey badge style — the shared `.rule-name` forced 11px/muted, so the always-on Default looked subordinate to Standup/1:1/Retro. Its `.rule-default` override now mirrors `.bi-name` (12px, `var(--text)`, 600).
 
 ---
 
