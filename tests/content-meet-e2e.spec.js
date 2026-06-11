@@ -187,6 +187,46 @@ test.describe('content_meet e2e (fake Meet over localhost)', () => {
           { timeout: 40_000 }
         )
         .toBe(true);
+
+      // Success path also clears the in-flight note (it is no longer stuck).
+      await expect
+        .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_inflight'])).mm2c_inflight, { timeout: 10_000 })
+        .toBeFalsy();
+    } finally {
+      await page.close();
+    }
+  });
+
+  // 2c-fail — a failed Leave-capture must KEEP the in-flight note (marked failed)
+  // so the RB-1d recovery card can surface it. Regression guard for the bug where
+  // clearInflightNote() ran on failure too, deleting the only recovery copy.
+  test('a failed Leave-capture keeps the in-flight note marked failed (RB-1d)', async () => {
+    test.setTimeout(60_000);
+
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'error', error: 'simulated host failure' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      mm2c_output_app: 'craft',
+    });
+
+    const page = await ext.context.newPage();
+    try {
+      await page.goto(fake.url, { waitUntil: 'domcontentloaded' });
+      await expect
+        .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.meetingsAttended,
+          { timeout: 15_000 })
+        .toBe(1);
+
+      await page.click('button[aria-label="Leave call"]');
+
+      // The send fails → content_meet keeps mm2c_inflight and marks it failed:true.
+      await expect
+        .poll(async () => {
+          const inf = (await getStorage(ext.serviceWorker, ['mm2c_inflight'])).mm2c_inflight;
+          return !!(inf && inf.failed === true && typeof inf.text === 'string'
+                    && inf.text.includes(SENTINEL_TRANSCRIPT));
+        }, { timeout: 40_000 })
+        .toBe(true);
     } finally {
       await page.close();
     }
