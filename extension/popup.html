@@ -743,8 +743,10 @@
       flex-direction: column;
       gap: var(--space-3);
     }
-    /* Default row — the always-on fallback; muted descriptor instead of a toggle. */
-    .rule-default .rule-name { font-weight: 600; flex-shrink: 0; }
+    /* Default row — the always-on fallback; muted descriptor instead of a toggle.
+       Match the built-in template names (.bi-name): bold + full-strength text at
+       the base size, not the muted 11px badge style the shared .rule-name sets. */
+    .rule-default .rule-name { font-weight: 600; flex-shrink: 0; font-size: 12px; color: var(--text); }
     .rule-row-desc {
       flex: 1;
       min-width: 0;
