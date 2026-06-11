@@ -17,6 +17,19 @@ _Nothing yet — next change goes here._
 
 ---
 
+## [0.2.14] – 2026-06-11 · Apple Notes title, onboarding & recovery-stats fixes
+
+### Fixed
+- **Apple Notes title was rendered as plain, demoted text.** The meeting title was passed only as the AppleScript `name` property, which Apple Notes injects as an un-styled first line — smaller than the bold `<h2>` section headings, so the title looked subordinate to "Attendees"/"Summary". **Fix:** new `build_apple_notes_body` leads the note body with the title as an `<h1>` (Notes' 24px bold "Title" style) and **drops the `name` property** — Notes derives the note name from the `<h1>`, so the title now shows exactly once, properly styled, with a blank line before the first heading. The title is HTML-escaped so `&`/`<`/`>`/`"` aren't mangled. (Host change → re-run `install.sh`.)
+- **Onboarding "Capture your first meeting" step never completed.** `firstRunChecklist` hard-coded that step to `ok: false`, so it stayed ○ no matter how many meetings were captured. It's now driven by the usage stats (`notesSaved > 0`), and the welcome card auto-dismisses once all three steps are done.
+- **Recovered notes weren't counted in the impact stats.** A capture that failed at send time (e.g. "Native host has exited") and was later recovered via the failed-list **retry** never updated `notesSaved`/`wordsCaptured`/`totalMeetingMinutes`, so "Meeting time" under-reported exactly the meetings that first failed. The failure path now stashes `words` + `durationMin` on the retry entry, and a successful retry folds them into the stats — counted **once** (idempotent; a second retry of the same path is a no-op).
+- **The fixed "Capture now" footer covered the bottom of the last Settings widget.** Its spacer was a flex child of the scroll container and collapsed to 0px on overflow; `flex-shrink: 0` (and a 56px height) now reserve clearance behind the footer.
+
+### Changed
+- **Settings layout tidy-up.** "Backup cleanup" now sits directly under "File backup" (it prunes that same folder), and the "Experimental" toggle is always the last widget in the tab.
+
+---
+
 ## [0.2.13] – 2026-06-10 · Fix premature/partial capture (Copy-button visibility)
 
 ### Fixed

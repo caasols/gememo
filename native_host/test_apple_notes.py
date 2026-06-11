@@ -11,7 +11,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent))
 import meeting_minutes_host as mh
-from meeting_minutes_host import body_to_html, push_to_apple_notes, route_output, notify
+from meeting_minutes_host import (
+    body_to_html, build_apple_notes_body, push_to_apple_notes, route_output, notify,
+)
 
 # The integration tests below create real notes via `osascript`, which LAUNCHES
 # Apple Notes on macOS. They are opt-in so the default `npm run test:all` never
@@ -166,6 +168,48 @@ class TestBodyToHtml(unittest.TestCase):
         # Key Points prose paragraphs separated by blank line → two separate <p>
         self.assertIn('<p>Topic one: explanation here.</p>', result)
         self.assertIn('<p>Another topic: more explanation.</p>', result)
+
+
+class TestBuildAppleNotesBody(unittest.TestCase):
+    """build_apple_notes_body — leads the note with an <h1> title so Apple Notes
+    renders it in its 24px 'Title' style (and derives the note name from it),
+    instead of relying on the AppleScript `name` property, which Notes renders
+    as a plain, un-styled first line that looks smaller than the <h2> headings."""
+
+    def test_prepends_h1_title_before_body(self):
+        out = build_apple_notes_body('My Meeting', '<h2>Attendees</h2><p>Alice</p>')
+        self.assertTrue(out.startswith('<h1>My Meeting</h1>'),
+                        f'Title must lead the body: {out!r}')
+        # The title comes before the first heading.
+        self.assertLess(out.index('<h1>My Meeting</h1>'), out.index('<h2>Attendees</h2>'))
+
+    def test_separates_title_from_first_heading(self):
+        """A <br> sits between the title and the first heading so they don't hug."""
+        out = build_apple_notes_body('My Meeting', '<h2>Attendees</h2>')
+        self.assertIn('</h1><br><h2>', out)
+
+    def test_escapes_html_special_chars_in_title(self):
+        """& < > " in the title must be HTML-escaped so the title isn't mangled."""
+        out = build_apple_notes_body('A & B <Product> "Review"', '<h2>X</h2>')
+        self.assertIn('A &amp; B &lt;Product&gt; &quot;Review&quot;', out)
+        self.assertNotIn('<Product>', out)
+
+    def test_blank_title_returns_body_unchanged(self):
+        body = '<h2>Attendees</h2><p>Alice</p>'
+        self.assertEqual(build_apple_notes_body('', body), body)
+        self.assertEqual(build_apple_notes_body('   ', body), body)
+
+    def test_push_drops_applescript_name_property(self):
+        """push_to_apple_notes must no longer set a `name` property — the note
+        name is derived by Apple Notes from the leading <h1>. The generated
+        AppleScript creates the note with {body:noteBody} only."""
+        with patch.object(mh.subprocess, 'run',
+                          return_value=types.SimpleNamespace(returncode=0)) as mrun:
+            push_to_apple_notes('My Meeting', '<h2>Attendees</h2>')
+        args, _ = mrun.call_args
+        script = args[0][2]  # ['osascript', '-e', <script>]
+        self.assertIn('{body:noteBody}', script)
+        self.assertNotIn('name:', script)
 
 
 class TestSubprocessTimeouts(unittest.TestCase):

@@ -125,9 +125,9 @@ bash native_host/install.sh
 | **Action items → task managers** | 🧪 needs the app | Push each action item to Things / Todoist / OmniFocus via URL schemes. |
 | **Remote selector hotfix** | 🧪 advanced | Patch a broken Meet selector via a hosted `selectors.json` without shipping a release. |
 | **Obsidian & Bear output** | 🧪 untested | Implemented but not yet verified against a live app (see the table below). |
-| **Additional destinations** | 🧪 under testing | A repeater (Beta tab) to send each note to **N** extra destinations, each with its **own** inline config — e.g. two different Obsidian vaults, or a Craft folder + Apple Notes — independent of the primary/​"Also send to" picker. Purely additive; off by default. |
+| **Additional destinations** | 🧪 under testing | A repeater (in **Settings** — promoted out of beta) to send each note to **N** extra destinations, each with its **own** inline config — e.g. two different Obsidian vaults, or a Craft folder + Apple Notes — independent of the primary/​"Also send to" picker. Purely additive; off by default. |
 
-**Also behind the Experimental toggle (stable, just tucked away for a lean default):** Glossary, Your name (action-item aliases), "Also send to", Wikilinks for graph apps, Webhook (generic + Slack), Privacy controls (PII redaction, keywords, capture blocklist), Action items (in-popup checklist + task-manager routing), past-meeting search, Note language, Review-before-saving, and the `.ics` export. These work and are tested — they're hidden from the default UI to keep onboarding focused, and reappear in their usual tabs when Experimental is on.
+**Also behind the Experimental toggle (stable, just tucked away for a lean default):** Glossary, Your name (action-item aliases), Wikilinks for graph apps, Webhook (generic + Slack), Privacy controls (PII redaction, keywords, capture blocklist), Action items (in-popup checklist + task-manager routing), past-meeting search, Note language, Review-before-saving, and the `.ics` export. These work and are tested — they're hidden from the default UI to keep onboarding focused, and reappear in their usual tabs when Experimental is on.
 
 If you try one of these, please [report an issue](https://github.com/caasols/gememo/issues/new) with what worked or broke — that's how they graduate out of beta.
 
