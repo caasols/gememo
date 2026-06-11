@@ -574,6 +574,51 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('setup wizard shows the capture step unchecked until the first note is saved (RB-7a)', async () => {
+      // host ping ok (host step ✓) + output app set (output step ✓) + no notes
+      // saved yet (capture step ✗) ⇒ wizard stays visible, not auto-dismissed.
+      const page = await popupWith({
+        mm2c_output_app: 'craft',
+        mm2c_stats: { meetingsAttended: 2, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      });
+      await expect(page.locator('#setup-wizard')).toBeVisible();
+      await expect(page.locator('#setup-wizard-steps')).toContainText('Capture your first meeting');
+      expect((await getStorage(ext.serviceWorker, ['mm2c_setup_done'])).mm2c_setup_done).toBeFalsy();
+      await page.close();
+    });
+
+    test('setup wizard auto-dismisses once all three steps are complete (RB-7a)', async () => {
+      // host ping ok + output app set + a note already saved (notesSaved>0) ⇒
+      // every step is done, so the card persists mm2c_setup_done and hides.
+      const page = await popupWith({
+        mm2c_output_app: 'craft',
+        mm2c_stats: { meetingsAttended: 2, notesSaved: 1, wordsCaptured: 50, totalMeetingMinutes: 20 },
+      });
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_setup_done'])).mm2c_setup_done
+      ).toBe(true);
+      await expect(page.locator('#setup-wizard')).toBeHidden();
+      await page.close();
+    });
+
+    test('Settings: Backup cleanup sits between File backup and Experimental (UXF-13 reorder)', async () => {
+      const page = await popupWith({});
+      await page.click('#tab-settings');
+      const order = await page.evaluate(() => {
+        const titles = [...document.getElementById('settings-panel').querySelectorAll('.widget-title')]
+          .map(t => t.textContent.trim());
+        return {
+          fileBackup: titles.indexOf('File backup'),
+          cleanup: titles.findIndex(t => t.startsWith('Backup cleanup')),
+          experimental: titles.indexOf('Experimental'),
+        };
+      });
+      expect(order.fileBackup).toBeGreaterThanOrEqual(0);
+      expect(order.cleanup).toBeGreaterThan(order.fileBackup);
+      expect(order.experimental).toBeGreaterThan(order.cleanup);
+      await page.close();
+    });
+
     test('Rules tab renders a seeded rule row', async () => {
       const page = await popupWith({ mm2c_prompt_rules: [{ regex: 'standup', prompt: 'Brief notes' }] });
       await page.click('#tab-rules');

@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.13'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.14'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -366,25 +366,44 @@ def body_to_html(text: str) -> str:
     return ''.join(parts)
 
 
+def build_apple_notes_body(title: str, body_html: str) -> str:
+    """Lead the note body with the title as an <h1>.
+
+    Apple Notes renders an AppleScript `name` property as a plain, un-styled
+    first line (smaller than its bold <h2> "Heading" style), which made the
+    meeting title look demoted below the section headings. Instead we omit
+    `name` entirely and lead the body with an <h1> — Notes renders that in its
+    24px "Title" style and derives the note name from it, so the title shows
+    exactly once and properly styled. A <br> separates it from the first
+    heading. The title is HTML-escaped so '&', '<', '>', '"' aren't mangled.
+    """
+    import html as _html
+    if not title.strip():
+        return body_html
+    return f'<h1>{_html.escape(title.strip())}</h1><br>' + body_html
+
+
 def push_to_apple_notes(title: str, body_html: str) -> None:
     """Push a note to Apple Notes via osascript.
 
     HTML body is written to a temp file to avoid AppleScript string-escaping
-    issues with embedded quotes, backslashes, and newlines.
+    issues with embedded quotes, backslashes, and newlines. The note name is
+    derived by Apple Notes from the leading <h1> (see build_apple_notes_body),
+    so no `name` property is set here.
     Raises subprocess.CalledProcessError on osascript failure.
     """
     import tempfile
-    safe_title = title.replace('\\', '\\\\').replace('"', '\\"')
+    full_body = build_apple_notes_body(title, body_html)
     with tempfile.NamedTemporaryFile(
         mode='w', suffix='.html', delete=False, encoding='utf-8'
     ) as f:
-        f.write(body_html)
+        f.write(full_body)
         tmp_path = f.name
     try:
         script = (
             f'set noteBody to read (POSIX file "{tmp_path}") as «class utf8»\n'
             f'tell application "Notes"\n'
-            f'  make new note with properties {{name:"{safe_title}", body:noteBody}}\n'
+            f'  make new note with properties {{body:noteBody}}\n'
             f'end tell'
         )
         # timeout guards against AppleScript hanging on a modal/permission prompt,
