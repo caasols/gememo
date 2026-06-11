@@ -1178,6 +1178,11 @@ def main() -> None:
         return
 
     transcript = msg.get("transcript", "").strip()
+    # Recovery (RB-1d): when re-sending a note that failed mid-send, prefer the
+    # most complete copy — the supplied in-flight text or a fresher on-disk
+    # snapshot for this meeting, whichever is longer. Best-effort; never raises.
+    if msg.get("recover"):
+        transcript = _recover_freshest_text(transcript, msg).strip()
     if not transcript:
         send_message({"status": "error", "error": "transcript is empty"})
         return
