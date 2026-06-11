@@ -909,6 +909,16 @@ function removeFailureByPath(list, backupPath) {
   return (Array.isArray(list) ? list : []).filter(f => f.backupPath !== backupPath);
 }
 
+// Pure helper — finds a failed-send entry by its backupPath (or undefined).
+// Used on a successful retry so the recovered note's words/durationMin (stored
+// on the entry when it first failed) can be folded into the usage stats. The
+// presence of a matching entry is also what makes the retry-count idempotent:
+// once a retry succeeds the entry is removed, so a second retry of the same
+// path finds nothing and won't double-count.
+function findFailureByPath(list, backupPath) {
+  return (Array.isArray(list) ? list : []).find(f => f.backupPath === backupPath);
+}
+
 // Pure helper — extract the Meet room code from a URL pathname (P9-A3a).
 // '/abc-defg-hij?authuser=0' → 'abc-defg-hij'. Returns '' for the root path
 // or a missing pathname. The code is the stable per-space identifier.
