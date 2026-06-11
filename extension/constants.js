@@ -435,13 +435,14 @@ function buildDiagnosticsReport(info = {}) {
 }
 
 // Pure helper — the first-run setup checklist (RB-7a). Given the live host
-// status and chosen output app, returns the ordered steps with their done
-// state. The capture step completes itself in the first meeting.
-function firstRunChecklist({ hostOk = false, outputApp = '' } = {}) {
+// status, chosen output app, and whether a note has ever been saved, returns
+// the ordered steps with their done state. `captured` is driven by the usage
+// stats (notesSaved > 0) so the step ticks once the first note is filed.
+function firstRunChecklist({ hostOk = false, outputApp = '', captured = false } = {}) {
   return [
     { id: 'host',    label: 'Install the native host', ok: !!hostOk },
     { id: 'output',  label: 'Choose an output app',     ok: !!outputApp && outputApp !== 'none' },
-    { id: 'capture', label: 'Capture your first meeting', ok: false },
+    { id: 'capture', label: 'Capture your first meeting', ok: !!captured },
   ];
 }
 
