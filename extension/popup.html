@@ -1330,6 +1330,17 @@
       </div>
     </div>
 
+    <!-- Additional destinations repeater (UXF-11) — promoted to production. Sits
+         directly below Output app since both control where notes are sent. -->
+    <div class="widget">
+      <div class="widget-title">Additional destinations</div>
+      <p class="hint">Send each note to extra destinations, each with its own config. Adds to — never replaces — your primary output and "Also send to".</p>
+      <div id="destinations-list" aria-label="Additional destinations"></div>
+      <div class="row">
+        <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>
+      </div>
+    </div>
+
     <!-- Action items → task manager (RB-3a) — beta-gated -->
     <div class="widget beta">
       <div class="widget-title">Action items <span class="beta-pill">Beta</span></div>
@@ -1458,16 +1469,6 @@
         <textarea id="blocklist" rows="2" placeholder="interview, 1:1 with HR, /salary/i"></textarea>
       </div>
       <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
-    </div>
-
-    <!-- Additional destinations repeater (UXF-11) — promoted to production -->
-    <div class="widget">
-      <div class="widget-title">Additional destinations</div>
-      <p class="hint">Send each note to extra destinations, each with its own config. Adds to — never replaces — your primary output and "Also send to".</p>
-      <div id="destinations-list" aria-label="Additional destinations"></div>
-      <div class="row">
-        <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>
-      </div>
     </div>
 
     <!-- Experimental features toggle (UXF-1) — always the LAST widget in Settings. -->
