@@ -120,6 +120,13 @@ function loadAndApplyState(tabId, live = null) {
 
 const $ = id => document.getElementById(id);
 
+// Flash a copy button to "Copied" then restore its label (UXC-10).
+function flashCopied(btn, label, ms = 2000) {
+  btn.textContent = 'Copied';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = label; btn.classList.remove('copied'); }, ms);
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -826,9 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('copy-ext-id').addEventListener('click', () => {
     navigator.clipboard.writeText(chrome.runtime.id).then(() => {
       const btn = $('copy-ext-id');
-      btn.textContent = 'Copied';
-      btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      flashCopied(btn, 'Copy');
     });
   });
 
@@ -1004,9 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cmd = $('install-cmd').textContent;
     navigator.clipboard.writeText(cmd).then(() => {
       const btn = $('copy-cmd');
-      btn.textContent = 'Copied';
-      btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      flashCopied(btn, 'Copy');
     });
   });
 
@@ -1424,9 +1427,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!md) return;
       navigator.clipboard.writeText(md).then(() => {
         const btn = $('copy-action-items');
-        btn.textContent = 'Copied';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = 'Copy as tasks'; btn.classList.remove('copied'); }, 2000);
+        flashCopied(btn, 'Copy as tasks');
       });
     });
   });
@@ -1466,9 +1467,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('copy-diagnostics').addEventListener('click', () => {
     navigator.clipboard.writeText($('diag-output').textContent || '').then(() => {
       const btn = $('copy-diagnostics');
-      btn.textContent = 'Copied';
-      btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'Copy report'; btn.classList.remove('copied'); }, 2000);
+      flashCopied(btn, 'Copy report');
     });
   });
 
