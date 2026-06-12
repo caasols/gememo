@@ -549,7 +549,7 @@ def handle_snapshot(msg: dict) -> None:
     label         = meeting_title or "Meeting"
     date_prefix   = dt.strftime("%Y%m%d")
     time_str      = dt.strftime("%H%M%S")
-    slug          = re.sub(r'[^\w\-]', '', label.lower().replace(" ", "-"), flags=re.ASCII)[:50]
+    slug          = _file_slug(label)
 
     file_ext  = ".txt" if file_backup_type == "txt" else ".md"
     snap_path = file_backup_path / f"{date_prefix}-{time_str}-{slug}-snap{file_ext}"
@@ -910,7 +910,7 @@ def _recover_freshest_text(inflight_text: str, msg: dict) -> str:
     snapshot body for this meeting. Never raises — falls back to inflight_text."""
     try:
         label = (msg.get("meetingTitle") or "").strip() or "Meeting"
-        slug = re.sub(r'[^\w\-]', '', label.lower().replace(" ", "-"), flags=re.ASCII)[:50]
+        slug = _file_slug(label)
         file_ext = ".txt" if msg.get("fileBackupType") == "txt" else ".md"
         backup_path = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
         snap = find_latest_snapshot(backup_path, slug, file_ext)
@@ -1011,11 +1011,17 @@ def route_output(
     return False  # 'craft' or unrecognised → caller handles
 
 
+def _file_slug(label: str) -> str:
+    """Filesystem-safe slug for note filenames: lowercase, spaces→dashes,
+    ASCII word chars only, capped at 50."""
+    return re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
+
+
 def _write_obsidian_note(vault_path, label, dt, body, cal_fields=None):
     """Write a note .md into an Obsidian vault folder with YAML frontmatter."""
     vault = Path(vault_path).expanduser()
     vault.mkdir(parents=True, exist_ok=True)
-    slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
+    slug = _file_slug(label)
     (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
         build_yaml_frontmatter(label, dt, cal_fields=cal_fields) + body, encoding='utf-8')
 
@@ -1355,7 +1361,7 @@ def main() -> None:
             _heartbeat("replied status=ok")
         else:
             # Primary push failed — retry once with most recent snapshot file (E2)
-            snap_slug = re.sub(r'[^\w\-]', '', label.lower().replace(" ", "-"), flags=re.ASCII)[:50]
+            snap_slug = _file_slug(label)
             snap_file = find_latest_snapshot(file_backup_path, snap_slug, file_ext) \
                         if file_backup_enabled else None
 
