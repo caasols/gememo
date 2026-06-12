@@ -2567,6 +2567,102 @@ window.MM2C_TESTS = (() => {
     formatStatNumber(1234567) === '1,234,567');
 }
 
+  async function testSelectTranscript() {
+    console.group('selectTranscript (capture selection)');
+    class GNA extends Error {}   // stand-in GeminiNotActiveError
+    class ITE extends Error {}   // stand-in InjectionTimeoutError
+    const NOW = 1_000_000;
+    const mk = (over = {}) => {
+      const logs = [], statuses = [], warns = [];
+      return {
+        logs, statuses, warns,
+        deps: {
+          getSnapshotPromise: () => null,
+          getCachedTranscript: () => null,
+          getCachedTranscriptAt: () => null,
+          snapshotIntervalMs: 8 * 60_000,
+          meetingTitle: 'M',
+          runGeminiFlow: async () => { throw new Error('unstubbed'); },
+          delay: async () => {},
+          log: (m) => logs.push(m),
+          status: (m, l) => statuses.push([m, l]),
+          warn: (m) => warns.push(m),
+          now: () => NOW,
+          GeminiNotActiveError: GNA, InjectionTimeoutError: ITE,
+          ...over,
+        },
+      };
+    };
+
+    // 1. snapshot-active: cache goes FRESH during the await → returns the fresh cache.
+    {
+      let cache = 'STALE', resolveSnap;
+      const snap = new Promise(r => { resolveSnap = r; });
+      const t = mk({ getSnapshotPromise: () => snap, getCachedTranscript: () => cache,
+                     getCachedTranscriptAt: () => NOW - 100_000 });
+      const p = selectTranscript(t.deps);
+      cache = 'FRESH'; resolveSnap();            // snapshot finishes mid-await, updates cache
+      assertEq('snapshot-active reads the FRESH cache after await', await p, 'FRESH');
+    }
+    // 2. recent snapshot fresh → returns cache, never calls runGeminiFlow.
+    {
+      let called = false;
+      const t = mk({ getCachedTranscript: () => 'CACHED', getCachedTranscriptAt: () => NOW - 60_000,
+                     runGeminiFlow: async () => { called = true; return 'X'; } });
+      const out = await selectTranscript(t.deps);
+      assert('recent-fresh returns cache without runGeminiFlow', out === 'CACHED' && called === false);
+    }
+    // 3. not fresh, fresh capture succeeds → returns it.
+    {
+      const t = mk({ getCachedTranscriptAt: () => NOW - 9 * 60_000, runGeminiFlow: async () => 'FRESHNOTES' });
+      assertEq('fresh capture returns the new transcript', await selectTranscript(t.deps), 'FRESHNOTES');
+    }
+    // 4. fresh fails + cache present → returns cache.
+    {
+      const t = mk({ getCachedTranscript: () => 'CACHED', getCachedTranscriptAt: () => NOW - 9 * 60_000,
+                     runGeminiFlow: async () => { throw new Error('boom'); } });
+      assertEq('fresh-fail falls back to cache', await selectTranscript(t.deps), 'CACHED');
+    }
+    // 5. no cache → fresh attempt + retry loop; succeeds on the 3rd total call.
+    {
+      let n = 0;
+      const t = mk({ getCachedTranscriptAt: () => NOW - 9 * 60_000,
+                     runGeminiFlow: async () => { n++; if (n < 3) throw new Error('transient'); return 'RETRIED'; } });
+      assertEq('no-cache retries then succeeds', await selectTranscript(t.deps), 'RETRIED');
+    }
+    // 6. no cache, GeminiNotActive → rethrows.
+    {
+      const t = mk({ getCachedTranscriptAt: () => NOW - 9 * 60_000,
+                     runGeminiFlow: async () => { throw new GNA('not active'); } });
+      let threw = null; try { await selectTranscript(t.deps); } catch (e) { threw = e; }
+      assert('no-cache GeminiNotActive rethrows', threw instanceof GNA);
+    }
+    // 7a. InjectionTimeout in retry, cache appears → returns cache.
+    {
+      let cache = null, n = 0;
+      const t = mk({ getCachedTranscript: () => cache, getCachedTranscriptAt: () => NOW - 9 * 60_000,
+                     runGeminiFlow: async () => { n++; if (n === 1) throw new Error('fresh fail');
+                                                  cache = 'RECOVERED'; throw new ITE('timeout'); } });
+      assertEq('ITE-in-retry uses cache that appeared', await selectTranscript(t.deps), 'RECOVERED');
+    }
+    // 7b. InjectionTimeout in retry, no cache → null + a warn.
+    {
+      let n = 0;
+      const t = mk({ getCachedTranscriptAt: () => NOW - 9 * 60_000,
+                     runGeminiFlow: async () => { n++; if (n === 1) throw new Error('fresh fail'); throw new ITE('timeout'); } });
+      const out = await selectTranscript(t.deps);
+      assert('ITE-in-retry no cache → null + warn', out === null && t.warns.length === 1);
+    }
+    // 8. exhausted generic retries → rethrows lastFlowErr.
+    {
+      const t = mk({ getCachedTranscriptAt: () => NOW - 9 * 60_000,
+                     runGeminiFlow: async () => { throw new Error('always'); } });
+      let threw = null; try { await selectTranscript(t.deps); } catch (e) { threw = e; }
+      assert('exhausted generic retries rethrows', threw instanceof Error && threw.message === 'always');
+    }
+    console.groupEnd();
+  }
+
   async function run() {
     results.length = 0;
     console.group('%cMM2C Extension Tests', 'font-weight:bold;font-size:14px;color:#1a73e8');
@@ -2580,6 +2676,7 @@ window.MM2C_TESTS = (() => {
     testMuteSelectors();
     testSubmitButton();
     await testWaitForForeground();
+    await testSelectTranscript();
     await testCaptureProactively();
     await testGeminiFlowMutex();
     testSendDedup();
