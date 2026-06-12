@@ -938,7 +938,8 @@
   }
 
   // ── Periodic snapshot ──────────────────────────────────────────────────────
-  // Captures a fresh summary from Gemini every 10 minutes and holds it in
+  // Captures a fresh summary from Gemini every N minutes (configurable; default 8)
+  // and holds it in
   // memory. Nothing is sent to Craft yet — that happens only once, on leave.
   // This ensures there is always a recent transcript available even if Gemini
   // deactivates right before the user clicks Leave.

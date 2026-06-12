@@ -29,7 +29,6 @@ function refreshSelectorHotfix() {
 }
 refreshSelectorHotfix();
 
-const _tabKey = tabKey; // alias kept for existing mm2c_last_status_<tabId> call sites
 
 // ── Logging ────────────────────────────────────────────────────────────────
 // Stores up to 50 log entries in chrome.storage.local under mm2c_logs.
@@ -180,7 +179,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case 'MM2C_RESPONSE': {
       const title = msg.meetingTitle || '';
-      const tabId = _sender.tab?.id;   // ← ADD THIS LINE
+      const tabId = _sender.tab?.id;
       const doForward = (sr) => {
         chrome.storage.local.get(FORWARD_KEYS, (data) => {
           forwardToNativeHost(msg.text, {
@@ -205,7 +204,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
       // Tab-keyed dedup: each tab gets its own fingerprint so two concurrent
       // meetings with the same title don't block each other.
-      const fpKey = tabId ? _tabKey('mm2c_last_fingerprint', tabId) : 'mm2c_last_fingerprint';
+      const fpKey = tabId ? tabKey('mm2c_last_fingerprint', tabId) : 'mm2c_last_fingerprint';
       chrome.storage.session.get([fpKey], (fpData) => {
         const stored = fpData[fpKey];
         const now = Date.now();
@@ -256,7 +255,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             });
           }
           const statusLabel = `Retry succeeded: ${response.title}`;
-          if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: statusLabel });
+          if (tabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', tabId)]: statusLabel });
           else        chrome.storage.local.set({ mm2c_last_status: statusLabel });
           appendLog('ok', title, `Retry succeeded — sent to Craft (from ${response.source || 'file'})`);
           chrome.action.setBadgeText({ text: 'OK' });
@@ -327,7 +326,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.warn });
       { const wTabId = _sender.tab?.id;
         const wStatus = `Warning: ${msg.message}`;
-        if (wTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', wTabId)]: wStatus });
+        if (wTabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', wTabId)]: wStatus });
         else         chrome.storage.local.set({ mm2c_last_status: wStatus }); }
       appendLog('warn', msg.meetingTitle || '', msg.message || '');
       setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
@@ -341,7 +340,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // Banner shows friendly copy (UXC-3); the 'Error:' prefix keeps
         // resolveBanner classifying it as an error. Raw text → the log below.
         const eStatus = `Error: ${friendlyError(msg.error)}`;
-        if (eTabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', eTabId)]: eStatus });
+        if (eTabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', eTabId)]: eStatus });
         else         chrome.storage.local.set({ mm2c_last_status: eStatus }); }
       appendLog('err', msg.meetingTitle || '', msg.error || '');
       break;
@@ -350,7 +349,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const tabId = _sender.tab?.id;
       if (!tabId) break;
       const newState = msg.state || 'idle';
-      chrome.storage.local.set({ [_tabKey('mm2c_capture_state', tabId)]: newState }, () => {
+      chrome.storage.local.set({ [tabKey('mm2c_capture_state', tabId)]: newState }, () => {
         // Badge reflects whether ANY tab is capturing — tracked in a tiny array
         // (mm2c_capturing_tabs) instead of scanning all of storage (ARCH-4).
         chrome.storage.local.get(['mm2c_capturing_tabs'], ({ mm2c_capturing_tabs }) => {
@@ -372,7 +371,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case 'MM2C_SET_SNAPSHOT': {
       const tabId = _sender.tab?.id;
       if (!tabId) break;
-      const key = _tabKey('mm2c_last_snapshot', tabId);
+      const key = tabKey('mm2c_last_snapshot', tabId);
       if (msg.snapshot === null) {
         chrome.storage.local.remove(key);
       } else {
@@ -450,11 +449,11 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   chrome.storage.local.remove([
-    _tabKey('mm2c_capture_state', tabId),
-    _tabKey('mm2c_last_snapshot',  tabId),
-    _tabKey('mm2c_last_status',    tabId),
+    tabKey('mm2c_capture_state', tabId),
+    tabKey('mm2c_last_snapshot',  tabId),
+    tabKey('mm2c_last_status',    tabId),
   ]);
-  chrome.storage.session.remove(_tabKey('mm2c_last_fingerprint', tabId));
+  chrome.storage.session.remove(tabKey('mm2c_last_fingerprint', tabId));
   // Drop the closed tab from the REC-badge set; clear the badge if it was the last (ARCH-4).
   chrome.storage.local.get(['mm2c_capturing_tabs'], ({ mm2c_capturing_tabs }) => {
     if (!Array.isArray(mm2c_capturing_tabs) || !mm2c_capturing_tabs.includes(tabId)) return;
@@ -482,7 +481,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         chrome.action.setBadgeText({ text: '!' });
         chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
         const errStatus = `Error: ${friendlyError(err)}`;  // friendly banner (UXC-3)
-        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: errStatus });
+        if (tabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', tabId)]: errStatus });
         else        chrome.storage.local.set({ mm2c_last_status: errStatus });
         appendLog('err', meetingTitle, `Native host error: ${err}`);  // raw in the log
         if (callback) callback({ ok: false, error: err });
@@ -490,8 +489,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
       }
 
       if (response?.status === 'ok') {
-        const APP_LABELS = { craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' };
-        const dest       = APP_LABELS[backupType] || backupType;
+        const dest = outputAppName(backupType);
         const filePart  = fileBackupEnabled && response.file ? ` + ${response.file}` : '';
         const retryNote = response.retried ? ' (via snapshot retry)' : '';
         const label     = response.title
@@ -507,7 +505,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
             mm2c_stats: updateStats(mm2c_stats, { durationMin, words: countWords(transcript) }),
           });
         });
-        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: label });
+        if (tabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', tabId)]: label });
         else        chrome.storage.local.set({ mm2c_last_status: label });
         appendLog('ok', meetingTitle, label);
         setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
@@ -519,7 +517,7 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         const banner   = `Error: ${friendlyError(detail)}`;    // friendly banner (UXC-3)
         chrome.action.setBadgeText({ text: '!' });
         chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.danger });
-        if (tabId) chrome.storage.local.set({ [_tabKey('mm2c_last_status', tabId)]: banner });
+        if (tabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', tabId)]: banner });
         else        chrome.storage.local.set({ mm2c_last_status: banner });
         appendLog('err', meetingTitle, rawLabel);
         // Store for retry widget — only when a backup path exists to retry from

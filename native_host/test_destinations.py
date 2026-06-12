@@ -114,5 +114,14 @@ class TestSendToDestinations(unittest.TestCase):
             self.assertIn('https://example.com/evt', md)
 
 
+class TestFileSlug(unittest.TestCase):
+    def test_basic(self):
+        self.assertEqual(host._file_slug('Q3 Planning'), 'q3-planning')
+
+    def test_strips_non_ascii_word_chars_and_caps_50(self):
+        self.assertEqual(host._file_slug('Café / Q3!! Review'), 'caf--q3-review')
+        self.assertEqual(len(host._file_slug('x' * 80)), 50)
+
+
 if __name__ == '__main__':
     unittest.main()
