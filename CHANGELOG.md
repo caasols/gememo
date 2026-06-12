@@ -20,6 +20,7 @@ _Nothing yet — next change goes here._
 ## [0.2.15] – 2026-06-12 · Unify extra destinations + BUG-9 layers 0/1
 
 ### Internal (no behavior change)
+- **Extracted the leave-capture transcript-selection into a unit-tested `selectTranscript`** (`constants.js`) — the logic that decides *which* note is saved (snapshot-in-progress / recent-snapshot / fresh-capture / cached-fallback / retry) was a ~90-line block trapped in the DOM flow; it now has 9 branch unit tests (incl. the live-cache-after-await case). Behavior-preserving (the content-meet leave e2e is the integration guard).
 - **Anti-drift cleanup (audit follow-up):** extracted `_file_slug` (host) for the repeated filename slug, reused `outputAppName` instead of an inline label dict (background), added a `flashCopied` popup helper for the 4× copy-button snippet, and removed a dead `_tabKey` alias + stale comments.
 - **Extracted `handle_capture` from the host `main()` god-function** — the ~220-line capture pipeline is now a named function; `main()` is just dispatch. Verbatim move (host test suite identical before/after).
 
