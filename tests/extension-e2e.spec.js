@@ -354,6 +354,30 @@ test.describe('extension E2E harness', () => {
       }).toEqual({ mins: 42, notes: 1, cleared: undefined });
     });
 
+    test('MM2C_RECOVER threads the full config + the in-flight timestamp (drift fix)', async () => {
+      const at = Date.parse('2026-06-01T09:12:00Z');
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'craft',
+        mm2c_calendar_enabled: true,
+        mm2c_cleanup_snap_enabled: true, mm2c_cleanup_snap_days: 7,
+        mm2c_beta_enabled: true, mm2c_gdocs_enabled: true,
+        mm2c_inflight: { title: 'Recovered', text: 'recovered body', durationMin: 20, at },
+      });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RECOVER' });
+      expect(resp.ok).toBe(true);
+      await expect.poll(async () => {
+        const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'recovered body');
+        if (!fwd) return null;
+        return {
+          cal: fwd.msg.calendarEnabled,
+          cleanup: fwd.msg.backupCleanup?.snapshots?.enabled,
+          gdocs: fwd.msg.googleDocsOutput,
+          ts: fwd.msg.timestamp,
+          recover: fwd.msg.recover,
+        };
+      }).toEqual({ cal: true, cleanup: true, gdocs: true, ts: new Date(at).toISOString(), recover: true });
+    });
+
     test('MM2C_RESPONSE host-error appends to mm2c_failed_list + friendly banner (retry entry point)', async () => {
       // The host replies with a non-ok status AND a backupPath — this is the only
       // path that creates a failed-list retry entry (forwardToNativeHost error branch).

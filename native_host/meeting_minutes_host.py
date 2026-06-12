@@ -40,6 +40,13 @@ CACHE_DIR   = Path.home() / ".cache" / "mm2c"
 HEARTBEAT_FILE = CACHE_DIR / "host_heartbeat.log"   # BUG-9 Layer 0 stage trail
 _HEARTBEAT_MAX_BYTES = 64 * 1024
 
+# Exit-code → human message map (must match push_to_craft.py exit codes).
+_PUSH_EXIT_MESSAGES = {
+    1: 'Craft is not running — open Craft and try again',
+    2: 'Note file not found — try capturing again',
+    3: 'Could not open Craft URL',
+}
+
 
 def read_message() -> dict | None:
     raw_len = sys.stdin.buffer.read(4)
@@ -825,11 +832,6 @@ def handle_retry(msg: dict) -> None:
     Uses choose_retry_file to select the freshest available content,
     then calls push_to_craft.py the same way main() does.
     """
-    PUSH_EXIT_MESSAGES = {
-        1: 'Craft is not running — open Craft and try again',
-        2: 'Note file not found — try capturing again',
-        3: 'Could not open Craft URL',
-    }
     title           = msg.get("title", "").strip()
     backup_path_str = msg.get("backupPath", "").strip()
 
@@ -866,7 +868,7 @@ def handle_retry(msg: dict) -> None:
             notify("Meeting Notes → Craft", title)
             send_message({"status": "ok", "title": title, "source": source})
         else:
-            error = PUSH_EXIT_MESSAGES.get(
+            error = _PUSH_EXIT_MESSAGES.get(
                 result.returncode,
                 result.stderr.strip() or f"push_to_craft exited {result.returncode}",
             )
@@ -963,14 +965,7 @@ def route_output(
             from datetime import datetime as _dt
             effective_dt    = dt if dt is not None else _dt.now()
             effective_label = label or title
-            vault = Path(obsidian_vault_path).expanduser()
-            vault.mkdir(parents=True, exist_ok=True)
-            slug      = re.sub(r'[^\w\-]', '',
-                               effective_label.lower().replace(' ', '-'),
-                               flags=re.ASCII)[:50]
-            note_path = vault / f"{effective_dt.strftime('%Y%m%d-%H%M')}-{slug}.md"
-            fm        = build_yaml_frontmatter(effective_label, effective_dt, cal_fields=cal_fields)
-            note_path.write_text(fm + craft_md, encoding='utf-8')
+            _write_obsidian_note(obsidian_vault_path, effective_label, effective_dt, craft_md, cal_fields=cal_fields)
             _note("Meeting Notes → Obsidian", title)
             resp: dict = {"status": "ok", "title": title}
             if file_path:
@@ -1016,8 +1011,18 @@ def route_output(
     return False  # 'craft' or unrecognised → caller handles
 
 
+def _write_obsidian_note(vault_path, label, dt, body, cal_fields=None):
+    """Write a note .md into an Obsidian vault folder with YAML frontmatter."""
+    vault = Path(vault_path).expanduser()
+    vault.mkdir(parents=True, exist_ok=True)
+    slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
+    (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
+        build_yaml_frontmatter(label, dt, cal_fields=cal_fields) + body, encoding='utf-8')
+
+
 def send_to_destinations(destinations, craft_md, title, dt, label,
-                         obsidian_vault_path: str = '', craft_folder_id: str = '') -> None:
+                         obsidian_vault_path: str = '', craft_folder_id: str = '',
+                         cal_fields=None) -> None:
     """Fan out the note to each extra destination row (the unified repeater),
     best-effort. Per-row config falls back to the passed-in global default when
     blank, so a blank row behaves like the legacy 'also send to' checkbox.
@@ -1034,11 +1039,7 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
                 vault_path = str(entry.get('vaultPath') or '').strip() or obsidian_vault_path
                 if not vault_path:
                     continue  # no target vault (row blank AND no global) → skip
-                vault = Path(vault_path).expanduser()
-                vault.mkdir(parents=True, exist_ok=True)
-                slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
-                (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
-                    build_yaml_frontmatter(label, dt) + craft_md, encoding='utf-8')
+                _write_obsidian_note(vault_path, label, dt, craft_md, cal_fields=cal_fields)
             elif dest == 'craft':
                 CACHE_DIR.mkdir(parents=True, exist_ok=True)
                 safe = re.sub(r'[^\w\s\-]', '', title)[:80].strip() or dt.strftime('%Y%m%d')
@@ -1304,6 +1305,7 @@ def main() -> None:
         msg.get("destinations"), craft_md, title, dt, label,
         obsidian_vault_path=msg.get("obsidianVaultPath", ""),
         craft_folder_id=msg.get("craftFolderId", "").strip(),
+        cal_fields=cal_fields,
     )
 
     # Google Docs output (5.7) — best-effort, never blocks capture. Beta-gated:
@@ -1324,13 +1326,6 @@ def main() -> None:
         return
 
     # back_type == 'craft' (or anything unrecognised) → fall through to Craft push
-
-    # Exit-code → human message map (must match push_to_craft.py exit codes)
-    PUSH_EXIT_MESSAGES = {
-        1: 'Craft is not running — open Craft and try again',
-        2: 'Note file not found — try capturing again',
-        3: 'Could not open Craft URL',
-    }
 
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -1381,7 +1376,7 @@ def main() -> None:
 
             # Both attempts failed (or no snapshot available) — include backup path
             backup_hint = str(snap_file or file_path or "")
-            error = PUSH_EXIT_MESSAGES.get(
+            error = _PUSH_EXIT_MESSAGES.get(
                 result.returncode,
                 result.stderr.strip() or f"push_to_craft exited {result.returncode}",
             )
