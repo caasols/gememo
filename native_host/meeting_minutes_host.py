@@ -37,6 +37,8 @@ _push_local = SCRIPT_DIR / "push_to_craft.py"
 _push_dev   = SCRIPT_DIR.parent / "scripts" / "push_to_craft.py"
 PUSH_PY     = _push_local if _push_local.exists() else _push_dev
 CACHE_DIR   = Path.home() / ".cache" / "mm2c"
+HEARTBEAT_FILE = CACHE_DIR / "host_heartbeat.log"   # BUG-9 Layer 0 stage trail
+_HEARTBEAT_MAX_BYTES = 64 * 1024
 
 
 def read_message() -> dict | None:
@@ -53,6 +55,36 @@ def send_message(data: dict) -> None:
     sys.stdout.buffer.write(struct.pack("<I", len(encoded)))
     sys.stdout.buffer.write(encoded)
     sys.stdout.buffer.flush()
+
+
+def _heartbeat(stage: str) -> None:
+    """Append one fsync'd line to the heartbeat log so the last stage reached is
+    durable across a SIGKILL (BUG-9 diagnosis). Best-effort — never raises."""
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        line = f"{datetime.now().astimezone().isoformat()} pid={os.getpid()} {stage}\n"
+        with open(HEARTBEAT_FILE, "a", encoding="utf-8") as f:
+            f.write(line)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+def _heartbeat_rotate() -> None:
+    """Trim the heartbeat log to its last lines when it exceeds the size cap.
+    Best-effort — never raises."""
+    try:
+        if HEARTBEAT_FILE.exists() and HEARTBEAT_FILE.stat().st_size > _HEARTBEAT_MAX_BYTES:
+            data = HEARTBEAT_FILE.read_text(encoding="utf-8", errors="replace")
+            tail = data[-_HEARTBEAT_MAX_BYTES:]          # bound to the cap
+            nl = tail.find("\n")
+            HEARTBEAT_FILE.write_text(tail[nl + 1:] if nl != -1 else tail, encoding="utf-8")
+    except Exception:
+        pass
 
 
 _PII_EMAIL = re.compile(r'\b[\w.+-]+@[\w-]+\.[\w.-]+\b')
