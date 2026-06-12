@@ -94,45 +94,32 @@ test.describe('extension E2E harness', () => {
       }).toEqual({ notes: 1, words: 5, mins: 25, status: true, note: 'one two three four five' });
     });
 
-    test('MM2C_RESPONSE forwards the destinations repeater when beta is ON (UXF-11)', async () => {
-      const dests = [
-        { type: 'obsidian', vaultPath: '/tmp/VaultA' },
-        { type: 'craft', folderId: 'folder-xyz' },
-        { type: 'apple_notes' },
-      ];
+    test('MM2C_RESPONSE forwards the destinations repeater regardless of beta state (UXF-11)', async () => {
+      const dests = [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }, { type: 'apple_notes' }];
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
-        mm2c_beta_enabled: true,
         mm2c_destinations: dests,
+        mm2c_beta_enabled: false, // beta OFF — must STILL thread (regression guard for the gating bug)
       });
-      const resp = await sendFromPage(popup, {
-        type: 'MM2C_RESPONSE',
-        text: 'beta on destinations payload',
-        meetingTitle: 'Beta On',
-      });
-      expect(resp.ok).toBe(true);
-      const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'beta on destinations payload');
-      expect(fwd).toBeTruthy();
-      expect(fwd.msg.destinations).toEqual(dests);
+      await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'destinations payload', meetingTitle: 'X' });
+      await expect.poll(async () => {
+        const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'destinations payload');
+        return fwd ? fwd.msg.destinations : null;
+      }).toEqual(dests);
     });
 
-    test('MM2C_RESPONSE sends destinations:[] when beta is OFF even with seeded data (UXF-11)', async () => {
+    test('MM2C_RESPONSE merges legacy also-send into the destinations payload', async () => {
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
-        mm2c_beta_enabled: false,
         mm2c_destinations: [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }],
+        mm2c_also_send: ['apple_notes'],
+        mm2c_beta_enabled: false,
       });
-      const resp = await sendFromPage(popup, {
-        type: 'MM2C_RESPONSE',
-        text: 'beta off destinations payload',
-        meetingTitle: 'Beta Off',
-      });
-      expect(resp.ok).toBe(true);
-      const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'beta off destinations payload');
-      expect(fwd).toBeTruthy();
-      expect(fwd.msg.destinations).toEqual([]);
+      await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'merge payload', meetingTitle: 'X' });
+      await expect.poll(async () => {
+        const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'merge payload');
+        return fwd ? fwd.msg.destinations : null;
+      }).toEqual([{ type: 'obsidian', vaultPath: '/tmp/VaultA' }, { type: 'apple_notes' }]);
     });
 
     test('MM2C_RESPONSE forwards googleDocsOutput:true when beta is ON (5.7)', async () => {
