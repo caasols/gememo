@@ -13,13 +13,22 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+_Nothing yet — next change goes here._
+
+---
+
+## [0.2.15] – 2026-06-12 · Unify extra destinations + BUG-9 layers 0/1
+
 ### Added
 - **Diagnostic: native-host stage heartbeat (BUG-9 Layer 0).** The host now writes a durable, content-free trail to `~/.cache/mm2c/host_heartbeat.log` — one fsync'd line per capture stage (`start` → `parsed` → `backup_written` → `webhooks_done` → `extras_done` → `craft_push_start` → `craft_push_done` → `replied`). When the host dies mid-send ("Native host has exited"), the tail names the last stage reached, so the real failing stage can be identified instead of guessed. Always on, self-bounding (~64 KB); records only stage names, timestamps, pid, return codes, and character counts — never note content. (Host change → re-run `install.sh`.)
 
 ### Changed
-- **Settings: moved "Additional destinations" directly below "Output app"** so all the "where do notes go" controls (primary app, Also send to, additional destinations) sit together.
+- **Unified "Also send to" + "Additional destinations" into one mechanism.** Both fanned a copy of each note to extra apps; the repeater was just the superset (per-row folder/vault). Now there is a single **Additional destinations** repeater backed by one storage key and one host function (`send_to_destinations`); a row's folder/vault is **optional** and falls back to your default for that app (a blank row behaves exactly like the old checkbox). The legacy "Also send to" checkboxes are removed, and existing settings migrate automatically.
+- **Settings: moved "Additional destinations" directly below "Output app"** so the "where do notes go" controls (primary app, then additional destinations) sit together.
 
 ### Fixed
+- **Additional destinations were silently inert in production.** After the repeater was promoted to Settings, the background still only threaded its rows when Experimental was ON — so with beta off they went nowhere. Now always threaded.
+- **Additional-destinations row overflow** — the Remove control was clipped at the popup edge; rows now fit (compact ✕ button + shrinkable config field).
 - **In-flight recovery now works after a failed send (BUG-9 Layer 1, RB-1d).** The recovery card never appeared because `content_meet.js` cleared the in-flight note on *failure* too — the very callback that saw the host-exit deleted the only recovery copy. Now the note is kept and stamped `failed`, so the card shows immediately (and the 60s grace still surfaces it if the service worker is killed mid-send with no callback at all). "Recover" re-sends the **most complete** copy: the host compares the in-flight text against the latest on-disk snapshot for that meeting and files whichever is longer. (Host change → re-run `install.sh`.)
 - **Rules tab: the "Default" rule name now matches the built-in template names** (bold, full-strength text) instead of the muted grey badge style — the shared `.rule-name` forced 11px/muted, so the always-on Default looked subordinate to Standup/1:1/Retro. Its `.rule-default` override now mirrors `.bi-name` (12px, `var(--text)`, 600).
 
