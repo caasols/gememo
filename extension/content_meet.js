@@ -1203,96 +1203,21 @@
     showStatus('Capturing notes…');
 
     try {
-      let transcript = null;
-
-      // If a periodic snapshot is currently running, await its natural completion.
-      // No cap or force-release — the snapshot is bounded by its own 90 s timeout
-      // in runGeminiFlow(90_000). When it finishes, cachedTranscript is up to date.
-      // If a periodic snapshot was actively running when Leave was clicked,
-      // wait for it and use that result directly — no point running Gemini again
-      // immediately after it just finished. If no snapshot was in progress,
-      // always attempt a fresh capture to get the final minutes of discussion.
-      const snapshotWasActive = !!geminiFlowPromise;
-      if (snapshotWasActive) {
-        sendLog('Snapshot in progress when Leave clicked — waiting for it to complete...');
-        await geminiFlowPromise;
-        sendLog('Snapshot complete — using result directly, skipping redundant Gemini run');
-      } else if (snapshotFreshEnough(cachedTranscriptAt, snapshotIntervalMs)) {
-        // A periodic snapshot finished very recently (within half an interval) —
-        // it already covers the final minutes. Skip the 20–60 s fresh Gemini run
-        // and use the cached result directly (BUG-3).
-        const ageSec = Math.round((Date.now() - cachedTranscriptAt) / 1000);
-        sendLog(`Recent snapshot is fresh (${ageSec}s old) — using it, skipping redundant Gemini run`);
-      } else {
-        sendLog('Leave clicked — attempting fresh Gemini capture for final notes...');
-        try {
-          transcript = await runGeminiFlow(60_000);
-          sendLog(`Fresh Leave capture succeeded (${transcript.length} chars)`);
-        } catch (freshErr) {
-          if (freshErr instanceof GeminiNotActiveError) {
-            // Gemini was never running — fall through to cache or no-notes path below.
-          } else {
-            sendLog(`Fresh Leave capture failed (${freshErr.message}) — falling back to cache`);
-          }
-        }
-      }
-
-      const ageMin = cachedTranscriptAt ? Math.round((Date.now() - cachedTranscriptAt) / 60000) : null;
-      const ageSuffix = ageMin !== null ? `, ${ageMin} min old` : '';
-
-      if (!transcript && cachedTranscript) {
-        // Fresh flow failed or Gemini was not active — use last periodic snapshot.
-        sendLog(`Using cached snapshot as fallback (${cachedTranscript.length} chars${ageSuffix})`);
-        if (ageMin !== null && ageMin > 15) {
-          showStatus(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
-        }
-        transcript = cachedTranscript;
-      } else if (!transcript) {
-        // No cache and fresh flow already failed — retry up to 3 times.
-        // GeminiNotActiveError is rethrown immediately (Gemini was never running).
-        // InjectionTimeoutError falls back to cachedTranscript if available,
-        // otherwise shows a warning and leaves without notes (transcript stays null).
-        // Other transient errors (DOM race, "Submit button not found") are
-        // retried with a 3 s backoff.
-        let lastFlowErr;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            transcript = await runGeminiFlow();
-            break; // success — exit retry loop
-          } catch (flowErr) {
-            lastFlowErr = flowErr;
-
-            if (flowErr instanceof GeminiNotActiveError) throw flowErr;
-
-            if (flowErr instanceof InjectionTimeoutError) {
-              // Tab never came to the foreground during the inject window.
-              sendLog(`Prompt injection timed out: ${flowErr.message}`);
-              safeSend({ type: 'MM2C_WARNING', message: flowErr.message, meetingTitle });
-              if (cachedTranscript) {
-                sendLog(`Falling back to cached snapshot (${cachedTranscript.length} chars${ageSuffix})`);
-                if (ageMin !== null && ageMin > 15) {
-                  showStatus(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
-                }
-                transcript = cachedTranscript;
-              } else {
-                showStatus('Could not inject prompt — switch to this tab during capture', 'warn');
-                // transcript stays null — Craft send is skipped; finally always leaves
-              }
-              break; // no retry after timeout
-            }
-
-            if (attempt < 3) {
-              sendLog(`Gemini flow attempt ${attempt} failed: ${flowErr.message} — retrying in 3 s`);
-              await delay(3000);
-            }
-          }
-        }
-        // Re-throw if we exhausted retries with no transcript and the failure
-        // was not a handled InjectionTimeoutError.
-        if (!transcript && lastFlowErr && !(lastFlowErr instanceof InjectionTimeoutError)) {
-          throw lastFlowErr;
-        }
-      }
+      // Choose the final transcript (snapshot-in-progress / recent-snapshot /
+      // fresh-capture / cached-fallback / retry). Extracted + unit-tested in
+      // constants.js; live getters so the cache read sees a snapshot that
+      // finished during the await.
+      let transcript = await selectTranscript({
+        getSnapshotPromise: () => geminiFlowPromise,
+        getCachedTranscript: () => cachedTranscript,
+        getCachedTranscriptAt: () => cachedTranscriptAt,
+        snapshotIntervalMs, meetingTitle,
+        runGeminiFlow, delay,
+        log: sendLog, status: showStatus,
+        warn: (message) => safeSend({ type: 'MM2C_WARNING', message, meetingTitle }),
+        now: Date.now,
+        GeminiNotActiveError, InjectionTimeoutError,
+      });
 
       // Optional review-before-send gate (RB-4b).
       if (shouldPreviewBeforeSend(previewBeforeSend, transcript)) {

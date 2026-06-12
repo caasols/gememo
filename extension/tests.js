@@ -2623,6 +2623,14 @@ window.MM2C_TESTS = (() => {
                      runGeminiFlow: async () => { throw new Error('boom'); } });
       assertEq('fresh-fail falls back to cache', await selectTranscript(t.deps), 'CACHED');
     }
+    // 4b. fresh fails + cache OLD (>15 min) → returns cache + a "stale" status warning.
+    {
+      const t = mk({ getCachedTranscript: () => 'OLDCACHE', getCachedTranscriptAt: () => NOW - 20 * 60_000,
+                     runGeminiFlow: async () => { throw new Error('boom'); } });
+      const out = await selectTranscript(t.deps);
+      assert('old cache (>15m) returns cache + warns', out === 'OLDCACHE'
+        && t.statuses.some(([m, l]) => l === 'warn' && /20 min old/.test(m)));
+    }
     // 5. no cache → fresh attempt + retry loop; succeeds on the 3rd total call.
     {
       let n = 0;
