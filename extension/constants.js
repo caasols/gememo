@@ -431,7 +431,7 @@ function buildMailtoUrl({ title = '', body = '', maxBody = 1500 } = {}) {
 // already-gathered facts. Keeping the formatting pure makes it unit-testable;
 // popup.js gathers the inputs (host ping, storage, manifest) and renders this.
 function buildDiagnosticsReport(info = {}) {
-  const alsoSend = Array.isArray(info.alsoSend) && info.alsoSend.length ? info.alsoSend.join(', ') : 'none';
+  const destCount = Array.isArray(info.destinations) ? info.destinations.length : 0;
   const perms = Array.isArray(info.permissions) && info.permissions.length ? info.permissions.join(', ') : 'none';
   const host = info.hostOk
     ? `ready (v${info.hostVersion || '?'})${info.hostMismatch ? ' — version mismatch' : ''}`
@@ -442,7 +442,7 @@ function buildDiagnosticsReport(info = {}) {
     `Extension ID: ${info.extensionId || '?'}`,
     `Native host: ${host}`,
     `Output app: ${info.outputApp || 'none'}`,
-    `Also send to: ${alsoSend}`,
+    `Extra destinations: ${destCount}`,
     `File backup: ${info.fileBackup ? 'on' : 'off'}`,
     `Permissions: ${perms}`,
     `Platform: ${info.platform || '?'}`,

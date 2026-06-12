@@ -1410,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.textContent = 'Running…';
     chrome.runtime.sendMessage({ type: 'MM2C_CHECK_HOST' }, (hostResp) => {
       chrome.storage.local.get(
-        ['mm2c_output_app', 'mm2c_file_backup_enabled'],
+        ['mm2c_output_app', 'mm2c_file_backup_enabled', 'mm2c_destinations'],
         (s) => {
           const report = buildDiagnosticsReport({
             version:       chrome.runtime.getManifest().version,
@@ -1419,7 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hostVersion:   hostResp?.hostVersion,
             hostMismatch:  hostResp?.versionMismatch === true,
             outputApp:     s.mm2c_output_app || 'craft',
-            alsoSend:      [],
+            destinations:  Array.isArray(s.mm2c_destinations) ? s.mm2c_destinations : [],
             fileBackup:    s.mm2c_file_backup_enabled === true,
             permissions:  (chrome.runtime.getManifest().permissions || []),
             platform:      navigator.userAgent,

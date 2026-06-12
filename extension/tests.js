@@ -2084,17 +2084,17 @@ window.MM2C_TESTS = (() => {
     console.group('buildDiagnosticsReport (RB-7b)');
     const r = buildDiagnosticsReport({
       version: '0.1.130', extensionId: 'abc', hostOk: true, hostVersion: '0.1.130',
-      outputApp: 'obsidian', alsoSend: ['craft'], fileBackup: true,
+      outputApp: 'obsidian', destinations: [{ type: 'craft' }, { type: 'apple_notes' }], fileBackup: true,
       permissions: ['storage', 'tabs'], platform: 'Mac', generatedAt: '2026-06-05',
     });
     assert('includes version', r.includes('Version: 0.1.130'));
     assert('host ready with version', /Native host: ready \(v0\.1\.130\)/.test(r));
     assert('output app shown', r.includes('Output app: obsidian'));
-    assert('also-send shown', r.includes('Also send to: craft'));
+    assert('extra destinations count shown', r.includes('Extra destinations: 2'));
     assert('permissions joined', r.includes('Permissions: storage, tabs'));
     const r2 = buildDiagnosticsReport({ hostOk: false, hostMismatch: false });
     assert('host not found path', r2.includes('Native host: not found'));
-    assert('empty also-send → none', r2.includes('Also send to: none'));
+    assert('no destinations → 0', r2.includes('Extra destinations: 0'));
     console.groupEnd();
   }
 

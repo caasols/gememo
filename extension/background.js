@@ -188,9 +188,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           'mm2c_destinations', 'mm2c_beta_enabled',
           'mm2c_gdocs_enabled',
         ], (data) => {
-          // UXF-11 — only thread the additional-destinations repeater into the
-          // host payload when experimental is on. Double-guarded: beta OFF ⇒ []
-          // ⇒ no-op host-side, so stale data can never change behavior.
+          // betaOn now only gates Google Docs output (5.7); the additional-
+          // destinations repeater is threaded unconditionally (it's production).
           const betaOn = !!data.mm2c_beta_enabled;
           forwardToNativeHost(msg.text, {
             // P9-H private pass overrides the destination; primary uses output_app.
