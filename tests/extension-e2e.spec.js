@@ -1086,6 +1086,24 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Google Docs Disconnect saves gdocs off + unchecks the toggle (B6)', async () => {
+      const page = await popupWith({ mm2c_beta_enabled: true, mm2c_gdocs_enabled: true }, {
+        gdocs_status: { connected: true, available: true, email: 'me@x' },
+        gcal_status: { connected: false, available: false },
+        gdocs_disconnect: { ok: true },
+        ping: { status: 'ok' },
+        __default: { status: 'ok' },
+      });
+      await page.click('#tab-beta');
+      await expect(page.locator('#gdocs-connect')).toHaveText('Disconnect'); // render set it
+      await page.click('#gdocs-connect');                                    // → disconnect path
+      await expect
+        .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_gdocs_enabled'])).mm2c_gdocs_enabled)
+        .toBe(false);
+      await expect(page.locator('#gdocs-enabled')).not.toBeChecked();
+      await page.close();
+    });
+
     test('popup self-heals duplicate/primary destinations on load', async () => {
       const page = await popupWith({
         mm2c_output_app: 'craft',
