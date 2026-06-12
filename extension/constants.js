@@ -208,6 +208,29 @@ function mergeAlsoSendIntoDestinations(destinations, alsoSend) {
   return out;
 }
 
+// Pure helper — keep at most one row per app and drop any row whose app is the
+// primary output (or a non-destination like 'none'/''). Keeps the FIRST occurrence
+// of each app and its config. Tolerates non-arrays / malformed entries.
+function dedupeDestinations(destinations, primaryApp) {
+  const seen = new Set([primaryApp, 'none', '']);
+  const out = [];
+  for (const d of (Array.isArray(destinations) ? destinations : [])) {
+    if (!d || typeof d !== 'object' || !d.type || seen.has(d.type)) continue;
+    seen.add(d.type);
+    out.push(d);
+  }
+  return out;
+}
+
+// Pure helper — the destination apps a given repeater row may choose: all types,
+// minus the primary, minus the types used by OTHER rows. The row's own current
+// type is always included so its <select> can display it. Pass currentType=null
+// to get the apps still addable as a brand-new row.
+function availableDestTypes(allTypes, primaryApp, usedTypes, currentType) {
+  const taken = new Set([primaryApp, ...(Array.isArray(usedTypes) ? usedTypes : []).filter(t => t !== currentType)]);
+  return (Array.isArray(allTypes) ? allTypes : []).filter(t => t === currentType || !taken.has(t));
+}
+
 // Pure helper — split a comma-separated alias string into a clean list (UXF-7).
 function parseAliases(str) {
   return String(str || '').split(',').map(s => s.trim()).filter(Boolean);
