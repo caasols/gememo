@@ -222,6 +222,34 @@ function dedupeDestinations(destinations, primaryApp) {
   return out;
 }
 
+// Pure helper — the storage-derived half of the forwardToNativeHost options,
+// shared by the capture (MM2C_RESPONSE) and recover (MM2C_RECOVER) handlers so a
+// new setting is wired in ONE place (prevents the two from silently drifting).
+function buildForwardConfig(data) {
+  const betaOn = !!data.mm2c_beta_enabled;
+  return {
+    craftFolderId: data.mm2c_craft_folder_id || '',
+    craftSpaceId: data.mm2c_craft_space_id || '',
+    obsidianVaultPath: data.mm2c_obsidian_vault_path || '',
+    webhookUrl: data.mm2c_webhook_url || '',
+    slackWebhookUrl: data.mm2c_slack_webhook_url || '',
+    redactPii: data.mm2c_redact_pii === true,
+    redactKeywords: data.mm2c_redact_keywords || '',
+    emitIcs: data.mm2c_emit_ics === true,
+    wikilinks: data.mm2c_wikilinks === true,
+    calendarEnabled: data.mm2c_calendar_enabled === true,
+    fileBackupEnabled: data.mm2c_file_backup_enabled === true,
+    fileBackupType: data.mm2c_file_backup_type || 'markdown',
+    fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
+    backupCleanup: {
+      snapshots: { enabled: data.mm2c_cleanup_snap_enabled === true, days: data.mm2c_cleanup_snap_days || 30 },
+      finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 30 },
+    },
+    destinations: dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
+    googleDocsOutput: betaOn ? (data.mm2c_gdocs_enabled === true) : false,
+  };
+}
+
 // Pure helper — the destination apps a given repeater row may choose: all types,
 // minus the primary, minus the types used by OTHER rows. The row's own current
 // type is always included so its <select> can display it. Pass currentType=null
