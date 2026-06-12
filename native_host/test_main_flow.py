@@ -38,11 +38,14 @@ class TestMainCaptureFlow(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as cache_tmp, \
                 patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
+                patch.object(host, 'HEARTBEAT_FILE', Path(cache_tmp) / "host_heartbeat.log"), \
                 patch.object(host, 'read_message', return_value=msg), \
                 patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
                 patch.object(host, 'notify'), \
                 patch.object(host.subprocess, 'run', side_effect=fake_run):
             host.main()
+            hb = Path(cache_tmp) / "host_heartbeat.log"
+            self._last_heartbeat = hb.read_text(encoding="utf-8") if hb.exists() else ""
         return sent
 
     def _capture_msg(self, tmp, **over):
@@ -77,6 +80,21 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertIn('title: "Q3 Planning"', content)   # frontmatter present
             self.assertIn("duration_min: 30", content)
             self.assertIn("We shipped it.", content)
+
+    def test_heartbeat_records_capture_stages(self):
+        """A successful Craft capture writes the ordered stage trail ending in
+        'replied status=ok' (BUG-9 Layer 0)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            sent = self._run(self._capture_msg(tmp), _proc(0))
+        self.assertEqual(sent[-1]["status"], "ok")
+        # Each line is "{iso} pid={pid} {stage…}" — keep the stage portion.
+        stages = [ln.split(" ", 2)[2] for ln in self._last_heartbeat.strip().splitlines()]
+        for expected in ["start", "parsed", "backup_written",
+                         "craft_push_start", "craft_push_done", "replied"]:
+            self.assertTrue(any(s.startswith(expected) for s in stages),
+                            f"missing stage {expected!r} in {stages}")
+        self.assertTrue(stages[-1].startswith("replied status=ok"),
+                        f"last stage should be replied status=ok: {stages}")
 
     def test_recover_uses_freshest_snapshot(self):
         """recover:true → main() files the longer on-disk snapshot, not the
