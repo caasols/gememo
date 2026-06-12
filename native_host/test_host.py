@@ -22,7 +22,7 @@ import types
 from unittest.mock import patch
 
 import meeting_minutes_host as host
-from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback, search_notes, resolve_extras
+from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback, search_notes
 
 
 class _BytesStream:
@@ -344,65 +344,6 @@ class TestHandleRetry(unittest.TestCase):
             self.assertIn("space-9", cmd)
             self.assertIn("--folder-id", cmd)
             self.assertIn("folder-7", cmd)
-
-
-class TestSendToExtras(unittest.TestCase):
-    """send_to_extras — best-effort secondary outputs (P9-X)."""
-
-    def _dt(self):
-        from datetime import datetime
-        return datetime(2026, 6, 1, 9, 0)
-
-    def test_obsidian_extra_writes_vault_file(self):
-        with tempfile.TemporaryDirectory() as vault:
-            host.send_to_extras(['obsidian'], '## Summary\nx', 'T', self._dt(), 'Standup',
-                                obsidian_vault_path=vault)
-            self.assertEqual(len(list(Path(vault).glob('*.md'))), 1)
-
-    def test_apple_notes_extra_calls_push(self):
-        calls = []
-        with patch.object(host, 'push_to_apple_notes', side_effect=lambda t, h: calls.append(t)), \
-                patch.object(host, 'notify'):
-            host.send_to_extras(['apple_notes'], '## Summary\nx', 'T', self._dt(), 'T')
-        self.assertEqual(len(calls), 1)
-
-    def test_craft_extra_runs_push_subprocess(self):
-        calls = []
-        with tempfile.TemporaryDirectory() as cache_tmp, \
-                patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
-                patch.object(host.subprocess, 'run', side_effect=lambda cmd, **k: calls.append(cmd)):
-            host.send_to_extras(['craft'], '## Summary\nx', 'My Note', self._dt(), 'My Note',
-                                craft_folder_id='folder-9')
-        self.assertEqual(len(calls), 1)
-        self.assertIn('--folder-id', calls[0])
-
-    def test_failing_extra_is_swallowed(self):
-        with patch.object(host, 'push_to_apple_notes', side_effect=RuntimeError('boom')), \
-                patch.object(host, 'notify'):
-            host.send_to_extras(['apple_notes'], 'x', 'T', self._dt(), 'T')  # must not raise
-
-    def test_obsidian_extra_without_vault_writes_nothing(self):
-        # obsidian extra with no vault path is a no-op (not an error)
-        host.send_to_extras(['obsidian'], 'x', 'T', self._dt(), 'T', obsidian_vault_path='')
-
-    def test_unknown_extra_ignored(self):
-        host.send_to_extras(['bogus'], 'x', 'T', self._dt(), 'T')  # must not raise
-
-
-class TestResolveExtras(unittest.TestCase):
-    """resolve_extras — secondary output destinations for multi-destination (P9-X)."""
-
-    def test_excludes_primary_and_dedupes(self):
-        self.assertEqual(resolve_extras('craft', ['apple_notes', 'obsidian']), ['apple_notes', 'obsidian'])
-        self.assertEqual(resolve_extras('craft', ['craft', 'apple_notes']), ['apple_notes'])
-        self.assertEqual(resolve_extras('craft', ['apple_notes', 'apple_notes']), ['apple_notes'])
-
-    def test_excludes_none_and_empty(self):
-        self.assertEqual(resolve_extras('craft', ['none', '', 'obsidian']), ['obsidian'])
-
-    def test_empty_inputs(self):
-        self.assertEqual(resolve_extras('craft', None), [])
-        self.assertEqual(resolve_extras('apple_notes', ['apple_notes']), [])
 
 
 class TestPureEdges(unittest.TestCase):

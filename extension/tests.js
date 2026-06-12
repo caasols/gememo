@@ -1212,8 +1212,9 @@ window.MM2C_TESTS = (() => {
     assertEq('normalizeDestinations: falsy entry / unknown type dropped',
       JSON.stringify(normalizeDestinations([null, { type: 'slack' }, { type: 'apple_notes' }])),
       JSON.stringify([{ type: 'apple_notes' }]));
-    assertEq('normalizeDestinations: blank obsidian vault dropped',
-      JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '   ' }])), '[]');
+    assertEq('normalizeDestinations: blank obsidian vault kept (falls back to global vault)',
+      JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '   ' }])),
+      JSON.stringify([{ type: 'obsidian', vaultPath: '' }]));
     assertEq('normalizeDestinations: obsidian vaultPath trimmed + extra props stripped',
       JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '  ~/Vault  ', junk: 1 }])),
       JSON.stringify([{ type: 'obsidian', vaultPath: '~/Vault' }]));
@@ -1231,6 +1232,23 @@ window.MM2C_TESTS = (() => {
         { type: 'obsidian', vaultPath: '/a' },
         { type: 'apple_notes' },
       ]));
+
+    // mergeAlsoSendIntoDestinations — fold legacy also-send app names into rows.
+    assertEq('merge: also-send app becomes a blank-config row',
+      JSON.stringify(mergeAlsoSendIntoDestinations([], ['apple_notes'])),
+      JSON.stringify([{ type: 'apple_notes' }]));
+    assertEq('merge: preserves configured rows + appends also-send',
+      JSON.stringify(mergeAlsoSendIntoDestinations(
+        [{ type: 'obsidian', vaultPath: '/v' }], ['craft'])),
+      JSON.stringify([{ type: 'obsidian', vaultPath: '/v' }, { type: 'craft' }]));
+    assertEq('merge: idempotent — no duplicate blank row when one exists',
+      JSON.stringify(mergeAlsoSendIntoDestinations([{ type: 'apple_notes' }], ['apple_notes'])),
+      JSON.stringify([{ type: 'apple_notes' }]));
+    assertEq('merge: still appends when only a CONFIGURED row of that app exists',
+      JSON.stringify(mergeAlsoSendIntoDestinations([{ type: 'craft', folderId: 'X' }], ['craft'])),
+      JSON.stringify([{ type: 'craft', folderId: 'X' }, { type: 'craft' }]));
+    assertEq('merge: tolerates non-arrays',
+      JSON.stringify(mergeAlsoSendIntoDestinations(null, null)), '[]');
 
     // P5-L · findPromptRule returns the matched rule; depthInstruction maps depth → text
     const depthRules = [{ regex: 'standup', prompt: 'p', depth: 'brief' }];
@@ -2066,17 +2084,17 @@ window.MM2C_TESTS = (() => {
     console.group('buildDiagnosticsReport (RB-7b)');
     const r = buildDiagnosticsReport({
       version: '0.1.130', extensionId: 'abc', hostOk: true, hostVersion: '0.1.130',
-      outputApp: 'obsidian', alsoSend: ['craft'], fileBackup: true,
+      outputApp: 'obsidian', destinations: [{ type: 'craft' }, { type: 'apple_notes' }], fileBackup: true,
       permissions: ['storage', 'tabs'], platform: 'Mac', generatedAt: '2026-06-05',
     });
     assert('includes version', r.includes('Version: 0.1.130'));
     assert('host ready with version', /Native host: ready \(v0\.1\.130\)/.test(r));
     assert('output app shown', r.includes('Output app: obsidian'));
-    assert('also-send shown', r.includes('Also send to: craft'));
+    assert('extra destinations count shown', r.includes('Extra destinations: 2'));
     assert('permissions joined', r.includes('Permissions: storage, tabs'));
     const r2 = buildDiagnosticsReport({ hostOk: false, hostMismatch: false });
     assert('host not found path', r2.includes('Native host: not found'));
-    assert('empty also-send → none', r2.includes('Also send to: none'));
+    assert('no destinations → 0', r2.includes('Extra destinations: 0'));
     console.groupEnd();
   }
 

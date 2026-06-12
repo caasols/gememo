@@ -94,45 +94,32 @@ test.describe('extension E2E harness', () => {
       }).toEqual({ notes: 1, words: 5, mins: 25, status: true, note: 'one two three four five' });
     });
 
-    test('MM2C_RESPONSE forwards the destinations repeater when beta is ON (UXF-11)', async () => {
-      const dests = [
-        { type: 'obsidian', vaultPath: '/tmp/VaultA' },
-        { type: 'craft', folderId: 'folder-xyz' },
-        { type: 'apple_notes' },
-      ];
+    test('MM2C_RESPONSE forwards the destinations repeater regardless of beta state (UXF-11)', async () => {
+      const dests = [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }, { type: 'apple_notes' }];
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
-        mm2c_beta_enabled: true,
         mm2c_destinations: dests,
+        mm2c_beta_enabled: false, // beta OFF — must STILL thread (regression guard for the gating bug)
       });
-      const resp = await sendFromPage(popup, {
-        type: 'MM2C_RESPONSE',
-        text: 'beta on destinations payload',
-        meetingTitle: 'Beta On',
-      });
-      expect(resp.ok).toBe(true);
-      const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'beta on destinations payload');
-      expect(fwd).toBeTruthy();
-      expect(fwd.msg.destinations).toEqual(dests);
+      await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'destinations payload', meetingTitle: 'X' });
+      await expect.poll(async () => {
+        const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'destinations payload');
+        return fwd ? fwd.msg.destinations : null;
+      }).toEqual(dests);
     });
 
-    test('MM2C_RESPONSE sends destinations:[] when beta is OFF even with seeded data (UXF-11)', async () => {
+    test('MM2C_RESPONSE merges legacy also-send into the destinations payload', async () => {
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
-        mm2c_beta_enabled: false,
         mm2c_destinations: [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }],
+        mm2c_also_send: ['apple_notes'],
+        mm2c_beta_enabled: false,
       });
-      const resp = await sendFromPage(popup, {
-        type: 'MM2C_RESPONSE',
-        text: 'beta off destinations payload',
-        meetingTitle: 'Beta Off',
-      });
-      expect(resp.ok).toBe(true);
-      const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'beta off destinations payload');
-      expect(fwd).toBeTruthy();
-      expect(fwd.msg.destinations).toEqual([]);
+      await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'merge payload', meetingTitle: 'X' });
+      await expect.poll(async () => {
+        const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'merge payload');
+        return fwd ? fwd.msg.destinations : null;
+      }).toEqual([{ type: 'obsidian', vaultPath: '/tmp/VaultA' }, { type: 'apple_notes' }]);
     });
 
     test('MM2C_RESPONSE forwards googleDocsOutput:true when beta is ON (5.7)', async () => {
@@ -554,6 +541,21 @@ test.describe('extension E2E harness', () => {
       return page;
     }
 
+    test('popup migrates legacy also-send into mm2c_destinations and clears it', async () => {
+      const page = await popupWith({
+        mm2c_destinations: [{ type: 'craft', folderId: 'F1' }],
+        mm2c_also_send: ['apple_notes'],
+      });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_destinations', 'mm2c_also_send']);
+        return { dests: s.mm2c_destinations, also: s.mm2c_also_send };
+      }).toEqual({
+        dests: [{ type: 'craft', folderId: 'F1' }, { type: 'apple_notes' }],
+        also: undefined,
+      });
+      await page.close();
+    });
+
     test('About tab renders the impact stats', async () => {
       const page = await popupWith({
         mm2c_stats: { meetingsAttended: 4, notesSaved: 3, wordsCaptured: 1200, totalMeetingMinutes: 95 },
@@ -799,10 +801,9 @@ test.describe('extension E2E harness', () => {
       await expect(page.getByText('Wikilinks for graph apps')).not.toBeVisible();
       await expect(page.locator('#note-language')).not.toBeVisible();
       await expect(page.locator('#preview-before-send')).not.toBeVisible();
-      // Core Settings stay visible. "Also send to" + Additional destinations were
-      // promoted out of beta — visible regardless of the Experimental toggle.
+      // Core Settings stay visible. Additional destinations promoted out of beta —
+      // visible regardless of the Experimental toggle.
       await expect(page.locator('#output-app')).toBeVisible();
-      await expect(page.locator('.also-send')).toBeVisible();
       await expect(page.locator('#add-destination')).toBeVisible();
       await expect(page.getByText('Backup cleanup')).toBeVisible();
       // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
@@ -826,7 +827,6 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#redact-keywords')).toBeVisible();
       await expect(page.locator('#task-app')).toBeVisible();
       await expect(page.getByText('Wikilinks for graph apps')).toBeVisible();
-      await expect(page.locator('.also-send')).toBeVisible();
       await expect(page.locator('#note-language')).toBeVisible();
       await expect(page.getByText('Review notes before saving')).toBeVisible();
       await page.click('#tab-rules');
