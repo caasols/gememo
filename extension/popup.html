@@ -870,9 +870,13 @@
     .action-item .action-meta { color: var(--text-muted); font-size: 11px; }
     .action-item input:checked + .action-task { text-decoration: line-through; color: var(--text-muted); }
 
-    /* Also send to (P9-X) */
-    .also-send { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; font-size: 12px; }
-    .also-send label { display: inline-flex; align-items: center; gap: 3px; }
+    /* Additional-destinations repeater row — select + optional config + remove,
+       sized so the remove control never overflows the 340px popup. */
+    .dest-row { gap: 6px; }
+    .dest-row .dest-type { flex-shrink: 0; }
+    .dest-row .dest-config { flex: 1 1 auto; min-width: 0; }
+    .dest-row .dest-config.hidden { display: none; }
+    .dest-row .dest-remove { flex-shrink: 0; }
 
     /* Per-rule time condition (P5-L2) */
     .rule-condition {
@@ -1306,17 +1310,6 @@
         <p class="hint">Click the field to open a folder picker and select your Obsidian vault.</p>
       </div>
 
-      <!-- Also send to (P9-X multi-destination) — production -->
-      <div>
-        <div class="also-send">
-          <span class="label">Also send to</span>
-          <label><input type="checkbox" class="also-send-opt" value="craft"> Craft</label>
-          <label><input type="checkbox" class="also-send-opt" value="apple_notes"> Apple Notes</label>
-          <label><input type="checkbox" class="also-send-opt" value="obsidian"> Obsidian</label>
-        </div>
-        <p class="hint">Each note also goes to the apps checked here, in addition to your primary output app above.</p>
-      </div>
-
       <!-- Wikilinks for graph apps — beta-gated -->
       <div class="beta">
         <div class="row" style="margin-top:8px">
@@ -1334,7 +1327,7 @@
          directly below Output app since both control where notes are sent. -->
     <div class="widget">
       <div class="widget-title">Additional destinations</div>
-      <p class="hint">Send each note to extra destinations, each with its own config. Adds to — never replaces — your primary output and "Also send to".</p>
+      <p class="hint">Send each captured note to extra apps. Leave the folder/vault blank to use your default for that app. Adds to — never replaces — your primary output.</p>
       <div id="destinations-list" aria-label="Additional destinations"></div>
       <div class="row">
         <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>

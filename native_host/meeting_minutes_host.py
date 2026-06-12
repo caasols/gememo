@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.14'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.15'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1016,52 +1016,12 @@ def route_output(
     return False  # 'craft' or unrecognised → caller handles
 
 
-def resolve_extras(primary: str, also_send) -> list:
-    """Ordered, de-duplicated secondary destinations, excluding the primary,
-    'none', and blanks (P9-X)."""
-    seen = {primary, 'none', ''}
-    out = []
-    for d in (also_send or []):
-        if d and d not in seen:
-            seen.add(d)
-            out.append(d)
-    return out
-
-
-def send_to_extras(extras, craft_md, title, dt, label,
-                   obsidian_vault_path: str = '', craft_folder_id: str = '') -> None:
-    """Write the note to each secondary destination, best-effort (P9-X).
-    Never raises — a failed extra must not affect the primary capture result."""
-    for dest in extras:
-        try:
-            if dest == 'apple_notes':
-                push_to_apple_notes(title, body_to_html(craft_md))
-                notify("Meeting Notes → Apple Notes", title)
-            elif dest == 'obsidian' and obsidian_vault_path:
-                vault = Path(obsidian_vault_path).expanduser()
-                vault.mkdir(parents=True, exist_ok=True)
-                slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
-                (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
-                    build_yaml_frontmatter(label, dt) + craft_md, encoding='utf-8')
-            elif dest == 'craft':
-                CACHE_DIR.mkdir(parents=True, exist_ok=True)
-                safe = re.sub(r'[^\w\s\-]', '', title)[:80].strip() or dt.strftime('%Y%m%d')
-                cf = CACHE_DIR / f"{safe}.md"
-                cf.write_text(craft_md, encoding='utf-8')
-                cmd = [sys.executable, str(PUSH_PY), "--title", title, "--content-file", str(cf), "--background"]
-                if craft_folder_id:
-                    cmd += ["--folder-id", craft_folder_id]
-                subprocess.run(cmd, capture_output=True, text=True, timeout=45)
-        except Exception:
-            pass  # best-effort secondary output
-
-
-def send_to_configured_destinations(destinations, craft_md, title, dt, label) -> None:
-    """Write the note to each "Additional destinations" repeater row (UXF-11),
-    using that row's OWN per-instance config (vault path / craft folder id) rather
-    than the legacy global singletons. Best-effort per entry — a failing row never
-    raises and never affects the primary capture or the other rows. Empty/None/
-    missing → no-op; unknown type or obsidian-without-vaultPath → skip."""
+def send_to_destinations(destinations, craft_md, title, dt, label,
+                         obsidian_vault_path: str = '', craft_folder_id: str = '') -> None:
+    """Fan out the note to each extra destination row (the unified repeater),
+    best-effort. Per-row config falls back to the passed-in global default when
+    blank, so a blank row behaves like the legacy 'also send to' checkbox.
+    Never raises — a failing row never affects the primary capture or other rows."""
     for entry in (destinations or []):
         try:
             if not isinstance(entry, dict):
@@ -1071,9 +1031,9 @@ def send_to_configured_destinations(destinations, craft_md, title, dt, label) ->
                 push_to_apple_notes(title, body_to_html(craft_md))
                 notify("Meeting Notes → Apple Notes", title)
             elif dest == 'obsidian':
-                vault_path = str(entry.get('vaultPath') or '').strip()
+                vault_path = str(entry.get('vaultPath') or '').strip() or obsidian_vault_path
                 if not vault_path:
-                    continue  # no target vault → skip this row
+                    continue  # no target vault (row blank AND no global) → skip
                 vault = Path(vault_path).expanduser()
                 vault.mkdir(parents=True, exist_ok=True)
                 slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
@@ -1085,7 +1045,7 @@ def send_to_configured_destinations(destinations, craft_md, title, dt, label) ->
                 cf = CACHE_DIR / f"{safe}.md"
                 cf.write_text(craft_md, encoding='utf-8')
                 cmd = [sys.executable, str(PUSH_PY), "--title", title, "--content-file", str(cf), "--background"]
-                folder_id = str(entry.get('folderId') or '').strip()
+                folder_id = str(entry.get('folderId') or '').strip() or craft_folder_id
                 if folder_id:
                     cmd += ["--folder-id", folder_id]
                 subprocess.run(cmd, capture_output=True, text=True, timeout=45)
@@ -1338,23 +1298,13 @@ def main() -> None:
 
     back_type = msg.get("backupType", "craft")
 
-    # Multi-destination (P9-X) — write to any "also send to" extras best-effort
-    # before the primary output drives the response.
-    extras = resolve_extras(back_type, msg.get("alsoSend"))
-    if extras:
-        send_to_extras(extras, craft_md, title, dt, label,
-                       obsidian_vault_path=msg.get("obsidianVaultPath", ""),
-                       craft_folder_id=msg.get("craftFolderId", "").strip())
-
-    # Per-row "Additional destinations" repeater (UXF-11) — additive, independent
-    # of the also-send path. Each row carries its own config. Background only
-    # threads this when beta is on, so OFF ⇒ [] ⇒ no-op here. Best-effort.
-    destinations = msg.get("destinations")
-    if destinations:
-        try:
-            send_to_configured_destinations(destinations, craft_md, title, dt, label)
-        except Exception:
-            pass
+    # Unified extra destinations — fan out a copy of the note to each row, with
+    # per-row config falling back to the global default when blank. Best-effort.
+    send_to_destinations(
+        msg.get("destinations"), craft_md, title, dt, label,
+        obsidian_vault_path=msg.get("obsidianVaultPath", ""),
+        craft_folder_id=msg.get("craftFolderId", "").strip(),
+    )
 
     # Google Docs output (5.7) — best-effort, never blocks capture. Beta-gated:
     # background only sets googleDocsOutput when experimental is on, so OFF ⇒

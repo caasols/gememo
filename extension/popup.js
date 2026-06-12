@@ -31,7 +31,6 @@ const GLOBAL_KEYS = [
   'mm2c_webhook_url',
   'mm2c_slack_webhook_url',
   'mm2c_stats',
-  'mm2c_also_send',
   'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_blocklist',
   'mm2c_emit_ics',
   'mm2c_glossary',
@@ -114,28 +113,12 @@ function resolveMeetTab(meetTabs, activeTab) {
 // `live` (optional) carries fresh { inMeeting, geminiActive } from a
 // MM2C_STATUS_QUERY so applyState can own the banner without a second writer.
 function loadAndApplyState(tabId, live = null) {
-  const keys = [...GLOBAL_KEYS, ...tabScopedKeys(tabId)];
+  // Include mm2c_also_send for one-time migration in applyState (not a GLOBAL_KEY).
+  const keys = [...GLOBAL_KEYS, 'mm2c_also_send', ...tabScopedKeys(tabId)];
   chrome.storage.local.get(keys, s => applyState(s, tabId, live));
 }
 
 const $ = id => document.getElementById(id);
-
-// Hide the "Also send to" option that matches the current primary output app
-// and uncheck it if it was selected (UXF-11) — a destination must never appear
-// as both primary and also-send.
-function syncAlsoSend(primaryApp) {
-  let changed = false;
-  document.querySelectorAll('.also-send-opt').forEach(cb => {
-    const isPrimary = cb.value === primaryApp;
-    const label = cb.closest('label');
-    if (label) label.classList.toggle('hidden', isPrimary);
-    if (isPrimary && cb.checked) { cb.checked = false; changed = true; }
-  });
-  if (changed) {
-    const selected = [...document.querySelectorAll('.also-send-opt:checked')].map(c => c.value);
-    chrome.storage.local.set({ mm2c_also_send: selected });
-  }
-}
 
 function escapeHtml(str) {
   return String(str)
@@ -457,7 +440,14 @@ function applyState(s, tabId, live = null) {
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
   $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 30;
-  renderDestinations(s.mm2c_destinations); // UXF-11 additional-destinations repeater
+  // Unified destinations: fold any legacy "Also send to" apps into the repeater
+  // (a blank-config row == an also-send checkbox), persist once, then render.
+  const _mergedDests = mergeAlsoSendIntoDestinations(s.mm2c_destinations, s.mm2c_also_send);
+  if (Array.isArray(s.mm2c_also_send) && s.mm2c_also_send.length) {
+    save({ mm2c_destinations: normalizeDestinations(_mergedDests) });
+    chrome.storage.local.remove('mm2c_also_send');
+  }
+  renderDestinations(_mergedDests);
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -465,10 +455,6 @@ function applyState(s, tabId, live = null) {
   // the user on a now-hidden tab (UXF-14).
   if (!betaOn && $('tab-beta').classList.contains('active')) switchTab('settings');
   applyTheme(s.mm2c_theme);
-  const alsoSend = Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [];
-  document.querySelectorAll('.also-send-opt').forEach(cb => { cb.checked = alsoSend.includes(cb.value); });
-  syncAlsoSend(outputApp);
-
   const fileBackupOn = s.mm2c_file_backup_enabled === true;
   $('file-backup-enabled').checked = fileBackupOn;
   $('file-backup-sub').classList.toggle('hidden', !fileBackupOn);
@@ -597,8 +583,9 @@ function buildDestinationRow(entry = {}) {
   config.className = 'dest-config ltr';
 
   const removeBtn = document.createElement('button');
-  removeBtn.className = 'btn dest-remove';
-  removeBtn.textContent = 'Remove';
+  removeBtn.className = 'btn-rule-action danger dest-remove';
+  removeBtn.textContent = '✕';
+  removeBtn.title = 'Remove destination';
   removeBtn.setAttribute('aria-label', 'Remove destination');
 
   row.appendChild(select);
@@ -624,12 +611,12 @@ function applyDestRowType(row, type, entry = {}) {
   const config = row.querySelector('.dest-config');
   if (type === 'obsidian') {
     config.classList.remove('hidden');
-    config.placeholder = 'Vault folder path (e.g. ~/Obsidian/Meetings)';
+    config.placeholder = 'Obsidian vault — optional (uses your vault if blank)';
     config.setAttribute('aria-label', 'Obsidian vault folder path');
     config.value = entry.vaultPath || '';
   } else if (type === 'craft') {
     config.classList.remove('hidden');
-    config.placeholder = 'Craft folder ID (optional)';
+    config.placeholder = 'Craft folder — optional';
     config.setAttribute('aria-label', 'Craft folder ID');
     config.value = entry.folderId || '';
   } else { // apple_notes — no extra config
@@ -936,7 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // did get(snapKey) here AND a second get of an overlapping key set inside
       // loadAndApplyState. Now one get renders the snapshot widget and applies
       // state. Banner + capture button stay owned solely by applyState (BUG-C).
-      chrome.storage.local.get([...GLOBAL_KEYS, ...tabScopedKeys(tabId)], (s) => {
+      chrome.storage.local.get([...GLOBAL_KEYS, 'mm2c_also_send', ...tabScopedKeys(tabId)], (s) => {
         renderSnapshotWidget(s[tabKey('mm2c_last_snapshot', tabId)] || null);
         const nextEl = $('snapshot-next');
         if (nextEl) {
@@ -1115,7 +1102,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const app = e.target.value;
     $('craft-sub-options').classList.toggle('hidden', app !== 'craft');
     $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
-    syncAlsoSend(app); // never offer the primary as an also-send target (UXF-11)
     save({ mm2c_output_app: app });
     renderSetupWizard(lastHostOk); // checking off the "choose output app" step (RB-7a)
   });
@@ -1239,13 +1225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const theme = normalizeTheme(btn.dataset.themeValue);
     applyTheme(theme);
     save({ mm2c_theme: theme });
-  });
-
-  document.querySelectorAll('.also-send-opt').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const selected = [...document.querySelectorAll('.also-send-opt:checked')].map(c => c.value);
-      save({ mm2c_also_send: selected });
-    });
   });
 
   $('reset-prompt').addEventListener('click', () => {
@@ -1431,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.textContent = 'Running…';
     chrome.runtime.sendMessage({ type: 'MM2C_CHECK_HOST' }, (hostResp) => {
       chrome.storage.local.get(
-        ['mm2c_output_app', 'mm2c_also_send', 'mm2c_file_backup_enabled'],
+        ['mm2c_output_app', 'mm2c_file_backup_enabled', 'mm2c_destinations'],
         (s) => {
           const report = buildDiagnosticsReport({
             version:       chrome.runtime.getManifest().version,
@@ -1440,7 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hostVersion:   hostResp?.hostVersion,
             hostMismatch:  hostResp?.versionMismatch === true,
             outputApp:     s.mm2c_output_app || 'craft',
-            alsoSend:      Array.isArray(s.mm2c_also_send) ? s.mm2c_also_send : [],
+            destinations:  Array.isArray(s.mm2c_destinations) ? s.mm2c_destinations : [],
             fileBackup:    s.mm2c_file_backup_enabled === true,
             permissions:  (chrome.runtime.getManifest().permissions || []),
             platform:      navigator.userAgent,
