@@ -62,6 +62,18 @@ function flushLogs() {
 
 const DEDUP_WINDOW_MS = 40 * 60 * 1000; // 40-minute same-meeting window
 
+// The storage keys both the capture and recover handlers read to build the
+// forward payload (see buildForwardConfig). Defined once so they can't drift.
+const FORWARD_KEYS = [
+  'mm2c_output_app', 'mm2c_craft_folder_id', 'mm2c_craft_space_id', 'mm2c_obsidian_vault_path',
+  'mm2c_webhook_url', 'mm2c_slack_webhook_url', 'mm2c_redact_pii', 'mm2c_redact_keywords',
+  'mm2c_emit_ics', 'mm2c_wikilinks', 'mm2c_calendar_enabled',
+  'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
+  'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
+  'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
+  'mm2c_destinations', 'mm2c_also_send', 'mm2c_beta_enabled', 'mm2c_gdocs_enabled',
+];
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   switch (msg.type) {
 
@@ -170,58 +182,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const title = msg.meetingTitle || '';
       const tabId = _sender.tab?.id;   // ← ADD THIS LINE
       const doForward = (sr) => {
-        chrome.storage.local.get([
-          'mm2c_output_app',
-          'mm2c_craft_folder_id',
-          'mm2c_craft_space_id',
-          'mm2c_obsidian_vault_path',
-          'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
-          'mm2c_webhook_url',
-          'mm2c_slack_webhook_url',
-          'mm2c_also_send',
-          'mm2c_redact_pii', 'mm2c_redact_keywords',
-          'mm2c_emit_ics',
-          'mm2c_wikilinks',
-          'mm2c_calendar_enabled',
-          'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
-          'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
-          'mm2c_destinations', 'mm2c_beta_enabled',
-          'mm2c_gdocs_enabled',
-        ], (data) => {
-          // betaOn now only gates Google Docs output (5.7); the additional-
-          // destinations repeater is threaded unconditionally (it's production).
-          const betaOn = !!data.mm2c_beta_enabled;
+        chrome.storage.local.get(FORWARD_KEYS, (data) => {
           forwardToNativeHost(msg.text, {
+            ...buildForwardConfig(data),
             // P9-H private pass overrides the destination; primary uses output_app.
-            backupType:          msg.privateApp || data.mm2c_output_app || 'none',
-            meetingTitle:        title,
-            craftFolderId:       data.mm2c_craft_folder_id       || '',
-            craftSpaceId:        data.mm2c_craft_space_id        || '',
-            obsidianVaultPath:   data.mm2c_obsidian_vault_path   || '',
-            attendees:           Array.isArray(msg.attendees) ? msg.attendees : [],
-            durationMin:         msg.durationMin ?? null,
-            meetingCode:         msg.meetingCode || '',
-            meetingType:         msg.meetingType || '',
-            titleTemplate:       msg.titleTemplate || '',
-            recording:           msg.recording === true,
-            webhookUrl:          data.mm2c_webhook_url || '',
-            slackWebhookUrl:     data.mm2c_slack_webhook_url || '',
-            redactPii:           data.mm2c_redact_pii === true,
-            redactKeywords:      data.mm2c_redact_keywords || '',
-            emitIcs:             data.mm2c_emit_ics === true,
-            wikilinks:           data.mm2c_wikilinks === true,
-            calendarEnabled:     data.mm2c_calendar_enabled === true,
-            fileBackupEnabled:   data.mm2c_file_backup_enabled === true,
-            fileBackupType:      data.mm2c_file_backup_type      || 'markdown',
-            fileBackupPath:      data.mm2c_file_backup_path      || '~/Downloads/meeting-notes',
-            backupCleanup: {
-              snapshots: { enabled: data.mm2c_cleanup_snap_enabled === true, days: data.mm2c_cleanup_snap_days || 30 },
-              finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 30 },
-            },
-            destinations: dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
-            // 5.7 — Google Docs output. Beta-gated + double-guarded: OFF ⇒ false
-            // ⇒ host no-op, so stale data can never change behavior.
-            googleDocsOutput: betaOn ? (data.mm2c_gdocs_enabled === true) : false,
+            backupType:    msg.privateApp || data.mm2c_output_app || 'none',
+            meetingTitle:  title,
+            attendees:     Array.isArray(msg.attendees) ? msg.attendees : [],
+            durationMin:   msg.durationMin ?? null,
+            meetingCode:   msg.meetingCode || '',
+            meetingType:   msg.meetingType || '',
+            titleTemplate: msg.titleTemplate || '',
+            recording:     msg.recording === true,
             tabId,
           }, sr);
         });
@@ -304,33 +276,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case 'MM2C_RECOVER':
       // Re-send a note that was persisted in-flight but never confirmed (RB-1d).
-      chrome.storage.local.get([
-        'mm2c_inflight',
-        'mm2c_output_app', 'mm2c_craft_folder_id', 'mm2c_craft_space_id', 'mm2c_obsidian_vault_path',
-        'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
-        'mm2c_webhook_url', 'mm2c_slack_webhook_url', 'mm2c_also_send', 'mm2c_destinations',
-        'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_emit_ics', 'mm2c_wikilinks',
-      ], (data) => {
+      chrome.storage.local.get(['mm2c_inflight', ...FORWARD_KEYS], (data) => {
         const note = data.mm2c_inflight;
         if (!note?.text) { sendResponse({ ok: false, error: 'nothing to recover' }); return; }
         forwardToNativeHost(note.text, {
-          backupType:        data.mm2c_output_app || 'none',
-          meetingTitle:      note.title || '',
-          craftFolderId:     data.mm2c_craft_folder_id || '',
-          craftSpaceId:      data.mm2c_craft_space_id || '',
-          obsidianVaultPath: data.mm2c_obsidian_vault_path || '',
+          ...buildForwardConfig(data),
+          backupType:   data.mm2c_output_app || 'none',
+          meetingTitle: note.title || '',
           attendees: [], durationMin: note.durationMin ?? null, meetingCode: '', meetingType: '', titleTemplate: '', recording: false,
-          webhookUrl:        data.mm2c_webhook_url || '',
-          slackWebhookUrl:   data.mm2c_slack_webhook_url || '',
-          destinations:      dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
-          redactPii:         data.mm2c_redact_pii === true,
-          redactKeywords:    data.mm2c_redact_keywords || '',
-          emitIcs:           data.mm2c_emit_ics === true,
-          wikilinks:         data.mm2c_wikilinks === true,
-          fileBackupEnabled: data.mm2c_file_backup_enabled === true,
-          fileBackupType:    data.mm2c_file_backup_type || 'markdown',
-          fileBackupPath:    data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
-          recover:           true, // RB-1d — let the host pick the freshest copy
+          recover: true, // RB-1d — let the host pick the freshest copy
+          timestamp: note.at ? new Date(note.at).toISOString() : new Date().toISOString(),
           tabId: null,
         }, (r) => {
           if (r?.ok) chrome.storage.local.remove('mm2c_inflight');
@@ -516,10 +471,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, googleDocsOutput, recover, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, googleDocsOutput, recover, timestamp, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, googleDocsOutput, recover },
+    { transcript, timestamp: timestamp || new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, redactPii, redactKeywords, emitIcs, wikilinks, calendarEnabled, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, googleDocsOutput, recover },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;

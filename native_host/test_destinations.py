@@ -104,6 +104,15 @@ class TestSendToDestinations(unittest.TestCase):
                 [{'type': 'apple_notes'}, {'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
             self.assertEqual(pan.call_count, 2)
 
+    def test_obsidian_extra_includes_cal_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            host.send_to_destinations(
+                [{'type': 'obsidian', 'vaultPath': tmp}], CRAFT_MD, TITLE, DT, LABEL,
+                cal_fields={'organizer': 'https://example.com/evt'})
+            md = next(Path(tmp).glob('*.md')).read_text(encoding='utf-8')
+            self.assertIn('organizer', md)
+            self.assertIn('https://example.com/evt', md)
+
 
 if __name__ == '__main__':
     unittest.main()
