@@ -17,6 +17,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 - **Settings: moved "Additional destinations" directly below "Output app"** so all the "where do notes go" controls (primary app, Also send to, additional destinations) sit together.
 
 ### Fixed
+- **In-flight recovery now works after a failed send (BUG-9 Layer 1, RB-1d).** The recovery card never appeared because `content_meet.js` cleared the in-flight note on *failure* too — the very callback that saw the host-exit deleted the only recovery copy. Now the note is kept and stamped `failed`, so the card shows immediately (and the 60s grace still surfaces it if the service worker is killed mid-send with no callback at all). "Recover" re-sends the **most complete** copy: the host compares the in-flight text against the latest on-disk snapshot for that meeting and files whichever is longer. (Host change → re-run `install.sh`.)
 - **Rules tab: the "Default" rule name now matches the built-in template names** (bold, full-strength text) instead of the muted grey badge style — the shared `.rule-name` forced 11px/muted, so the always-on Default looked subordinate to Standup/1:1/Retro. Its `.rule-default` override now mirrors `.bi-name` (12px, `var(--text)`, 600).
 
 ---

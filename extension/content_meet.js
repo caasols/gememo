@@ -1148,9 +1148,9 @@
   // on a confirmed save (or handled error). cachedTranscript itself is RAM-only
   // and disk snapshots are raw transcripts, so this is the only durable copy of
   // the FORMATTED note.
-  function setInflightNote(title, text, durationMin) {
+  function setInflightNote(title, text, durationMin, failed = false) {
     if (!isContextValid()) return;
-    try { chrome.storage.local.set({ mm2c_inflight: { title: title || '', text: text || '', durationMin: durationMin ?? null, at: Date.now() } }); } catch {}
+    try { chrome.storage.local.set({ mm2c_inflight: { title: title || '', text: text || '', durationMin: durationMin ?? null, at: Date.now(), failed: failed === true } }); } catch {}
   }
   function clearInflightNote() {
     if (!isContextValid()) return;
@@ -1332,12 +1332,15 @@
             recording: meetingRecording,
           }, (response) => {
             clearTimeout(giveUp);
-            clearInflightNote(); // send completed (ok or handled error) — no longer stuck
             if (chrome.runtime.lastError || !response?.ok) {
               const err = chrome.runtime.lastError?.message || response?.error || 'unknown error';
+              // Keep the in-flight note (marked failed) so the RB-1d recovery card
+              // can re-send it — do NOT clear it on failure.
+              setInflightNote(meetingTitle, transcript, inflightDurationMin, true);
               sendLog(`Send failed: ${err}`, 'debug');
               showStatus(friendlyError(err), 'err');
             } else {
+              clearInflightNote(); // success — no longer stuck
               showStatus(`✓ Saved to ${outputAppName(currentOutputApp)}`, 'ok');
             }
             resolve();

@@ -852,6 +852,40 @@ def find_latest_snapshot(backup_path: Path, slug: str, file_ext: str) -> Path | 
     return snaps[-1] if snaps else None
 
 
+def _strip_frontmatter(content: str) -> str:
+    """Remove a leading YAML frontmatter block ('---' … '---') if present."""
+    if content.startswith("---"):
+        end = content.find("\n---", 3)
+        if end != -1:
+            nl = content.find("\n", end + 1)
+            return content[nl + 1:] if nl != -1 else ""
+    return content
+
+
+def pick_recovery_text(inflight_text: str, snapshot_text) -> str:
+    """RB-1d freshest-copy pick: return whichever recovery source is more complete
+    (greater stripped length). The in-flight text wins ties and is the fallback
+    when there's no snapshot."""
+    inflight = inflight_text or ""
+    snap = snapshot_text or ""
+    return snap if len(snap.strip()) > len(inflight.strip()) else inflight
+
+
+def _recover_freshest_text(inflight_text: str, msg: dict) -> str:
+    """Best-effort: pick the longer of the in-flight text and the latest on-disk
+    snapshot body for this meeting. Never raises — falls back to inflight_text."""
+    try:
+        label = (msg.get("meetingTitle") or "").strip() or "Meeting"
+        slug = re.sub(r'[^\w\-]', '', label.lower().replace(" ", "-"), flags=re.ASCII)[:50]
+        file_ext = ".txt" if msg.get("fileBackupType") == "txt" else ".md"
+        backup_path = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
+        snap = find_latest_snapshot(backup_path, slug, file_ext)
+        snap_text = _strip_frontmatter(snap.read_text(encoding="utf-8")) if snap else None
+        return pick_recovery_text(inflight_text, snap_text)
+    except Exception:
+        return inflight_text
+
+
 def build_bear_url(title: str, text: str) -> str:
     """bear://x-callback-url to create a Bear note (5.8). URL-encodes title+body."""
     from urllib.parse import quote
@@ -1144,6 +1178,11 @@ def main() -> None:
         return
 
     transcript = msg.get("transcript", "").strip()
+    # Recovery (RB-1d): when re-sending a note that failed mid-send, prefer the
+    # most complete copy — the supplied in-flight text or a fresher on-disk
+    # snapshot for this meeting, whichever is longer. Best-effort; never raises.
+    if msg.get("recover"):
+        transcript = _recover_freshest_text(transcript, msg).strip()
     if not transcript:
         send_message({"status": "error", "error": "transcript is empty"})
         return

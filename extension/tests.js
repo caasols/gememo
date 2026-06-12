@@ -1941,6 +1941,12 @@ window.MM2C_TESTS = (() => {
     assert('not recoverable when undefined', inflightRecoverable(undefined, now) === false);
     assert('not recoverable without a timestamp',
       inflightRecoverable({ text: 'x' }, now) === false);
+    assert('recoverable immediately when failed:true (within grace)',
+      inflightRecoverable({ text: 'notes', at: now - 5000, failed: true }, now) === true);
+    assert('failed:true still needs non-empty text',
+      inflightRecoverable({ text: '  ', at: now - 5000, failed: true }, now) === false);
+    assert('failed:true still needs a timestamp',
+      inflightRecoverable({ text: 'x', failed: true }, now) === false);
     console.groupEnd();
   }
 

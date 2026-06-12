@@ -78,6 +78,22 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertIn("duration_min: 30", content)
             self.assertIn("We shipped it.", content)
 
+    def test_recover_uses_freshest_snapshot(self):
+        """recover:true → main() files the longer on-disk snapshot, not the
+        (staler/shorter) in-flight text (RB-1d freshest-copy, BUG-9 Layer 1)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            long_body = "## Summary\n" + "Recovered detail. " * 40
+            (Path(tmp) / "20260601-091500-q3-planning-snap.md").write_text(
+                "---\ntitle: Q3 Planning\n---\n" + long_body, encoding="utf-8")
+            msg = self._capture_msg(tmp, transcript="## Summary\nshort stale note", recover=True)
+            sent = self._run(msg, _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")
+            finals = [p for p in Path(tmp).glob("*.md") if "-snap" not in p.name]
+            self.assertEqual(len(finals), 1)
+            content = finals[0].read_text(encoding="utf-8")
+            self.assertIn("Recovered detail.", content)        # snapshot body used
+            self.assertNotIn("short stale note", content)      # in-flight text discarded
+
     def test_craft_failure_no_snapshot_errors_with_backup_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             sent = self._run(self._capture_msg(tmp), _proc(1, stderr="boom"))

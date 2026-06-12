@@ -1010,7 +1010,8 @@ function snapshotFreshEnough(cachedTranscriptAt, intervalMs, now = Date.now()) {
 // in-progress send that will clear within seconds.
 function inflightRecoverable(inflight, now = Date.now(), graceMs = 60000) {
   return !!(inflight && typeof inflight.text === 'string' && inflight.text.trim()
-            && Number.isFinite(inflight.at) && (now - inflight.at) > graceMs);
+            && Number.isFinite(inflight.at)
+            && (inflight.failed === true || (now - inflight.at) > graceMs));
 }
 
 // Pure helper — the single source of truth for the popup status-banner text and
