@@ -179,15 +179,31 @@ function normalizeDestinations(raw) {
     if (!entry || typeof entry !== 'object') continue;
     const type = entry.type;
     if (type === 'obsidian') {
-      const vaultPath = String(entry.vaultPath || '').trim();
-      if (!vaultPath) continue; // no vault → nothing to write to
-      out.push({ type, vaultPath });
+      // Blank vault is kept — at capture time the host falls back to the global
+      // Obsidian vault (a blank row == legacy "also send to Obsidian").
+      out.push({ type, vaultPath: String(entry.vaultPath || '').trim() });
     } else if (type === 'craft') {
       out.push({ type, folderId: String(entry.folderId || '').trim() });
     } else if (type === 'apple_notes') {
       out.push({ type });
     }
     // unknown type → dropped
+  }
+  return out;
+}
+
+// Pure helper — fold the legacy "Also send to" app names (mm2c_also_send) into
+// the unified destinations rows. Each app becomes a blank-config row, which
+// behaves exactly like an also-send checkbox (the host applies the global default
+// config). Idempotent: won't add a second blank row for an app that already has
+// one. `destinations` rows are otherwise preserved as-is.
+function mergeAlsoSendIntoDestinations(destinations, alsoSend) {
+  const rows = (Array.isArray(destinations) ? destinations : []).filter(d => d && typeof d === 'object');
+  const out = [...rows];
+  for (const app of (Array.isArray(alsoSend) ? alsoSend : [])) {
+    if (!app) continue;
+    const blankExists = out.some(d => d.type === app && !d.vaultPath && !d.folderId);
+    if (!blankExists) out.push({ type: app });
   }
   return out;
 }

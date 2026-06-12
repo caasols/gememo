@@ -1212,8 +1212,9 @@ window.MM2C_TESTS = (() => {
     assertEq('normalizeDestinations: falsy entry / unknown type dropped',
       JSON.stringify(normalizeDestinations([null, { type: 'slack' }, { type: 'apple_notes' }])),
       JSON.stringify([{ type: 'apple_notes' }]));
-    assertEq('normalizeDestinations: blank obsidian vault dropped',
-      JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '   ' }])), '[]');
+    assertEq('normalizeDestinations: blank obsidian vault kept (falls back to global vault)',
+      JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '   ' }])),
+      JSON.stringify([{ type: 'obsidian', vaultPath: '' }]));
     assertEq('normalizeDestinations: obsidian vaultPath trimmed + extra props stripped',
       JSON.stringify(normalizeDestinations([{ type: 'obsidian', vaultPath: '  ~/Vault  ', junk: 1 }])),
       JSON.stringify([{ type: 'obsidian', vaultPath: '~/Vault' }]));
@@ -1231,6 +1232,23 @@ window.MM2C_TESTS = (() => {
         { type: 'obsidian', vaultPath: '/a' },
         { type: 'apple_notes' },
       ]));
+
+    // mergeAlsoSendIntoDestinations — fold legacy also-send app names into rows.
+    assertEq('merge: also-send app becomes a blank-config row',
+      JSON.stringify(mergeAlsoSendIntoDestinations([], ['apple_notes'])),
+      JSON.stringify([{ type: 'apple_notes' }]));
+    assertEq('merge: preserves configured rows + appends also-send',
+      JSON.stringify(mergeAlsoSendIntoDestinations(
+        [{ type: 'obsidian', vaultPath: '/v' }], ['craft'])),
+      JSON.stringify([{ type: 'obsidian', vaultPath: '/v' }, { type: 'craft' }]));
+    assertEq('merge: idempotent — no duplicate blank row when one exists',
+      JSON.stringify(mergeAlsoSendIntoDestinations([{ type: 'apple_notes' }], ['apple_notes'])),
+      JSON.stringify([{ type: 'apple_notes' }]));
+    assertEq('merge: still appends when only a CONFIGURED row of that app exists',
+      JSON.stringify(mergeAlsoSendIntoDestinations([{ type: 'craft', folderId: 'X' }], ['craft'])),
+      JSON.stringify([{ type: 'craft', folderId: 'X' }, { type: 'craft' }]));
+    assertEq('merge: tolerates non-arrays',
+      JSON.stringify(mergeAlsoSendIntoDestinations(null, null)), '[]');
 
     // P5-L · findPromptRule returns the matched rule; depthInstruction maps depth → text
     const depthRules = [{ regex: 'standup', prompt: 'p', depth: 'brief' }];
