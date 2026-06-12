@@ -1093,6 +1093,43 @@ def send_to_configured_destinations(destinations, craft_md, title, dt, label) ->
             pass  # best-effort per-row output — never affect the primary capture
 
 
+def send_to_destinations(destinations, craft_md, title, dt, label,
+                         obsidian_vault_path: str = '', craft_folder_id: str = '') -> None:
+    """Fan out the note to each extra destination row (the unified repeater),
+    best-effort. Per-row config falls back to the passed-in global default when
+    blank, so a blank row behaves like the legacy 'also send to' checkbox.
+    Never raises — a failing row never affects the primary capture or other rows."""
+    for entry in (destinations or []):
+        try:
+            if not isinstance(entry, dict):
+                continue
+            dest = entry.get('type')
+            if dest == 'apple_notes':
+                push_to_apple_notes(title, body_to_html(craft_md))
+                notify("Meeting Notes → Apple Notes", title)
+            elif dest == 'obsidian':
+                vault_path = str(entry.get('vaultPath') or '').strip() or obsidian_vault_path
+                if not vault_path:
+                    continue  # no target vault (row blank AND no global) → skip
+                vault = Path(vault_path).expanduser()
+                vault.mkdir(parents=True, exist_ok=True)
+                slug = re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
+                (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
+                    build_yaml_frontmatter(label, dt) + craft_md, encoding='utf-8')
+            elif dest == 'craft':
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                safe = re.sub(r'[^\w\s\-]', '', title)[:80].strip() or dt.strftime('%Y%m%d')
+                cf = CACHE_DIR / f"{safe}.md"
+                cf.write_text(craft_md, encoding='utf-8')
+                cmd = [sys.executable, str(PUSH_PY), "--title", title, "--content-file", str(cf), "--background"]
+                folder_id = str(entry.get('folderId') or '').strip() or craft_folder_id
+                if folder_id:
+                    cmd += ["--folder-id", folder_id]
+                subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+        except Exception:
+            pass  # best-effort per-row output — never affect the primary capture
+
+
 def main() -> None:
     msg = read_message()
     if not msg:
