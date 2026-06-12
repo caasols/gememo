@@ -1060,125 +1060,7 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
             pass  # best-effort per-row output — never affect the primary capture
 
 
-def main() -> None:
-    msg = read_message()
-    if not msg:
-        send_message({"status": "error", "error": "empty message"})
-        return
-
-    _heartbeat_rotate()
-    _heartbeat(f"start type={msg.get('type') or 'capture'} chars={len(msg.get('transcript') or '')}")
-
-    if msg.get("type") == "ping":
-        send_message({"status": "ok", "home": str(Path.home()), "version": HOST_VERSION})
-        return
-
-    if msg.get("type") == "choose_folder":
-        # Chrome kills native messaging connections after ~30 s, so cap the
-        # osascript dialog well below that limit. If the user takes longer
-        # the popup will receive a null response and show an inline error.
-        try:
-            result = subprocess.run(
-                ["osascript", "-e",
-                 'POSIX path of (choose folder with prompt "Select folder for meeting notes:")'],
-                capture_output=True, text=True, timeout=25
-            )
-        except subprocess.TimeoutExpired:
-            send_message({"status": "error", "error": "Folder picker timed out — please try again"})
-            return
-        if result.returncode == 0 and result.stdout.strip():
-            path = result.stdout.strip().rstrip("/")
-            send_message({"status": "ok", "path": path})
-        else:
-            send_message({"status": "error", "error": "No folder selected"})
-        return
-
-    if msg.get("type") == "retry":
-        handle_retry(msg)
-        return
-
-    if msg.get("type") == "snapshot":
-        handle_snapshot(msg)
-        send_message({"status": "ok"})
-        return
-
-    if msg.get("type") == "search":
-        results = search_notes(
-            msg.get("query", ""),
-            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
-            since=msg.get("since") or None,
-            until=msg.get("until") or None,
-            attendee=msg.get("attendee") or None,
-        )
-        send_message({"status": "ok", "results": results})
-        return
-
-    if msg.get("type") == "prior_context":
-        prior = find_prior_note(
-            msg.get("meetingTitle", "").strip(),
-            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
-        )
-        ctx = ""
-        if prior:
-            text = prior.read_text(encoding="utf-8", errors="ignore")
-            ctx = build_prior_context(text, _note_date_from(text, prior))
-        send_message({"status": "ok", "context": ctx})
-        return
-
-    if msg.get("type") == "gcal_status":
-        send_message(gcal.status())
-        return
-
-    if msg.get("type") == "gcal_disconnect":
-        send_message(gcal.disconnect())
-        return
-
-    if msg.get("type") == "pre_meeting_brief":
-        # P9-G — beta pre-meeting brief. Match the active meeting's calendar
-        # event and return ≤3 prep bullets. Best-effort; guarded by the libs.
-        if not gcal.GCAL_AVAILABLE:
-            send_message({"ok": False, "error": "unavailable"})
-            return
-        ts = msg.get("timestamp", "")
-        send_message(gcal.pre_meeting_brief(
-            msg.get("meetingCode", ""),
-            ts,
-            msg.get("meetingTitle", ""),
-            bool(msg.get("redactPii")),
-            events_provider=gcal.live_events_provider(ts),
-        ))
-        return
-
-    if msg.get("type") == "gcal_connect":
-        # Run the interactive flow detached so it outlives Chrome's ~30s native-
-        # messaging window; the popup polls gcal_status afterward.
-        try:
-            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gcal.py"))],
-                             start_new_session=True)
-            send_message({"status": "ok", "started": True})
-        except Exception as exc:
-            send_message({"status": "error", "error": str(exc)})
-        return
-
-    if msg.get("type") == "gdocs_status":
-        send_message(gdocs.status())
-        return
-
-    if msg.get("type") == "gdocs_disconnect":
-        send_message(gdocs.disconnect())
-        return
-
-    if msg.get("type") == "gdocs_connect":
-        # Run the Docs OAuth flow detached so it outlives Chrome's ~30s native-
-        # messaging window; the popup polls gdocs_status afterward. Separate grant.
-        try:
-            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gdocs.py"))],
-                             start_new_session=True)
-            send_message({"status": "ok", "started": True})
-        except Exception as exc:
-            send_message({"status": "error", "error": str(exc)})
-        return
-
+def handle_capture(msg) -> None:
     transcript = msg.get("transcript", "").strip()
     # Recovery (RB-1d): when re-sending a note that failed mid-send, prefer the
     # most complete copy — the supplied in-flight text or a fresher on-disk
@@ -1400,6 +1282,128 @@ def main() -> None:
         _heartbeat("replied status=exception")
     # No finally: note_path lives in CACHE_DIR — cleaned up by push_to_craft.py
     # on the next run (files older than 2 h are deleted automatically).
+
+
+def main() -> None:
+    msg = read_message()
+    if not msg:
+        send_message({"status": "error", "error": "empty message"})
+        return
+
+    _heartbeat_rotate()
+    _heartbeat(f"start type={msg.get('type') or 'capture'} chars={len(msg.get('transcript') or '')}")
+
+    if msg.get("type") == "ping":
+        send_message({"status": "ok", "home": str(Path.home()), "version": HOST_VERSION})
+        return
+
+    if msg.get("type") == "choose_folder":
+        # Chrome kills native messaging connections after ~30 s, so cap the
+        # osascript dialog well below that limit. If the user takes longer
+        # the popup will receive a null response and show an inline error.
+        try:
+            result = subprocess.run(
+                ["osascript", "-e",
+                 'POSIX path of (choose folder with prompt "Select folder for meeting notes:")'],
+                capture_output=True, text=True, timeout=25
+            )
+        except subprocess.TimeoutExpired:
+            send_message({"status": "error", "error": "Folder picker timed out — please try again"})
+            return
+        if result.returncode == 0 and result.stdout.strip():
+            path = result.stdout.strip().rstrip("/")
+            send_message({"status": "ok", "path": path})
+        else:
+            send_message({"status": "error", "error": "No folder selected"})
+        return
+
+    if msg.get("type") == "retry":
+        handle_retry(msg)
+        return
+
+    if msg.get("type") == "snapshot":
+        handle_snapshot(msg)
+        send_message({"status": "ok"})
+        return
+
+    if msg.get("type") == "search":
+        results = search_notes(
+            msg.get("query", ""),
+            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
+            since=msg.get("since") or None,
+            until=msg.get("until") or None,
+            attendee=msg.get("attendee") or None,
+        )
+        send_message({"status": "ok", "results": results})
+        return
+
+    if msg.get("type") == "prior_context":
+        prior = find_prior_note(
+            msg.get("meetingTitle", "").strip(),
+            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
+        )
+        ctx = ""
+        if prior:
+            text = prior.read_text(encoding="utf-8", errors="ignore")
+            ctx = build_prior_context(text, _note_date_from(text, prior))
+        send_message({"status": "ok", "context": ctx})
+        return
+
+    if msg.get("type") == "gcal_status":
+        send_message(gcal.status())
+        return
+
+    if msg.get("type") == "gcal_disconnect":
+        send_message(gcal.disconnect())
+        return
+
+    if msg.get("type") == "pre_meeting_brief":
+        # P9-G — beta pre-meeting brief. Match the active meeting's calendar
+        # event and return ≤3 prep bullets. Best-effort; guarded by the libs.
+        if not gcal.GCAL_AVAILABLE:
+            send_message({"ok": False, "error": "unavailable"})
+            return
+        ts = msg.get("timestamp", "")
+        send_message(gcal.pre_meeting_brief(
+            msg.get("meetingCode", ""),
+            ts,
+            msg.get("meetingTitle", ""),
+            bool(msg.get("redactPii")),
+            events_provider=gcal.live_events_provider(ts),
+        ))
+        return
+
+    if msg.get("type") == "gcal_connect":
+        # Run the interactive flow detached so it outlives Chrome's ~30s native-
+        # messaging window; the popup polls gcal_status afterward.
+        try:
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gcal.py"))],
+                             start_new_session=True)
+            send_message({"status": "ok", "started": True})
+        except Exception as exc:
+            send_message({"status": "error", "error": str(exc)})
+        return
+
+    if msg.get("type") == "gdocs_status":
+        send_message(gdocs.status())
+        return
+
+    if msg.get("type") == "gdocs_disconnect":
+        send_message(gdocs.disconnect())
+        return
+
+    if msg.get("type") == "gdocs_connect":
+        # Run the Docs OAuth flow detached so it outlives Chrome's ~30s native-
+        # messaging window; the popup polls gdocs_status afterward. Separate grant.
+        try:
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gdocs.py"))],
+                             start_new_session=True)
+            send_message({"status": "ok", "started": True})
+        except Exception as exc:
+            send_message({"status": "error", "error": str(exc)})
+        return
+
+    handle_capture(msg)
 
 
 if __name__ == "__main__":

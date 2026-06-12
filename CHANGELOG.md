@@ -21,6 +21,7 @@ _Nothing yet — next change goes here._
 
 ### Internal (no behavior change)
 - **Anti-drift cleanup (audit follow-up):** extracted `_file_slug` (host) for the repeated filename slug, reused `outputAppName` instead of an inline label dict (background), added a `flashCopied` popup helper for the 4× copy-button snippet, and removed a dead `_tabKey` alias + stale comments.
+- **Extracted `handle_capture` from the host `main()` god-function** — the ~220-line capture pipeline is now a named function; `main()` is just dispatch. Verbatim move (host test suite identical before/after).
 
 ### Added
 - **Diagnostic: native-host stage heartbeat (BUG-9 Layer 0).** The host now writes a durable, content-free trail to `~/.cache/mm2c/host_heartbeat.log` — one fsync'd line per capture stage (`start` → `parsed` → `backup_written` → `webhooks_done` → `extras_done` → `craft_push_start` → `craft_push_done` → `replied`). When the host dies mid-send ("Native host has exited"), the tail names the last stage reached, so the real failing stage can be identified instead of guessed. Always on, self-bounding (~64 KB); records only stage names, timestamps, pid, return codes, and character counts — never note content. (Host change → re-run `install.sh`.)
