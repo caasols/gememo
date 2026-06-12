@@ -1250,6 +1250,31 @@ window.MM2C_TESTS = (() => {
     assertEq('merge: tolerates non-arrays',
       JSON.stringify(mergeAlsoSendIntoDestinations(null, null)), '[]');
 
+    // dedupeDestinations — at most one row per app; drop the primary + none/blank.
+    assertEq('dedupe: collapses same-app dups, keeps first + its config',
+      JSON.stringify(dedupeDestinations(
+        [{ type: 'obsidian', vaultPath: '/a' }, { type: 'obsidian', vaultPath: '/b' }, { type: 'apple_notes' }], 'none')),
+      JSON.stringify([{ type: 'obsidian', vaultPath: '/a' }, { type: 'apple_notes' }]));
+    assertEq('dedupe: drops the primary app',
+      JSON.stringify(dedupeDestinations([{ type: 'craft', folderId: '' }, { type: 'obsidian', vaultPath: '/a' }], 'craft')),
+      JSON.stringify([{ type: 'obsidian', vaultPath: '/a' }]));
+    assertEq('dedupe: drops none/blank-type + tolerates non-array',
+      JSON.stringify(dedupeDestinations([{ type: 'none' }, { type: '' }, null, { type: 'craft' }], 'obsidian')),
+      JSON.stringify([{ type: 'craft' }]));
+    assertEq('dedupe: non-array → []', JSON.stringify(dedupeDestinations(undefined, 'craft')), '[]');
+
+    // availableDestTypes — dropdown options for one row.
+    const _ALL = ['obsidian', 'apple_notes', 'craft'];
+    assertEq('available: excludes primary + other rows, keeps own current',
+      JSON.stringify(availableDestTypes(_ALL, 'craft', ['obsidian', 'apple_notes'], 'obsidian')),
+      JSON.stringify(['obsidian']));
+    assertEq('available: primary none → everything not used by others',
+      JSON.stringify(availableDestTypes(_ALL, 'none', ['apple_notes'], 'apple_notes')),
+      JSON.stringify(['obsidian', 'apple_notes', 'craft']));
+    assertEq('available: currentType null → apps neither primary nor used',
+      JSON.stringify(availableDestTypes(_ALL, 'craft', ['obsidian'], null)),
+      JSON.stringify(['apple_notes']));
+
     // P5-L · findPromptRule returns the matched rule; depthInstruction maps depth → text
     const depthRules = [{ regex: 'standup', prompt: 'p', depth: 'brief' }];
     assert('findPromptRule: returns the matched rule object',
