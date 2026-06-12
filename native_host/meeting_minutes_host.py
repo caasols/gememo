@@ -37,6 +37,8 @@ _push_local = SCRIPT_DIR / "push_to_craft.py"
 _push_dev   = SCRIPT_DIR.parent / "scripts" / "push_to_craft.py"
 PUSH_PY     = _push_local if _push_local.exists() else _push_dev
 CACHE_DIR   = Path.home() / ".cache" / "mm2c"
+HEARTBEAT_FILE = CACHE_DIR / "host_heartbeat.log"   # BUG-9 Layer 0 stage trail
+_HEARTBEAT_MAX_BYTES = 64 * 1024
 
 
 def read_message() -> dict | None:
@@ -53,6 +55,36 @@ def send_message(data: dict) -> None:
     sys.stdout.buffer.write(struct.pack("<I", len(encoded)))
     sys.stdout.buffer.write(encoded)
     sys.stdout.buffer.flush()
+
+
+def _heartbeat(stage: str) -> None:
+    """Append one fsync'd line to the heartbeat log so the last stage reached is
+    durable across a SIGKILL (BUG-9 diagnosis). Best-effort — never raises."""
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        line = f"{datetime.now().astimezone().isoformat()} pid={os.getpid()} {stage}\n"
+        with open(HEARTBEAT_FILE, "a", encoding="utf-8") as f:
+            f.write(line)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+def _heartbeat_rotate() -> None:
+    """Trim the heartbeat log to its last lines when it exceeds the size cap.
+    Best-effort — never raises."""
+    try:
+        if HEARTBEAT_FILE.exists() and HEARTBEAT_FILE.stat().st_size > _HEARTBEAT_MAX_BYTES:
+            data = HEARTBEAT_FILE.read_text(encoding="utf-8", errors="replace")
+            tail = data[-_HEARTBEAT_MAX_BYTES:]          # bound to the cap
+            nl = tail.find("\n")
+            HEARTBEAT_FILE.write_text(tail[nl + 1:] if nl != -1 else tail, encoding="utf-8")
+    except Exception:
+        pass
 
 
 _PII_EMAIL = re.compile(r'\b[\w.+-]+@[\w-]+\.[\w.-]+\b')
@@ -1067,6 +1099,9 @@ def main() -> None:
         send_message({"status": "error", "error": "empty message"})
         return
 
+    _heartbeat_rotate()
+    _heartbeat(f"start type={msg.get('type') or 'capture'} chars={len(msg.get('transcript') or '')}")
+
     if msg.get("type") == "ping":
         send_message({"status": "ok", "home": str(Path.home()), "version": HOST_VERSION})
         return
@@ -1190,6 +1225,7 @@ def main() -> None:
     # parse_transcript strips the TITLE: line from the body (we ignore the
     # extracted title — the tab name is the source of truth now)
     _, craft_md = parse_transcript(transcript)
+    _heartbeat("parsed")
 
     # PII redaction (RB-5b) — applied to the note body before ANY write or send.
     if msg.get("redactPii"):
@@ -1274,6 +1310,8 @@ def main() -> None:
             if ics:
                 file_path.with_suffix('.ics').write_text(ics, encoding="utf-8")
 
+    _heartbeat("backup_written")
+
     # Generic webhook (P9-D) — POST the structured note before the output routing
     # sends its response (the host process is terminated once the response is read).
     # Best-effort: webhook failures never affect the capture result. Timeouts are
@@ -1295,6 +1333,8 @@ def main() -> None:
             )
         if slack_url:
             post_webhook(slack_url, build_slack_payload(title, sections), timeout=_HOOK_TIMEOUT)
+
+    _heartbeat("webhooks_done")
 
     back_type = msg.get("backupType", "craft")
 
@@ -1326,6 +1366,8 @@ def main() -> None:
         except Exception:
             pass
 
+    _heartbeat("extras_done")
+
     if route_output(back_type, craft_md, title, file_path,
                     obsidian_vault_path=msg.get("obsidianVaultPath", ""),
                     dt=dt, label=label, cal_fields=cal_fields):
@@ -1355,7 +1397,9 @@ def main() -> None:
         if folder_id:
             cmd += ["--folder-id", folder_id]
 
+        _heartbeat("craft_push_start")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+        _heartbeat(f"craft_push_done rc={result.returncode}")
 
         if result.returncode == 0:
             notify("Meeting Notes → Craft", title)
@@ -1363,6 +1407,7 @@ def main() -> None:
             if file_path:
                 response["file"] = str(file_path)
             send_message(response)
+            _heartbeat("replied status=ok")
         else:
             # Primary push failed — retry once with most recent snapshot file (E2)
             snap_slug = re.sub(r'[^\w\-]', '', label.lower().replace(" ", "-"), flags=re.ASCII)[:50]
@@ -1381,6 +1426,7 @@ def main() -> None:
                     if file_path:
                         resp["file"] = str(file_path)
                     send_message(resp)
+                    _heartbeat("replied status=ok retried")
                     return
 
             # Both attempts failed (or no snapshot available) — include backup path
@@ -1396,9 +1442,11 @@ def main() -> None:
             # by now (the Meet tab closed), so this is the user's only signal.
             notify("Meeting Notes — capture failed", error)
             send_message(response_d)
+            _heartbeat("replied status=error")
     except Exception as exc:
         notify("Meeting Notes — capture failed", str(exc))
         send_message({"status": "error", "error": str(exc)})
+        _heartbeat("replied status=exception")
     # No finally: note_path lives in CACHE_DIR — cleaned up by push_to_craft.py
     # on the next run (files older than 2 h are deleted automatically).
 
