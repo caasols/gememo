@@ -267,7 +267,7 @@ class TestMainCaptureFlow(unittest.TestCase):
 
     def test_multi_destination_also_sends_to_apple_notes(self):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache_tmp:
-            msg = self._capture_msg(tmp, alsoSend=["apple_notes"])  # primary craft + extra apple_notes
+            msg = self._capture_msg(tmp, destinations=[{"type": "apple_notes"}])
             calls = []
             with patch.object(host, 'CACHE_DIR', Path(cache_tmp)), \
                     patch.object(host, 'read_message', return_value=msg), \
@@ -463,12 +463,12 @@ class TestCaptureHooks(unittest.TestCase):
             # best-effort except — capture still succeeds
             self.assertEqual(sent[-1]["status"], "ok")
 
-    # 8 — destinations → send_to_configured_destinations(list, ...)
+    # 8 — destinations → send_to_destinations(list, ...)
     def test_destinations_hook_wires_into_main(self):
         with tempfile.TemporaryDirectory() as tmp:
             rows = [{"type": "apple_notes"}]
             calls = []
-            with patch.object(host, 'send_to_configured_destinations',
+            with patch.object(host, 'send_to_destinations',
                               side_effect=lambda d, *a, **k: calls.append(d)):
                 sent = self._run(self._capture_msg(tmp, destinations=rows), _proc(0))
             self.assertEqual(sent[-1]["status"], "ok")
