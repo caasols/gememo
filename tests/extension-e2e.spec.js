@@ -541,6 +541,21 @@ test.describe('extension E2E harness', () => {
       return page;
     }
 
+    test('popup migrates legacy also-send into mm2c_destinations and clears it', async () => {
+      const page = await popupWith({
+        mm2c_destinations: [{ type: 'craft', folderId: 'F1' }],
+        mm2c_also_send: ['apple_notes'],
+      });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_destinations', 'mm2c_also_send']);
+        return { dests: s.mm2c_destinations, also: s.mm2c_also_send };
+      }).toEqual({
+        dests: [{ type: 'craft', folderId: 'F1' }, { type: 'apple_notes' }],
+        also: undefined,
+      });
+      await page.close();
+    });
+
     test('About tab renders the impact stats', async () => {
       const page = await popupWith({
         mm2c_stats: { meetingsAttended: 4, notesSaved: 3, wordsCaptured: 1200, totalMeetingMinutes: 95 },
@@ -786,10 +801,9 @@ test.describe('extension E2E harness', () => {
       await expect(page.getByText('Wikilinks for graph apps')).not.toBeVisible();
       await expect(page.locator('#note-language')).not.toBeVisible();
       await expect(page.locator('#preview-before-send')).not.toBeVisible();
-      // Core Settings stay visible. "Also send to" + Additional destinations were
-      // promoted out of beta — visible regardless of the Experimental toggle.
+      // Core Settings stay visible. Additional destinations promoted out of beta —
+      // visible regardless of the Experimental toggle.
       await expect(page.locator('#output-app')).toBeVisible();
-      await expect(page.locator('.also-send')).toBeVisible();
       await expect(page.locator('#add-destination')).toBeVisible();
       await expect(page.getByText('Backup cleanup')).toBeVisible();
       // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
@@ -813,7 +827,6 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#redact-keywords')).toBeVisible();
       await expect(page.locator('#task-app')).toBeVisible();
       await expect(page.getByText('Wikilinks for graph apps')).toBeVisible();
-      await expect(page.locator('.also-send')).toBeVisible();
       await expect(page.locator('#note-language')).toBeVisible();
       await expect(page.getByText('Review notes before saving')).toBeVisible();
       await page.click('#tab-rules');
