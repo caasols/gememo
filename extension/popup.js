@@ -440,14 +440,17 @@ function applyState(s, tabId, live = null) {
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
   $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 30;
-  // Unified destinations: fold any legacy "Also send to" apps into the repeater
-  // (a blank-config row == an also-send checkbox), persist once, then render.
-  const _mergedDests = mergeAlsoSendIntoDestinations(s.mm2c_destinations, s.mm2c_also_send);
-  if (Array.isArray(s.mm2c_also_send) && s.mm2c_also_send.length) {
-    save({ mm2c_destinations: normalizeDestinations(_mergedDests) });
-    chrome.storage.local.remove('mm2c_also_send');
+  // Unified destinations: fold legacy "Also send to" apps in, dedupe to one per
+  // app, drop the primary, persist the cleaned list (self-heal), then render.
+  const _primary = s.mm2c_output_app || 'none';
+  const _merged = mergeAlsoSendIntoDestinations(s.mm2c_destinations, s.mm2c_also_send);
+  const _cleanDests = dedupeDestinations(normalizeDestinations(_merged), _primary);
+  const _hadAlsoSend = Array.isArray(s.mm2c_also_send) && s.mm2c_also_send.length;
+  if (_hadAlsoSend || JSON.stringify(_cleanDests) !== JSON.stringify(normalizeDestinations(s.mm2c_destinations))) {
+    save({ mm2c_destinations: _cleanDests });
+    if (_hadAlsoSend) chrome.storage.local.remove('mm2c_also_send');
   }
-  renderDestinations(_mergedDests);
+  renderDestinations(_cleanDests, _primary);
   const betaOn = s.mm2c_beta_enabled === true;
   $('beta-enabled').checked = betaOn;
   document.body.classList.toggle('beta-enabled', betaOn);
@@ -560,17 +563,26 @@ const _DEST_TYPES = [
   { value: 'apple_notes', label: 'Apple Notes' },
   { value: 'craft',       label: 'Craft' },
 ];
+const _DEST_TYPE_VALUES = _DEST_TYPES.map(t => t.value);
 
-// Build one repeater row element from a (possibly partial) destination entry.
-function buildDestinationRow(entry = {}) {
-  const type = entry.type || 'obsidian';
+// Primary output app — excluded from extra destinations. Set by renderDestinations.
+let _destPrimary = 'none';
+
+// Build one repeater row. opts.usedTypes = every row's type (so the dropdown can
+// exclude apps taken by OTHER rows); opts.primaryApp = the primary output app.
+function buildDestinationRow(entry = {}, opts = {}) {
+  const primaryApp = opts.primaryApp != null ? opts.primaryApp : _destPrimary;
+  const usedTypes  = Array.isArray(opts.usedTypes) ? opts.usedTypes : [];
+  const type = entry.type || _DEST_TYPE_VALUES[0];
   const row = document.createElement('div');
   row.className = 'row dest-row';
 
   const select = document.createElement('select');
   select.className = 'dest-type';
   select.setAttribute('aria-label', 'Destination type');
+  const allowed = availableDestTypes(_DEST_TYPE_VALUES, primaryApp, usedTypes, type);
   for (const t of _DEST_TYPES) {
+    if (!allowed.includes(t.value)) continue;
     const opt = document.createElement('option');
     opt.value = t.value;
     opt.textContent = t.label;
@@ -592,15 +604,13 @@ function buildDestinationRow(entry = {}) {
   row.appendChild(config);
   row.appendChild(removeBtn);
 
-  // Show/hide + seed the per-type config field.
   applyDestRowType(row, type, entry);
 
-  select.addEventListener('change', () => {
-    applyDestRowType(row, select.value, {});
-    persistDestinations();
-  });
+  // Structural changes (type/remove) re-render so other rows' dropdowns and the
+  // Add button update; config typing only persists (no re-render → keeps focus).
+  select.addEventListener('change', () => { applyDestRowType(row, select.value, {}); persistAndRerender(); });
   config.addEventListener('input', persistDestinations);
-  removeBtn.addEventListener('click', () => { row.remove(); persistDestinations(); });
+  removeBtn.addEventListener('click', () => { row.remove(); persistAndRerender(); });
 
   return row;
 }
@@ -636,20 +646,36 @@ function readDestinationsFromDom() {
   });
 }
 
-// Rebuild → normalize → persist. Drops invalid/blank rows from storage but
-// leaves the (possibly mid-edit) DOM untouched so typing isn't interrupted.
+// Persist the deduped, primary-excluded list (storage stays clean); no re-render.
 function persistDestinations() {
-  save({ mm2c_destinations: normalizeDestinations(readDestinationsFromDom()) });
+  save({ mm2c_destinations: dedupeDestinations(normalizeDestinations(readDestinationsFromDom()), _destPrimary) });
 }
 
-// Render the repeater rows from stored (already-normalized) destinations.
-function renderDestinations(destinations) {
+// After a structural change: persist the cleaned list and re-render from it.
+function persistAndRerender() {
+  const clean = dedupeDestinations(normalizeDestinations(readDestinationsFromDom()), _destPrimary);
+  save({ mm2c_destinations: clean });
+  renderDestinations(clean, _destPrimary);
+}
+
+// Disable "Add destination" when no app is available (all used, or only primary).
+function updateAddDestinationState() {
+  const btn = $('add-destination');
+  if (!btn) return;
+  const used = normalizeDestinations(readDestinationsFromDom()).map(e => e.type);
+  btn.disabled = availableDestTypes(_DEST_TYPE_VALUES, _destPrimary, used, null).length === 0;
+}
+
+// Render the repeater from a destinations list, deduped + primary-excluded.
+function renderDestinations(destinations, primaryApp = _destPrimary) {
+  _destPrimary = primaryApp;
   const list = $('destinations-list');
   if (!list) return;
+  const deduped = dedupeDestinations(normalizeDestinations(destinations), primaryApp);
+  const usedTypes = deduped.map(e => e.type);
   list.innerHTML = '';
-  for (const entry of normalizeDestinations(destinations)) {
-    list.appendChild(buildDestinationRow(entry));
-  }
+  for (const entry of deduped) list.appendChild(buildDestinationRow(entry, { primaryApp, usedTypes }));
+  updateAddDestinationState();
 }
 
 // ── Logs ───────────────────────────────────────────────────────────────────
@@ -1178,10 +1204,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   // Additional destinations repeater (UXF-11) — add a fresh row.
   $('add-destination').addEventListener('click', () => {
-    $('destinations-list').appendChild(buildDestinationRow({ type: 'obsidian' }));
-    // A new obsidian row has a blank vault → normalizeDestinations drops it
-    // until the user types a path; that's fine, we still persist on input.
-    persistDestinations();
+    const clean = dedupeDestinations(normalizeDestinations(readDestinationsFromDom()), _destPrimary);
+    const avail = availableDestTypes(_DEST_TYPE_VALUES, _destPrimary, clean.map(e => e.type), null);
+    if (!avail.length) return; // all apps used or are the primary
+    clean.push({ type: avail[0] });
+    save({ mm2c_destinations: clean });
+    renderDestinations(clean, _destPrimary);
   });
   $('my-aliases').addEventListener('change', e => {
     myAliases = e.target.value.trim();

@@ -1062,6 +1062,31 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('popup self-heals duplicate/primary destinations on load', async () => {
+      const page = await popupWith({
+        mm2c_output_app: 'craft',
+        mm2c_destinations: [
+          { type: 'apple_notes' }, { type: 'apple_notes' },
+          { type: 'craft', folderId: '' },
+          { type: 'obsidian', vaultPath: '' }, { type: 'obsidian', vaultPath: '' },
+        ],
+      });
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_destinations'])).mm2c_destinations
+      ).toEqual([{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '' }]);
+      await page.close();
+    });
+
+    test('popup disables Add destination when all apps are used', async () => {
+      const page = await popupWith({
+        mm2c_output_app: 'craft', // craft is primary → only obsidian + apple_notes addable
+        mm2c_destinations: [{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '' }],
+      });
+      await page.click('#tab-settings');
+      await expect(page.locator('#add-destination')).toBeDisabled();
+      await page.close();
+    });
+
     test('Backup-cleanup clampDays clamps to [1, 3650] + persists the clamped value (UXF-13)', async () => {
       const page = await popupWith({});
       await page.click('#tab-settings'); // promoted out of beta — now in Settings
