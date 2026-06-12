@@ -276,33 +276,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case 'MM2C_RECOVER':
       // Re-send a note that was persisted in-flight but never confirmed (RB-1d).
-      chrome.storage.local.get([
-        'mm2c_inflight',
-        'mm2c_output_app', 'mm2c_craft_folder_id', 'mm2c_craft_space_id', 'mm2c_obsidian_vault_path',
-        'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
-        'mm2c_webhook_url', 'mm2c_slack_webhook_url', 'mm2c_also_send', 'mm2c_destinations',
-        'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_emit_ics', 'mm2c_wikilinks',
-      ], (data) => {
+      chrome.storage.local.get(['mm2c_inflight', ...FORWARD_KEYS], (data) => {
         const note = data.mm2c_inflight;
         if (!note?.text) { sendResponse({ ok: false, error: 'nothing to recover' }); return; }
         forwardToNativeHost(note.text, {
-          backupType:        data.mm2c_output_app || 'none',
-          meetingTitle:      note.title || '',
-          craftFolderId:     data.mm2c_craft_folder_id || '',
-          craftSpaceId:      data.mm2c_craft_space_id || '',
-          obsidianVaultPath: data.mm2c_obsidian_vault_path || '',
+          ...buildForwardConfig(data),
+          backupType:   data.mm2c_output_app || 'none',
+          meetingTitle: note.title || '',
           attendees: [], durationMin: note.durationMin ?? null, meetingCode: '', meetingType: '', titleTemplate: '', recording: false,
-          webhookUrl:        data.mm2c_webhook_url || '',
-          slackWebhookUrl:   data.mm2c_slack_webhook_url || '',
-          destinations:      dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
-          redactPii:         data.mm2c_redact_pii === true,
-          redactKeywords:    data.mm2c_redact_keywords || '',
-          emitIcs:           data.mm2c_emit_ics === true,
-          wikilinks:         data.mm2c_wikilinks === true,
-          fileBackupEnabled: data.mm2c_file_backup_enabled === true,
-          fileBackupType:    data.mm2c_file_backup_type || 'markdown',
-          fileBackupPath:    data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
-          recover:           true, // RB-1d — let the host pick the freshest copy
+          recover: true, // RB-1d — let the host pick the freshest copy
+          timestamp: note.at ? new Date(note.at).toISOString() : new Date().toISOString(),
           tabId: null,
         }, (r) => {
           if (r?.ok) chrome.storage.local.remove('mm2c_inflight');
