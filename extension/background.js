@@ -218,7 +218,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               snapshots: { enabled: data.mm2c_cleanup_snap_enabled === true, days: data.mm2c_cleanup_snap_days || 30 },
               finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 30 },
             },
-            destinations: mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send),
+            destinations: dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
             // 5.7 — Google Docs output. Beta-gated + double-guarded: OFF ⇒ false
             // ⇒ host no-op, so stale data can never change behavior.
             googleDocsOutput: betaOn ? (data.mm2c_gdocs_enabled === true) : false,
@@ -322,7 +322,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           attendees: [], durationMin: note.durationMin ?? null, meetingCode: '', meetingType: '', titleTemplate: '', recording: false,
           webhookUrl:        data.mm2c_webhook_url || '',
           slackWebhookUrl:   data.mm2c_slack_webhook_url || '',
-          destinations:      mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send),
+          destinations:      dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
           redactPii:         data.mm2c_redact_pii === true,
           redactKeywords:    data.mm2c_redact_keywords || '',
           emitIcs:           data.mm2c_emit_ics === true,

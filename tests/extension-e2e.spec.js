@@ -122,6 +122,23 @@ test.describe('extension E2E harness', () => {
       }).toEqual([{ type: 'obsidian', vaultPath: '/tmp/VaultA' }, { type: 'apple_notes' }]);
     });
 
+    test('MM2C_RESPONSE dedups destinations + drops the primary app', async () => {
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'craft',
+        mm2c_destinations: [
+          { type: 'apple_notes' }, { type: 'apple_notes' },
+          { type: 'craft', folderId: '' },
+          { type: 'obsidian', vaultPath: '/v' }, { type: 'obsidian', vaultPath: '/w' },
+        ],
+        mm2c_beta_enabled: false,
+      });
+      await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'dedup payload', meetingTitle: 'X' });
+      await expect.poll(async () => {
+        const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'dedup payload');
+        return fwd ? fwd.msg.destinations : null;
+      }).toEqual([{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '/v' }]);
+    });
+
     test('MM2C_RESPONSE forwards googleDocsOutput:true when beta is ON (5.7)', async () => {
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
