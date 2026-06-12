@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Added
+- **Diagnostic: native-host stage heartbeat (BUG-9 Layer 0).** The host now writes a durable, content-free trail to `~/.cache/mm2c/host_heartbeat.log` — one fsync'd line per capture stage (`start` → `parsed` → `backup_written` → `webhooks_done` → `extras_done` → `craft_push_start` → `craft_push_done` → `replied`). When the host dies mid-send ("Native host has exited"), the tail names the last stage reached, so the real failing stage can be identified instead of guessed. Always on, self-bounding (~64 KB); records only stage names, timestamps, pid, return codes, and character counts — never note content. (Host change → re-run `install.sh`.)
+
 ### Changed
 - **Settings: moved "Additional destinations" directly below "Output app"** so all the "where do notes go" controls (primary app, Also send to, additional destinations) sit together.
 
