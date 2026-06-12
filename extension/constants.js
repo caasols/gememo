@@ -1069,6 +1069,90 @@ function snapshotFreshEnough(cachedTranscriptAt, intervalMs, now = Date.now()) {
   return (now - cachedTranscriptAt) < intervalMs / 2;
 }
 
+// Async helper — choose the final transcript when the user leaves a meeting
+// (extracted from content_meet onLeaveClick for testability). Behavior-preserving.
+// Uses LIVE getters for the snapshot cache because a periodic snapshot may finish
+// DURING the await below and update it. Returns the transcript or null; may throw
+// (the caller's try/catch handles GeminiNotActive / exhausted retries).
+async function selectTranscript(deps) {
+  const {
+    getSnapshotPromise, getCachedTranscript, getCachedTranscriptAt,
+    snapshotIntervalMs, meetingTitle, runGeminiFlow, delay,
+    log, status, warn, now, GeminiNotActiveError, InjectionTimeoutError,
+  } = deps;
+
+  let transcript = null;
+  const snap = getSnapshotPromise();
+  if (snap) {
+    log('Snapshot in progress when Leave clicked — waiting for it to complete...');
+    await snap;
+    log('Snapshot complete — using result directly, skipping redundant Gemini run');
+  } else if (snapshotFreshEnough(getCachedTranscriptAt(), snapshotIntervalMs, now())) {
+    const ageSec = Math.round((now() - getCachedTranscriptAt()) / 1000);
+    log(`Recent snapshot is fresh (${ageSec}s old) — using it, skipping redundant Gemini run`);
+  } else {
+    log('Leave clicked — attempting fresh Gemini capture for final notes...');
+    try {
+      transcript = await runGeminiFlow(60_000);
+      log(`Fresh Leave capture succeeded (${transcript.length} chars)`);
+    } catch (freshErr) {
+      if (!(freshErr instanceof GeminiNotActiveError)) {
+        log(`Fresh Leave capture failed (${freshErr.message}) — falling back to cache`);
+      }
+      // else: Gemini was never running — fall through to cache / no-notes path below
+    }
+  }
+
+  // Live reads AFTER any await above (the snapshot may have just updated the cache).
+  const cachedAt = getCachedTranscriptAt();
+  const ageMin = cachedAt ? Math.round((now() - cachedAt) / 60000) : null;
+  const ageSuffix = ageMin !== null ? `, ${ageMin} min old` : '';
+  const cached = getCachedTranscript();
+
+  if (!transcript && cached) {
+    log(`Using cached snapshot as fallback (${cached.length} chars${ageSuffix})`);
+    if (ageMin !== null && ageMin > 15) {
+      status(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
+    }
+    transcript = cached;
+  } else if (!transcript) {
+    let lastFlowErr;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        transcript = await runGeminiFlow();
+        break;
+      } catch (flowErr) {
+        lastFlowErr = flowErr;
+        if (flowErr instanceof GeminiNotActiveError) throw flowErr;
+        if (flowErr instanceof InjectionTimeoutError) {
+          log(`Prompt injection timed out: ${flowErr.message}`);
+          warn(flowErr.message);
+          const cachedNow = getCachedTranscript();
+          if (cachedNow) {
+            log(`Falling back to cached snapshot (${cachedNow.length} chars${ageSuffix})`);
+            if (ageMin !== null && ageMin > 15) {
+              status(`Snapshot is ${ageMin} min old — recent discussion may be missing`, 'warn');
+            }
+            transcript = cachedNow;
+          } else {
+            status('Could not inject prompt — switch to this tab during capture', 'warn');
+          }
+          break;
+        }
+        if (attempt < 3) {
+          log(`Gemini flow attempt ${attempt} failed: ${flowErr.message} — retrying in 3 s`);
+          await delay(3000);
+        }
+      }
+    }
+    if (!transcript && lastFlowErr && !(lastFlowErr instanceof InjectionTimeoutError)) {
+      throw lastFlowErr;
+    }
+  }
+
+  return transcript;
+}
+
 // Pure helper — should the popup offer to recover an in-flight note (RB-1d)?
 // content_meet persists the formatted note to mm2c_inflight just before sending
 // and clears it on confirmed save. If it's still present and older than the
