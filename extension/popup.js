@@ -1471,93 +1471,69 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Google Calendar connect/disconnect/status (5.3, beta)
-  function renderGcalStatus() {
-    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gcal_status' }, (r) => {
-      if (chrome.runtime.lastError || !r) return;
-      const label = $('gcal-status');
-      const btn = $('gcal-connect');
-      if (r.connected) {
-        label.textContent = r.email ? `Connected as ${r.email}` : 'Connected';
-        btn.textContent = 'Disconnect';
-        btn.dataset.action = 'disconnect';
-      } else if (r.needs_reconnect) {
-        label.textContent = 'Session expired';
-        btn.textContent = 'Reconnect';
-        btn.dataset.action = 'connect';
-      } else {
-        label.textContent = r.available === false ? 'Not installed (re-run install.sh)' : 'Not connected';
-        btn.textContent = 'Connect';
-        btn.dataset.action = 'connect';
+  // Wire an OAuth service row (status render + connect/disconnect + 30-try poll).
+  // gcal and gdocs share this; they differ only in ids, actions, and save hooks.
+  function wireOAuthService({ statusId, connectBtnId, statusAction,
+                              connectAction, disconnectAction, onConnect, onDisconnect }) {
+    function render() {
+      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: statusAction }, (r) => {
+        if (chrome.runtime.lastError || !r) return;
+        const label = $(statusId);
+        const btn = $(connectBtnId);
+        if (r.connected) {
+          label.textContent = r.email ? `Connected as ${r.email}` : 'Connected';
+          btn.textContent = 'Disconnect';
+          btn.dataset.action = 'disconnect';
+        } else if (r.needs_reconnect) {
+          label.textContent = 'Session expired';
+          btn.textContent = 'Reconnect';
+          btn.dataset.action = 'connect';
+        } else {
+          label.textContent = r.available === false ? 'Not installed (re-run install.sh)' : 'Not connected';
+          btn.textContent = 'Connect';
+          btn.dataset.action = 'connect';
+        }
+      });
+    }
+    render();
+    $(connectBtnId).addEventListener('click', () => {
+      const action = $(connectBtnId).dataset.action || 'connect';
+      if (action === 'disconnect') {
+        chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: disconnectAction }, () => {
+          if (onDisconnect) onDisconnect();
+          render();
+        });
+        return;
       }
+      $(statusId).textContent = 'Opening browser — approve access, then return…';
+      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: connectAction }, () => {
+        if (onConnect) onConnect();
+        // The flow runs detached; poll status until it flips to connected.
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries++;
+          render();
+          if (tries > 30) clearInterval(timer);
+        }, 2000);
+      });
     });
   }
-  renderGcalStatus();
-  $('gcal-connect').addEventListener('click', () => {
-    const action = $('gcal-connect').dataset.action || 'connect';
-    if (action === 'disconnect') {
-      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gcal_disconnect' }, () => {
-        save({ mm2c_calendar_enabled: false });
-        renderGcalStatus();
-      });
-      return;
-    }
-    $('gcal-status').textContent = 'Opening browser — approve access, then return…';
-    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gcal_connect' }, () => {
-      save({ mm2c_calendar_enabled: true });
-      // The flow runs detached; poll status until it flips to connected.
-      let tries = 0;
-      const timer = setInterval(() => {
-        tries++;
-        renderGcalStatus();
-        if (tries > 30) clearInterval(timer);
-      }, 2000);
-    });
+
+  // Google Calendar connect/disconnect/status (5.3, beta)
+  wireOAuthService({
+    statusId: 'gcal-status', connectBtnId: 'gcal-connect',
+    statusAction: 'gcal_status', connectAction: 'gcal_connect', disconnectAction: 'gcal_disconnect',
+    onConnect: () => save({ mm2c_calendar_enabled: true }),
+    onDisconnect: () => save({ mm2c_calendar_enabled: false }),
   });
 
   // Google Docs connect/disconnect/status (5.7, beta) — separate OAuth grant,
   // rides the existing MM2C_GCAL relay (it forwards msg.action as the host type).
-  function renderGdocsStatus() {
-    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gdocs_status' }, (r) => {
-      if (chrome.runtime.lastError || !r) return;
-      const label = $('gdocs-status');
-      const btn = $('gdocs-connect');
-      if (r.connected) {
-        label.textContent = r.email ? `Connected as ${r.email}` : 'Connected';
-        btn.textContent = 'Disconnect';
-        btn.dataset.action = 'disconnect';
-      } else if (r.needs_reconnect) {
-        label.textContent = 'Session expired';
-        btn.textContent = 'Reconnect';
-        btn.dataset.action = 'connect';
-      } else {
-        label.textContent = r.available === false ? 'Not installed (re-run install.sh)' : 'Not connected';
-        btn.textContent = 'Connect';
-        btn.dataset.action = 'connect';
-      }
-    });
-  }
-  renderGdocsStatus();
-  $('gdocs-connect').addEventListener('click', () => {
-    const action = $('gdocs-connect').dataset.action || 'connect';
-    if (action === 'disconnect') {
-      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gdocs_disconnect' }, () => {
-        save({ mm2c_gdocs_enabled: false });
-        $('gdocs-enabled').checked = false;
-        renderGdocsStatus();
-      });
-      return;
-    }
-    $('gdocs-status').textContent = 'Opening browser — approve access, then return…';
-    chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: 'gdocs_connect' }, () => {
-      // The flow runs detached; poll status until it flips to connected.
-      let tries = 0;
-      const timer = setInterval(() => {
-        tries++;
-        renderGdocsStatus();
-        if (tries > 30) clearInterval(timer);
-      }, 2000);
-    });
+  // gdocs intentionally does NOT save on connect (matches prior behavior).
+  wireOAuthService({
+    statusId: 'gdocs-status', connectBtnId: 'gdocs-connect',
+    statusAction: 'gdocs_status', connectAction: 'gdocs_connect', disconnectAction: 'gdocs_disconnect',
+    onDisconnect: () => { save({ mm2c_gdocs_enabled: false }); $('gdocs-enabled').checked = false; },
   });
 
   // Pre-meeting brief (P9-G, beta) — ask the background to brief the active Meet
