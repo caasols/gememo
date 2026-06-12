@@ -95,6 +95,15 @@ class TestSendToDestinations(unittest.TestCase):
             run.assert_not_called()
             pan.assert_not_called()
 
+    def test_one_failing_row_does_not_stop_the_others(self):
+        # A row that raises is swallowed (best-effort) — the next row still runs.
+        with patch.object(host, 'notify'), \
+                patch.object(host, 'push_to_apple_notes',
+                             side_effect=[RuntimeError('boom'), None]) as pan:
+            host.send_to_destinations(
+                [{'type': 'apple_notes'}, {'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
+            self.assertEqual(pan.call_count, 2)
+
 
 if __name__ == '__main__':
     unittest.main()
