@@ -44,3 +44,24 @@ def test_rotate_noop_when_small(tmp_path, monkeypatch):
     hb.write_text("small\n", encoding="utf-8")
     mh._heartbeat_rotate()
     assert hb.read_text(encoding="utf-8") == "small\n"
+
+
+def test_heartbeat_swallows_fsync_error(tmp_path, monkeypatch):
+    hb = tmp_path / "host_heartbeat.log"
+    monkeypatch.setattr(mh, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(mh, "HEARTBEAT_FILE", hb)
+
+    def boom(_fd):
+        raise OSError("no fsync here")
+
+    monkeypatch.setattr(mh.os, "fsync", boom)
+    mh._heartbeat("start")  # fsync OSError is swallowed, the line is still written
+    assert "start" in hb.read_text(encoding="utf-8")
+
+
+def test_rotate_never_raises_on_error(tmp_path, monkeypatch):
+    hb = tmp_path / "isadir"
+    hb.mkdir()  # read_text() on a directory raises → must be swallowed
+    monkeypatch.setattr(mh, "HEARTBEAT_FILE", hb)
+    monkeypatch.setattr(mh, "_HEARTBEAT_MAX_BYTES", 0)  # force the trim branch
+    mh._heartbeat_rotate()  # must not raise
