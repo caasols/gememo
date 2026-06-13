@@ -49,6 +49,7 @@ const GLOBAL_KEYS = [
   'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
+  'mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days',
   'mm2c_destinations',
 ];
 
@@ -458,6 +459,8 @@ function applyState(s, tabId, live = null) {
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
   $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 30;
+  $('logs-cleanup-enabled').checked = s.mm2c_logs_cleanup_enabled === true;
+  $('logs-cleanup-days').value = s.mm2c_logs_cleanup_days || 30;
   // Unified destinations: fold legacy "Also send to" apps in, dedupe to one per
   // app, drop the primary, persist the cleaned list (self-heal), then render.
   const _primary = s.mm2c_output_app || 'none';
@@ -529,7 +532,17 @@ function applyState(s, tabId, live = null) {
   }
 
   expandedGroups = new Set(Array.isArray(s.mm2c_expanded_groups) ? s.mm2c_expanded_groups : []);
-  renderLogs(s.mm2c_logs);
+  // History auto-cleanup: when on, drop entries older than N days on open and
+  // persist the trim (so reopening reflects it without waiting for new activity).
+  let logsToRender = s.mm2c_logs;
+  if (s.mm2c_logs_cleanup_enabled === true && Array.isArray(s.mm2c_logs)) {
+    const pruned = pruneOldLogs(s.mm2c_logs, s.mm2c_logs_cleanup_days || 30);
+    if (pruned.length !== s.mm2c_logs.length) {
+      logsToRender = pruned;
+      chrome.storage.local.set({ mm2c_logs: pruned });
+    }
+  }
+  renderLogs(logsToRender);
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
   renderRecovery(s.mm2c_inflight);
@@ -1207,6 +1220,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const days = clampDays(e.target.value);
     e.target.value = days;
     save({ mm2c_cleanup_final_days: days });
+  });
+  // Activity-history auto-cleanup — prune mm2c_logs entries older than N days.
+  $('logs-cleanup-enabled').addEventListener('change', e => save({ mm2c_logs_cleanup_enabled: e.target.checked }));
+  $('logs-cleanup-days').addEventListener('change', e => {
+    const days = clampDays(e.target.value);
+    e.target.value = days;
+    save({ mm2c_logs_cleanup_days: days });
   });
   // Additional destinations repeater (UXF-11) — add a fresh row.
   $('add-destination').addEventListener('click', () => {

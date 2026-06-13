@@ -960,6 +960,36 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('History auto-cleanup: toggle + days persist', async () => {
+      const page = await popupWith({});
+      await page.click('#tab-settings');
+      await page.locator('label.toggle-wrap', { has: page.locator('#logs-cleanup-enabled') }).click();
+      await page.fill('#logs-cleanup-days', '7');
+      await page.locator('#logs-cleanup-days').blur();
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days']);
+        return { on: s.mm2c_logs_cleanup_enabled, days: s.mm2c_logs_cleanup_days };
+      }).toEqual({ on: true, days: 7 });
+      await page.close();
+    });
+
+    test('History auto-cleanup: entries older than N days are pruned on open', async () => {
+      const DAY = 86400000;
+      const now = Date.now();
+      const page = await popupWith({
+        mm2c_logs_cleanup_enabled: true,
+        mm2c_logs_cleanup_days: 30,
+        mm2c_logs: [
+          { ts: now - 2 * DAY,  status: 'ok', title: 'Recent', message: 'kept',    level: 'user' },
+          { ts: now - 45 * DAY, status: 'ok', title: 'Ancient', message: 'dropped', level: 'user' },
+        ],
+      });
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_logs'])).mm2c_logs.map(e => e.title)
+      ).toEqual(['Recent']);
+      await page.close();
+    });
+
     test('.ics for Next Steps is gated behind Experimental (within file backup)', async () => {
       // The .ics row lives inside the file-backup sub-options, so it's only shown
       // when file backup is enabled — then it appears only with Experimental on.
