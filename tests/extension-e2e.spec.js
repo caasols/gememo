@@ -152,39 +152,18 @@ test.describe('extension E2E harness', () => {
       }).toEqual([{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '/v' }]);
     });
 
-    test('MM2C_RESPONSE forwards googleDocsOutput:true when the toggle is on (5.7)', async () => {
-      await seedStorage(ext.serviceWorker, {
-        mm2c_output_app: 'craft',
-        mm2c_gdocs_enabled: true,
-      });
+    test('MM2C_RESPONSE forwards backupType:google_docs when Google Docs is the primary (5.7)', async () => {
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'google_docs' });
       const resp = await sendFromPage(popup, {
         type: 'MM2C_RESPONSE',
-        text: 'gdocs on payload',
-        meetingTitle: 'Gdocs On',
+        text: 'gdocs primary payload',
+        meetingTitle: 'Gdocs Primary',
       });
       expect(resp.ok).toBe(true);
       const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'gdocs on payload');
+      const fwd = sent.find(s => s.msg.transcript === 'gdocs primary payload');
       expect(fwd).toBeTruthy();
-      expect(fwd.msg.googleDocsOutput).toBe(true);
-    });
-
-    test('MM2C_RESPONSE forwards googleDocsOutput:true even with beta OFF (promoted out of beta)', async () => {
-      await seedStorage(ext.serviceWorker, {
-        mm2c_output_app: 'craft',
-        mm2c_beta_enabled: false,
-        mm2c_gdocs_enabled: true,
-      });
-      const resp = await sendFromPage(popup, {
-        type: 'MM2C_RESPONSE',
-        text: 'gdocs beta-off payload',
-        meetingTitle: 'Gdocs',
-      });
-      expect(resp.ok).toBe(true);
-      const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'gdocs beta-off payload');
-      expect(fwd).toBeTruthy();
-      expect(fwd.msg.googleDocsOutput).toBe(true); // no longer gated by Experimental
+      expect(fwd.msg.backupType).toBe('google_docs');
     });
 
     test('MM2C_GCAL relays the action to the host', async () => {
@@ -372,7 +351,6 @@ test.describe('extension E2E harness', () => {
         mm2c_output_app: 'craft',
         mm2c_calendar_enabled: true,
         mm2c_cleanup_snap_enabled: true, mm2c_cleanup_snap_days: 7,
-        mm2c_beta_enabled: true, mm2c_gdocs_enabled: true,
         mm2c_inflight: { title: 'Recovered', text: 'recovered body', durationMin: 20, at },
       });
       const resp = await sendFromPage(popup, { type: 'MM2C_RECOVER' });
@@ -383,11 +361,10 @@ test.describe('extension E2E harness', () => {
         return {
           cal: fwd.msg.calendarEnabled,
           cleanup: fwd.msg.backupCleanup?.snapshots?.enabled,
-          gdocs: fwd.msg.googleDocsOutput,
           ts: fwd.msg.timestamp,
           recover: fwd.msg.recover,
         };
-      }).toEqual({ cal: true, cleanup: true, gdocs: true, ts: new Date(at).toISOString(), recover: true });
+      }).toEqual({ cal: true, cleanup: true, ts: new Date(at).toISOString(), recover: true });
     });
 
     test('MM2C_RESPONSE host-error appends to mm2c_failed_list + friendly banner (retry entry point)', async () => {
@@ -1053,11 +1030,13 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Settings renders the Google Docs output widget (5.7, promoted)', async () => {
-      const page = await popupWith({});
+    test('Google Docs is a Primary-output option that reveals the Connect sub-options (5.7)', async () => {
+      const page = await popupWith({ mm2c_output_app: 'google_docs' });
       await page.click('#tab-settings');
-      await expect(page.locator('#settings-panel #gdocs-enabled')).toBeAttached();
-      await expect(page.locator('#settings-panel #gdocs-connect')).toBeVisible();
+      // Selected as primary on load → its sub-options (status + Connect) are shown.
+      await expect(page.locator('#output-app')).toHaveValue('google_docs');
+      await expect(page.locator('#gdocs-sub-options')).toBeVisible();
+      await expect(page.locator('#gdocs-connect')).toBeVisible();
       await page.close();
     });
 
@@ -1103,20 +1082,15 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Toggling Google Docs output persists mm2c_gdocs_enabled (5.7)', async () => {
-      const page = await popupWith({ mm2c_gdocs_enabled: false });
+    test('Selecting Google Docs as the primary persists mm2c_output_app + shows the sub-options (5.7)', async () => {
+      const page = await popupWith({ mm2c_output_app: 'none' });
       await page.click('#tab-settings');
-      // The checkbox is a visually-hidden custom toggle (opacity:0); click its
-      // label wrapper instead of the input directly.
-      const wrap = page.locator('label.toggle-wrap', { has: page.locator('#gdocs-enabled') });
-      await wrap.click();
+      await expect(page.locator('#gdocs-sub-options')).toBeHidden(); // not selected yet
+      await page.selectOption('#output-app', 'google_docs');
       await expect.poll(async () =>
-        (await getStorage(ext.serviceWorker, ['mm2c_gdocs_enabled'])).mm2c_gdocs_enabled
-      ).toBe(true);
-      await wrap.click();
-      await expect.poll(async () =>
-        (await getStorage(ext.serviceWorker, ['mm2c_gdocs_enabled'])).mm2c_gdocs_enabled
-      ).toBe(false);
+        (await getStorage(ext.serviceWorker, ['mm2c_output_app'])).mm2c_output_app
+      ).toBe('google_docs');
+      await expect(page.locator('#gdocs-sub-options')).toBeVisible(); // Connect now revealed
       await page.close();
     });
 
@@ -1181,7 +1155,7 @@ test.describe('extension E2E harness', () => {
     });
 
     test('Google Docs status: not installed shows the re-run install hint + Connect (5.7)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true }, {
+      const page = await popupWith({ mm2c_output_app: 'google_docs' }, {
         gdocs_status: { connected: false, available: false },
         gcal_status: { connected: false, available: false },
         ping: { status: 'ok' },
@@ -1195,7 +1169,7 @@ test.describe('extension E2E harness', () => {
     });
 
     test('Google Docs status: connected shows "Connected as …" + Disconnect (5.7)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true }, {
+      const page = await popupWith({ mm2c_output_app: 'google_docs' }, {
         gdocs_status: { connected: true, available: true, email: 'me@x' },
         gcal_status: { connected: false, available: false },
         ping: { status: 'ok' },
@@ -1208,8 +1182,8 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Google Docs Disconnect saves gdocs off + unchecks the toggle (B6)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true, mm2c_gdocs_enabled: true }, {
+    test('Google Docs Disconnect relays gdocs_disconnect to the host (5.7)', async () => {
+      const page = await popupWith({ mm2c_output_app: 'google_docs' }, {
         gdocs_status: { connected: true, available: true, email: 'me@x' },
         gcal_status: { connected: false, available: false },
         gdocs_disconnect: { ok: true },
@@ -1220,9 +1194,8 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#gdocs-connect')).toHaveText('Disconnect'); // render set it
       await page.click('#gdocs-connect');                                    // → disconnect path
       await expect
-        .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_gdocs_enabled'])).mm2c_gdocs_enabled)
-        .toBe(false);
-      await expect(page.locator('#gdocs-enabled')).not.toBeChecked();
+        .poll(async () => (await getSent(ext.serviceWorker)).some(s => s.msg && s.msg.type === 'gdocs_disconnect'))
+        .toBe(true);
       await page.close();
     });
 

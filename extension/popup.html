@@ -1288,6 +1288,7 @@
           <option value="apple_notes">Apple Notes</option>
           <option value="obsidian">Obsidian (untested)</option>
           <option value="bear">Bear (untested)</option>
+          <option value="google_docs">Google Docs</option>
           <optgroup label="Coming soon">
             <option disabled>Notion</option>
             <option disabled>Evernote</option>
@@ -1319,6 +1320,16 @@
         <p class="hint">Click the field to open a folder picker and select your Obsidian vault.</p>
       </div>
 
+      <!-- Google Docs sub-options — shown only when Google Docs is the primary (5.7).
+           Its own OAuth grant (separate consent + token from Calendar). -->
+      <div id="gdocs-sub-options" class="sub-options hidden">
+        <div class="row">
+          <span class="label" id="gdocs-status">Not connected</span>
+          <button class="btn" id="gdocs-connect" aria-label="Connect Google Docs">Connect</button>
+        </div>
+        <p class="hint">Each captured note is created as a Google Doc. This is a separate connection from Calendar (its own consent + token). Needs the Docs scope on the consent screen — see native_host/GDOCS_SETUP.md.</p>
+      </div>
+
       <!-- Wikilinks for graph apps — beta-gated -->
       <div class="beta">
         <div class="row" style="margin-top:8px">
@@ -1341,24 +1352,6 @@
       <div class="row">
         <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>
       </div>
-    </div>
-
-    <!-- Google Docs output (5.7) — promoted out of beta. Its own OAuth grant
-         (separate consent + token from Calendar); needs the Docs scope set up. -->
-    <div class="widget">
-      <div class="widget-title">Google Docs output</div>
-      <div class="row">
-        <span class="label">Create a Google Doc per note</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="gdocs-enabled" aria-label="Enable Google Docs output">
-          <span class="toggle-track"></span>
-        </label>
-      </div>
-      <div class="row">
-        <span class="label" id="gdocs-status">Not connected</span>
-        <button class="btn" id="gdocs-connect" aria-label="Connect Google Docs">Connect</button>
-      </div>
-      <p class="hint">When enabled, each captured note is also created as a Google Doc. This is a separate connection from Calendar (its own consent + token). Needs the Docs scope on the consent screen — see native_host/GDOCS_SETUP.md.</p>
     </div>
 
     <!-- Action items → task manager (RB-3a) — beta-gated -->

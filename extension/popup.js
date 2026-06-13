@@ -44,7 +44,6 @@ const GLOBAL_KEYS = [
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
   'mm2c_calendar_enabled',
-  'mm2c_gdocs_enabled',
   'mm2c_preview_before_send',
   'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
@@ -429,6 +428,7 @@ function applyState(s, tabId, live = null) {
   $('output-app').value = outputApp;
   $('craft-sub-options').classList.toggle('hidden', outputApp !== 'craft');
   $('obsidian-sub-options').classList.toggle('hidden', outputApp !== 'obsidian');
+  $('gdocs-sub-options').classList.toggle('hidden', outputApp !== 'google_docs');
   $('obsidian-vault-path').value = s.mm2c_obsidian_vault_path || '';
 
   $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
@@ -454,7 +454,6 @@ function applyState(s, tabId, live = null) {
   myAliases = s.mm2c_my_aliases || '';
   $('my-aliases').value = myAliases;
   $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
-  $('gdocs-enabled').checked = s.mm2c_gdocs_enabled === true;
   $('cleanup-snap-enabled').checked = s.mm2c_cleanup_snap_enabled === true;
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
@@ -1147,6 +1146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const app = e.target.value;
     $('craft-sub-options').classList.toggle('hidden', app !== 'craft');
     $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
+    $('gdocs-sub-options').classList.toggle('hidden', app !== 'google_docs');
     save({ mm2c_output_app: app });
     renderSetupWizard(lastHostOk); // checking off the "choose output app" step (RB-7a)
   });
@@ -1208,7 +1208,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   // Backup-folder auto-cleanup (UXF-13) — beta.
   const clampDays = v => Math.max(1, Math.min(3650, parseInt(v, 10) || 30));
-  $('gdocs-enabled').addEventListener('change', e => save({ mm2c_gdocs_enabled: e.target.checked }));
   $('cleanup-snap-enabled').addEventListener('change', e => save({ mm2c_cleanup_snap_enabled: e.target.checked }));
   $('cleanup-snap-days').addEventListener('change', e => {
     const days = clampDays(e.target.value);
@@ -1572,13 +1571,13 @@ document.addEventListener('DOMContentLoaded', () => {
     onDisconnect: () => save({ mm2c_calendar_enabled: false }),
   });
 
-  // Google Docs connect/disconnect/status (5.7, beta) — separate OAuth grant,
-  // rides the existing MM2C_GCAL relay (it forwards msg.action as the host type).
-  // gdocs intentionally does NOT save on connect (matches prior behavior).
+  // Google Docs connect/disconnect/status (5.7) — separate OAuth grant for the
+  // Google Docs primary output; rides the existing MM2C_GCAL relay (forwards the
+  // action as the host type). No save hooks: the connection is independent of
+  // which primary is selected (you can connect before/after choosing Google Docs).
   wireOAuthService({
     statusId: 'gdocs-status', connectBtnId: 'gdocs-connect',
     statusAction: 'gdocs_status', connectAction: 'gdocs_connect', disconnectAction: 'gdocs_disconnect',
-    onDisconnect: () => { save({ mm2c_gdocs_enabled: false }); $('gdocs-enabled').checked = false; },
   });
 
   // Pre-meeting brief (P9-G, beta) — ask the background to brief the active Meet

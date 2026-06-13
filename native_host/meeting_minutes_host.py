@@ -979,6 +979,7 @@ def route_output(
     notify_fn=None,
     send_fn=None,
     open_url_fn=None,
+    gdocs_create_fn=None,
     cal_fields=None,
 ) -> bool:
     """Handle non-Craft output destinations. Returns True if handled, False to fall through.
@@ -991,6 +992,7 @@ def route_output(
     _note  = notify_fn     if notify_fn     is not None else notify
     _send  = send_fn       if send_fn       is not None else send_message
     _open  = open_url_fn   if open_url_fn   is not None else _default_open_url
+    _gdocs = gdocs_create_fn if gdocs_create_fn is not None else gdocs.create_doc
 
     if back_type == 'obsidian':
         if not obsidian_vault_path:
@@ -1038,6 +1040,27 @@ def route_output(
             _send(resp_bear)
         except Exception as exc:
             _send({"status": "error", "error": str(exc)})
+        return True
+
+    if back_type == 'google_docs':
+        # Google Docs as the primary output (5.7). Separate OAuth grant; create_doc
+        # loads its own token and returns {ok, url} or {ok:False, error}.
+        result = _gdocs(title, craft_md) or {}
+        if result.get('ok'):
+            _note("Meeting Notes → Google Docs", title)
+            resp_gd: dict = {"status": "ok", "title": title}
+            if file_path:
+                resp_gd["file"] = str(file_path)
+            if result.get('url'):
+                # Deep-link reference so History can re-open the Doc later.
+                resp_gd["link"] = {"app": "gdocs", "kind": "url", "value": result["url"]}
+            _send(resp_gd)
+        else:
+            err = result.get('error') or 'unknown error'
+            human = ("Google Docs isn't connected — connect it in Settings → Primary output"
+                     if err == 'not_connected'
+                     else f"Google Docs error: {err}")
+            _send({"status": "error", "error": human})
         return True
 
     if back_type == 'none':
@@ -1234,16 +1257,6 @@ def handle_capture(msg) -> None:
         craft_folder_id=msg.get("craftFolderId", "").strip(),
         cal_fields=cal_fields,
     )
-
-    # Google Docs output (5.7) — best-effort, never blocks capture. Beta-gated:
-    # background only sets googleDocsOutput when experimental is on, so OFF ⇒
-    # falsy ⇒ no-op here. Separate OAuth grant (token_docs.json), independent of
-    # the Calendar feature.
-    if msg.get("googleDocsOutput") and gdocs.GDOCS_AVAILABLE:
-        try:
-            gdocs.create_doc(title, craft_md)
-        except Exception:
-            pass
 
     _heartbeat("extras_done")
 

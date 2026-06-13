@@ -2127,24 +2127,18 @@ window.MM2C_TESTS = (() => {
     console.group('buildForwardConfig');
     const cfg = buildForwardConfig({
       mm2c_output_app: 'craft', mm2c_obsidian_vault_path: '/v', mm2c_calendar_enabled: true,
-      mm2c_beta_enabled: true, mm2c_gdocs_enabled: true,
       mm2c_destinations: [{ type: 'apple_notes' }, { type: 'apple_notes' }, { type: 'craft' }],
       mm2c_cleanup_snap_enabled: true, mm2c_cleanup_snap_days: 10,
     });
     assert('maps obsidian vault', cfg.obsidianVaultPath === '/v');
     assert('calendarEnabled true', cfg.calendarEnabled === true);
-    assert('gdocs on when enabled', cfg.googleDocsOutput === true);
     assert('dedups + drops primary craft',
       JSON.stringify(cfg.destinations) === JSON.stringify([{ type: 'apple_notes' }]));
     assert('backupCleanup nested',
       cfg.backupCleanup.snapshots.enabled === true && cfg.backupCleanup.snapshots.days === 10);
-    // Google Docs output is no longer beta-gated — it follows its own toggle regardless of beta.
-    const gdocsBetaOff = buildForwardConfig({ mm2c_output_app: 'craft', mm2c_beta_enabled: false, mm2c_gdocs_enabled: true });
-    assert('gdocs on even when beta off (promoted)', gdocsBetaOff.googleDocsOutput === true);
-    const gdocsOff = buildForwardConfig({ mm2c_output_app: 'craft', mm2c_gdocs_enabled: false });
-    assert('gdocs off when toggle off', gdocsOff.googleDocsOutput === false);
+    const defaults = buildForwardConfig({ mm2c_output_app: 'craft' });
     assert('defaults applied',
-      gdocsOff.fileBackupType === 'markdown' && gdocsOff.fileBackupPath === '~/Downloads/meeting-notes');
+      defaults.fileBackupType === 'markdown' && defaults.fileBackupPath === '~/Downloads/meeting-notes');
     console.groupEnd();
   }
 
