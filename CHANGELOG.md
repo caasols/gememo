@@ -17,7 +17,7 @@ _Nothing yet — next change goes here._
 
 ---
 
-## [0.2.15] – 2026-06-12 · Unify extra destinations + BUG-9 layers 0/1
+## [0.2.16] – 2026-06-13 · Unify destinations + Today/History tabs + BUG-9 layers 0/1
 
 ### Internal (no behavior change)
 - **Extracted the leave-capture transcript-selection into a unit-tested `selectTranscript`** (`constants.js`) — the logic that decides *which* note is saved (snapshot-in-progress / recent-snapshot / fresh-capture / cached-fallback / retry) was a ~90-line block trapped in the DOM flow; it now has 9 branch unit tests (incl. the live-cache-after-await case). Behavior-preserving (the content-meet leave e2e is the integration guard).
@@ -29,6 +29,7 @@ _Nothing yet — next change goes here._
 - **Diagnostic: native-host stage heartbeat (BUG-9 Layer 0).** The host now writes a durable, content-free trail to `~/.cache/mm2c/host_heartbeat.log` — one fsync'd line per capture stage (`start` → `parsed` → `backup_written` → `webhooks_done` → `extras_done` → `craft_push_start` → `craft_push_done` → `replied`). When the host dies mid-send ("Native host has exited"), the tail names the last stage reached, so the real failing stage can be identified instead of guessed. Always on, self-bounding (~64 KB); records only stage names, timestamps, pid, return codes, and character counts — never note content. (Host change → re-run `install.sh`.)
 
 ### Changed
+- **Renamed + reordered the popup tabs.** "Main" is now **Today** and "Logs" is now **History**, and the bar reads **Today · History · Rules · Settings · About** (History moved up next to Today, since they're the two you reach for most). Element ids are unchanged, so deep links, saved state, and the Experimental **Beta** tab are unaffected.
 - **Unified "Also send to" + "Additional destinations" into one mechanism.** Both fanned a copy of each note to extra apps; the repeater was just the superset (per-row folder/vault). Now there is a single **Additional destinations** repeater backed by one storage key and one host function (`send_to_destinations`); a row's folder/vault is **optional** and falls back to your default for that app (a blank row behaves exactly like the old checkbox). The legacy "Also send to" checkboxes are removed, and existing settings migrate automatically.
 - **Settings: moved "Additional destinations" directly below "Output app"** so the "where do notes go" controls (primary app, then additional destinations) sit together.
 
