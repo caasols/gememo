@@ -742,7 +742,7 @@ function renderLogs(logs) {
   }
 
   const groups = groupLogs(logs);
-  countEl.textContent = `${groups.length} meeting${groups.length === 1 ? '' : 's'} · ${logs.length} entr${logs.length === 1 ? 'y' : 'ies'}`;
+  countEl.textContent = `${groups.length} meeting${groups.length === 1 ? '' : 's'} in the past days`;
 
   const renderGroup = (group) => {
     const groupTitle = group.title || 'System';
