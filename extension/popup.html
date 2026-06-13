@@ -1408,6 +1408,13 @@
       </div>
       <p class="hint">Prunes the file-backup folder on capture (once/day). Off by default. Deleting old notes also removes old recovered (<code>*-RECOVERED.md</code>) files.</p>
 
+      <div class="subhead">Activity history</div>
+      <div class="row">
+        <span class="label">Clear the History tab</span>
+        <button class="btn danger" id="clear-logs">Clear</button>
+      </div>
+      <p class="hint">Removes all entries from the History tab. Your saved notes and on-disk backups are not affected.</p>
+
       <!-- Redaction + blocklist (RB-5b) — beta-gated; appears inside Privacy settings when Experimental is on. -->
       <div class="beta">
         <div class="subhead">Redaction &amp; blocklist <span class="beta-pill">Beta</span></div>
@@ -1501,10 +1508,11 @@
       </div>
     </div>
 
-    <!-- Sticky action footer — stays pinned to the bottom while the logs scroll. -->
-    <div class="logs-footer">
+    <!-- Sticky action footer — stays pinned to the bottom while the logs scroll.
+         Only holds the Beta "Download" now (Clear moved to Settings → Privacy
+         settings), so the whole footer is beta-gated: hidden when Experimental is off. -->
+    <div class="logs-footer beta">
       <button class="btn beta" id="download-logs">Download</button>
-      <button class="btn danger" id="clear-logs">Clear</button>
     </div>
 
   </div><!-- /logs-panel -->

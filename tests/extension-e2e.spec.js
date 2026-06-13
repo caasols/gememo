@@ -870,16 +870,16 @@ test.describe('extension E2E harness', () => {
       await expect(page.getByText('Privacy settings')).toBeVisible();      // card title (production)
       await expect(page.getByText('Local backups')).toBeVisible();         // retention sub-section stays
       await expect(page.getByText('Redaction & blocklist')).not.toBeVisible(); // beta sub-block gated off
+      await expect(page.locator('#clear-logs')).toBeVisible();             // Clear moved here (production)
       // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).not.toBeVisible();
       await expect(page.locator('#default-rule')).toBeVisible();
-      // Logs-tab: search, Developer logs + Download are gated; Clear stays.
+      // Logs-tab: search, Developer logs, and the Download footer are all gated off.
       await page.click('#tab-logs');
       await expect(page.locator('#note-search')).not.toBeVisible();
       await expect(page.locator('#show-debug-logs')).not.toBeVisible();
       await expect(page.locator('#download-logs')).not.toBeVisible();
-      await expect(page.locator('#clear-logs')).toBeVisible();
       await page.close();
     });
 
@@ -899,7 +899,18 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#note-search')).toBeVisible();
       await expect(page.locator('#show-debug-logs')).toBeVisible();
       await expect(page.locator('#download-logs')).toBeVisible();
-      await expect(page.locator('#clear-logs')).toBeVisible();
+      await page.close();
+    });
+
+    test('Clear (now in Privacy settings) empties the activity log', async () => {
+      const page = await popupWith({
+        mm2c_logs: [{ ts: Date.now(), status: 'ok', title: 'Standup', message: 'Saved', level: 'user' }],
+      });
+      await page.click('#tab-settings');
+      await page.click('#clear-logs');
+      await expect
+        .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_logs'])).mm2c_logs)
+        .toEqual([]);
       await page.close();
     });
 
