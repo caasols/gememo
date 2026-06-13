@@ -152,25 +152,24 @@ test.describe('extension E2E harness', () => {
       }).toEqual([{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '/v' }]);
     });
 
-    test('MM2C_RESPONSE forwards googleDocsOutput:true when beta is ON (5.7)', async () => {
+    test('MM2C_RESPONSE forwards googleDocsOutput:true when the toggle is on (5.7)', async () => {
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
-        mm2c_beta_enabled: true,
         mm2c_gdocs_enabled: true,
       });
       const resp = await sendFromPage(popup, {
         type: 'MM2C_RESPONSE',
-        text: 'beta on gdocs payload',
+        text: 'gdocs on payload',
         meetingTitle: 'Gdocs On',
       });
       expect(resp.ok).toBe(true);
       const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'beta on gdocs payload');
+      const fwd = sent.find(s => s.msg.transcript === 'gdocs on payload');
       expect(fwd).toBeTruthy();
       expect(fwd.msg.googleDocsOutput).toBe(true);
     });
 
-    test('MM2C_RESPONSE sends googleDocsOutput:false when beta is OFF even with seeded data (5.7)', async () => {
+    test('MM2C_RESPONSE forwards googleDocsOutput:true even with beta OFF (promoted out of beta)', async () => {
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
         mm2c_beta_enabled: false,
@@ -178,14 +177,14 @@ test.describe('extension E2E harness', () => {
       });
       const resp = await sendFromPage(popup, {
         type: 'MM2C_RESPONSE',
-        text: 'beta off gdocs payload',
-        meetingTitle: 'Gdocs Off',
+        text: 'gdocs beta-off payload',
+        meetingTitle: 'Gdocs',
       });
       expect(resp.ok).toBe(true);
       const sent = await getSent(ext.serviceWorker);
-      const fwd = sent.find(s => s.msg.transcript === 'beta off gdocs payload');
+      const fwd = sent.find(s => s.msg.transcript === 'gdocs beta-off payload');
       expect(fwd).toBeTruthy();
-      expect(fwd.msg.googleDocsOutput).toBe(false);
+      expect(fwd.msg.googleDocsOutput).toBe(true); // no longer gated by Experimental
     });
 
     test('MM2C_GCAL relays the action to the host', async () => {
@@ -1054,11 +1053,11 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Beta tab renders the Google Docs output widget (5.7)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      await page.click('#tab-beta');
-      await expect(page.locator('#beta-panel #gdocs-enabled')).toBeAttached();
-      await expect(page.locator('#beta-panel #gdocs-connect')).toBeVisible();
+    test('Settings renders the Google Docs output widget (5.7, promoted)', async () => {
+      const page = await popupWith({});
+      await page.click('#tab-settings');
+      await expect(page.locator('#settings-panel #gdocs-enabled')).toBeAttached();
+      await expect(page.locator('#settings-panel #gdocs-connect')).toBeVisible();
       await page.close();
     });
 
@@ -1105,8 +1104,8 @@ test.describe('extension E2E harness', () => {
     });
 
     test('Toggling Google Docs output persists mm2c_gdocs_enabled (5.7)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true, mm2c_gdocs_enabled: false });
-      await page.click('#tab-beta');
+      const page = await popupWith({ mm2c_gdocs_enabled: false });
+      await page.click('#tab-settings');
       // The checkbox is a visually-hidden custom toggle (opacity:0); click its
       // label wrapper instead of the input directly.
       const wrap = page.locator('label.toggle-wrap', { has: page.locator('#gdocs-enabled') });
@@ -1188,7 +1187,7 @@ test.describe('extension E2E harness', () => {
         ping: { status: 'ok' },
         __default: { status: 'ok' },
       });
-      await page.click('#tab-beta');
+      await page.click('#tab-settings');
       await expect.poll(async () => page.locator('#gdocs-status').textContent())
         .toContain('Not installed (re-run install.sh)');
       await expect(page.locator('#gdocs-connect')).toHaveText('Connect');
@@ -1202,7 +1201,7 @@ test.describe('extension E2E harness', () => {
         ping: { status: 'ok' },
         __default: { status: 'ok' },
       });
-      await page.click('#tab-beta');
+      await page.click('#tab-settings');
       await expect.poll(async () => page.locator('#gdocs-status').textContent())
         .toContain('Connected as me@x');
       await expect(page.locator('#gdocs-connect')).toHaveText('Disconnect');
@@ -1217,7 +1216,7 @@ test.describe('extension E2E harness', () => {
         ping: { status: 'ok' },
         __default: { status: 'ok' },
       });
-      await page.click('#tab-beta');
+      await page.click('#tab-settings');
       await expect(page.locator('#gdocs-connect')).toHaveText('Disconnect'); // render set it
       await page.click('#gdocs-connect');                                    // → disconnect path
       await expect
