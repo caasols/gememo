@@ -2557,6 +2557,14 @@ window.MM2C_TESTS = (() => {
 
   assert('computeTimeSavedMin: words / 25 wpm',
     computeTimeSavedMin({ wordsCaptured: 500 }) === 20);
+  assert('supportNudgeEligible: ≥24h meetings + saved time → true',
+    supportNudgeEligible({ totalMeetingMinutes: 1440, wordsCaptured: 500 }) === true);
+  assert('supportNudgeEligible: just under 24h → false',
+    supportNudgeEligible({ totalMeetingMinutes: 1439, wordsCaptured: 500 }) === false);
+  assert('supportNudgeEligible: ≥24h but no saved time → false',
+    supportNudgeEligible({ totalMeetingMinutes: 5000, wordsCaptured: 0 }) === false);
+  assert('supportNudgeEligible: null/undefined stats → false',
+    supportNudgeEligible(null) === false && supportNudgeEligible(undefined) === false);
   assert('formatStatDuration: hours + minutes',
     formatStatDuration(75) === '1h 15m');
   assert('formatStatDuration: whole hours',
