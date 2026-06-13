@@ -1343,6 +1343,24 @@
       </div>
     </div>
 
+    <!-- Google Docs output (5.7) — promoted out of beta. Its own OAuth grant
+         (separate consent + token from Calendar); needs the Docs scope set up. -->
+    <div class="widget">
+      <div class="widget-title">Google Docs output</div>
+      <div class="row">
+        <span class="label">Create a Google Doc per note</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="gdocs-enabled" aria-label="Enable Google Docs output">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div class="row">
+        <span class="label" id="gdocs-status">Not connected</span>
+        <button class="btn" id="gdocs-connect" aria-label="Connect Google Docs">Connect</button>
+      </div>
+      <p class="hint">When enabled, each captured note is also created as a Google Doc. This is a separate connection from Calendar (its own consent + token). Needs the Docs scope on the consent screen — see native_host/GDOCS_SETUP.md.</p>
+    </div>
+
     <!-- Action items → task manager (RB-3a) — beta-gated -->
     <div class="widget beta">
       <div class="widget-title">Action items <span class="beta-pill">Beta</span></div>
@@ -1649,23 +1667,6 @@
         <button class="btn" id="gcal-connect">Connect</button>
       </div>
       <p class="hint">Adds the matching event's attendees, agenda, recurrence, and scheduled time to each note's frontmatter. Needs one-time setup (see native_host/CALENDAR_SETUP.md).</p>
-    </div>
-
-    <!-- Google Docs output (5.7) — beta -->
-    <div class="widget beta">
-      <div class="widget-title">Google Docs output <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Create a Google Doc per note</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="gdocs-enabled" aria-label="Enable Google Docs output">
-          <span class="toggle-track"></span>
-        </label>
-      </div>
-      <div class="row">
-        <span class="label" id="gdocs-status">Not connected</span>
-        <button class="btn" id="gdocs-connect" aria-label="Connect Google Docs">Connect</button>
-      </div>
-      <p class="hint">When enabled, each captured note is also created as a Google Doc. This is a separate connection from Calendar (its own consent + token). Needs the Docs scope on the consent screen — see native_host/GDOCS_SETUP.md.</p>
     </div>
 
     <!-- Pre-meeting brief (P9-G) — beta -->
