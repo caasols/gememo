@@ -651,6 +651,9 @@ function applyDestRowType(row, type, entry = {}) {
     config.classList.add('hidden');
     config.value = '';
   }
+  // When a type has no config field, let the dropdown fill the row so the ✕ stays
+  // right-aligned with the other rows instead of leaving a dangling gap.
+  row.classList.toggle('no-config', config.classList.contains('hidden'));
 }
 
 // Read the current rows out of the DOM into a raw destinations array.
