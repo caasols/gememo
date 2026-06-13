@@ -4,7 +4,7 @@ const DEFAULT_FILE_PATH = '~/Downloads/meeting-notes';
 // null = no Meet tab active; set by queryMeetingState().
 let activeMetTabId = null;
 
-// Logs tab tier toggle — when false, level:'debug' entries are hidden (UX-6).
+// History tab tier toggle — when false, level:'debug' entries are hidden (UX-6).
 let showDebugLogs = false;
 
 // Persisted set of expanded log-group keys (UXF-6). Loaded from
@@ -795,7 +795,7 @@ function renderLogs(logs) {
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
 
-const TABS = ['main', 'rules', 'settings', 'logs', 'about', 'beta'];
+const TABS = ['main', 'logs', 'rules', 'settings', 'about', 'beta'];
 
 function switchTab(tabName) {
   TABS.forEach(t => {
