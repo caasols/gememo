@@ -96,6 +96,17 @@ function computeTimeSavedMin(stats) {
   return Math.round(((stats && stats.wordsCaptured) || 0) / 25);
 }
 
+// The support nudge (the "you saved X · please consider supporting it" line in
+// the About panel) only appears once the user has logged 24h of cumulative
+// meeting time AND has some saved-time to show — i.e. we ask only after the
+// product has demonstrably earned it. Pure helper so the gate is unit-testable.
+const SUPPORT_NUDGE_MIN_MEETING_MINUTES = 24 * 60;
+function supportNudgeEligible(stats) {
+  return !!stats
+    && (stats.totalMeetingMinutes || 0) >= SUPPORT_NUDGE_MIN_MEETING_MINUTES
+    && computeTimeSavedMin(stats) > 0;
+}
+
 // Pure helper — minutes → "Xh Ym" / "Xh" / "Ym".
 function formatStatDuration(min) {
   const m = Math.max(0, Math.round(min || 0));

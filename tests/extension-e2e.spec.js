@@ -608,6 +608,26 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Support nudge appears once meetings pass 24h', async () => {
+      const page = await popupWith({
+        mm2c_stats: { meetingsAttended: 9, notesSaved: 9, wordsCaptured: 1200, totalMeetingMinutes: 1500 },
+      });
+      await page.click('#tab-about');
+      await expect(page.locator('#stats-savings')).toContainText('saved you roughly');
+      await expect(page.locator('#stats-savings')).toContainText('supporting it');
+      await page.close();
+    });
+
+    test('Support nudge stays hidden under 24h of meetings', async () => {
+      const page = await popupWith({
+        mm2c_stats: { meetingsAttended: 3, notesSaved: 3, wordsCaptured: 1200, totalMeetingMinutes: 100 },
+      });
+      await page.click('#tab-about');
+      await expect(page.locator('#stats-grid')).toContainText('1,200'); // stats still render
+      await expect(page.locator('#stats-savings')).toBeHidden();        // but the nudge block is gated off
+      await page.close();
+    });
+
     test('Logs tab renders a meeting group from seeded logs', async () => {
       const page = await popupWith({
         mm2c_logs: [{ ts: Date.now(), status: 'ok', title: 'Q3 Sync', message: 'Saved to Craft', level: 'user' }],

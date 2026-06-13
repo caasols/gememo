@@ -256,10 +256,21 @@ function renderStats(stats) {
   const savingsEl = $('stats-savings');
   if (savingsEl) {
     const saved = computeTimeSavedMin(s);
-    savingsEl.innerHTML = saved > 0
-      ? `These notes saved you roughly <strong>${escapeHtml(formatStatDuration(saved))}</strong> of writing time. ` +
-        `If Gememo helps you, please consider <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener">supporting it ☕</a>.`
-      : 'Capture your first meeting to start tracking your impact.';
+    if (supportNudgeEligible(s)) {
+      // Earned the ask: ≥24h of meetings + real saved-time.
+      savingsEl.innerHTML =
+        `These notes saved you roughly <strong>${escapeHtml(formatStatDuration(saved))}</strong> of writing time. ` +
+        `If Gememo helps you, please consider <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener">supporting it ☕</a>.`;
+      savingsEl.classList.remove('hidden');
+    } else if (saved === 0) {
+      // No captures yet — onboarding nudge.
+      savingsEl.textContent = 'Capture your first meeting to start tracking your impact.';
+      savingsEl.classList.remove('hidden');
+    } else {
+      // Some usage, but under the 24h gate — hide the whole block.
+      savingsEl.textContent = '';
+      savingsEl.classList.add('hidden');
+    }
   }
 }
 
