@@ -56,7 +56,7 @@ cd gememo
 bash native_host/install.sh
 ```
 
-> **Verify:** Open the extension popup — the Main tab should show a green dot with "Native host ready".
+> **Verify:** Open the extension popup — the Today tab should show a green dot with "Native host ready".
 
 ## Features
 
@@ -100,7 +100,7 @@ bash native_host/install.sh
 - **Extension badge** — shows 'REC' (green) during active capture, '!' on error
 - **Snapshot countdown** — "Next in: Xm Ys" and "First snapshot in: Xm Ys" in the popup
 - **Action items** — extracted from each capture into a popup checklist with a "Copy as tasks" button (Markdown `- [ ]`)
-- **Logs tab** — activity grouped by meeting with a capture-outcome dot per group, per-entry Retry, and a pinned footer with **Clear** (always available) / **Download** (Experimental). A **Developer logs** toggle (Experimental) reveals the routine internal events that are hidden by default
+- **History tab** — activity grouped by meeting with a capture-outcome dot per group, per-entry Retry, and a pinned footer with **Clear** (always available) / **Download** (Experimental). A **Developer logs** toggle (Experimental) reveals the routine internal events that are hidden by default
 - **Search past meetings** — local full-text search across your backup notes (title, date, snippet) with date-range and attendee filters; no API, runs on your machine
 - **Theme** — tri-state **System / Light / Dark** appearance control (defaults to System)
 - **Logs** — grouped under **date sections** (Today / Yesterday / date), collapsed by default with your expand/collapse state remembered
@@ -168,10 +168,10 @@ Open the extension popup → **Settings tab**:
 ## Troubleshooting
 
 1. **Leave button behaves normally — no capture** — extension didn't attach. Make sure it's enabled in `chrome://extensions` and reload the Meet tab.
-2. **Red `!` badge** — click the icon; the Main tab shows the error. If it says "Native host not found", run `bash native_host/install.sh` with the correct extension ID.
+2. **Red `!` badge** — click the icon; the Today tab shows the error. If it says "Native host not found", run `bash native_host/install.sh` with the correct extension ID.
 3. **"Open the Gemini panel to enable capture"** — hover over the ✦ icon in the Meet toolbar and click "Start now". The extension will try again automatically.
 4. **"Gemini may be disabled for your account"** — your Google Workspace admin may have blocked Gemini. Check with your admin.
-5. **No note appeared** — check the Logs tab. If a push failed, the Retry widget shows in the Main tab. The backup file path is shown in the error entry so you can recover manually. To push a backup file manually: `python3 scripts/push_to_craft.py --title "TITLE" --content-file ~/Downloads/meeting-notes/YOUR-FILE.md --background`
+5. **No note appeared** — check the History tab. If a push failed, the Retry widget shows in the Today tab. The backup file path is shown in the error entry so you can recover manually. To push a backup file manually: `python3 scripts/push_to_craft.py --title "TITLE" --content-file ~/Downloads/meeting-notes/YOUR-FILE.md --background`
 6. **Note content contains `%` (percentages) and didn't reach Craft** — upgrade to v0.1.87+. Earlier versions silently failed when note content included `%` characters.
 7. **Selectors broken after a Meet update** — run `npm test` to identify which selectors fail, then open an issue with the old and new values.
 8. **Host version mismatch** — re-run `bash native_host/install.sh` to update the native host.
