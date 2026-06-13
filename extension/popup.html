@@ -1276,9 +1276,10 @@
       </div>
     </div>
 
-    <!-- Output app selector -->
+    <!-- Primary output selector — the single main app. Google Docs is a separate
+         additive output (its own widget below); Additional destinations adds more. -->
     <div class="widget">
-      <div class="widget-title">Output app</div>
+      <div class="widget-title">Primary output</div>
       <div class="row">
         <span class="label">App</span>
         <select id="output-app">
@@ -1289,7 +1290,6 @@
           <option value="bear">Bear (untested)</option>
           <optgroup label="Coming soon">
             <option disabled>Notion</option>
-            <option disabled>Google Docs</option>
             <option disabled>Evernote</option>
           </optgroup>
         </select>
@@ -1333,7 +1333,7 @@
     </div>
 
     <!-- Additional destinations repeater (UXF-11) — promoted to production. Sits
-         directly below Output app since both control where notes are sent. -->
+         directly below Primary output since both control where notes are sent. -->
     <div class="widget">
       <div class="widget-title">Additional destinations</div>
       <p class="hint">Send each captured note to extra apps. Leave the folder/vault blank to use your default for that app. Adds to — never replaces — your primary output.</p>
