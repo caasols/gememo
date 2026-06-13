@@ -13,7 +13,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
-_Nothing yet — next change goes here._
+### Changed
+- **Renamed the "Output app" setting to "Primary output"** and removed the stale "Google Docs" entry from its "Coming soon" list. The dropdown is your single primary app; Google Docs (a separate additive output) and Additional destinations run alongside it — "Primary output" makes that relationship clear. Notion/Evernote remain under "Coming soon".
 
 ---
 
