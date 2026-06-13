@@ -753,6 +753,13 @@ function renderLogs(logs) {
     // Meta is just the time — the date lives in the day section header (UXF-4).
     const meta = formatTimeOnly(group.entries[0].ts);
 
+    // "Open ↗" — if a saved note left a deep-link reference (Apple Notes for now),
+    // surface a control to re-open it. Beta-gated until the round-trip is verified.
+    const linkEntry = group.entries.find(e => e.link && e.link.app === 'apple_notes' && e.link.value);
+    const openChip = linkEntry
+      ? `<button class="log-open-btn beta" title="Open in Apple Notes" data-ts="${linkEntry.ts}" data-noteid="${escapeHtml(linkEntry.link.value)}">Open ↗</button>`
+      : '';
+
     const entriesHtml = group.entries.map(entry => {
       const dotClass = entry.status === 'ok' ? 'ok' : entry.status === 'warn' ? 'warn' : entry.status === 'err' ? 'err' : 'info';
       const time = formatTimeOnly(entry.ts);
@@ -780,6 +787,7 @@ function renderLogs(logs) {
           <span class="log-dot ${outcome}" title="Capture outcome"></span>
           <span class="log-group-title">${escapeHtml(groupTitle)}</span>
           <span class="log-group-meta">${escapeHtml(meta)}</span>
+          ${openChip}
           <span class="log-group-chevron">▶</span>
         </div>
         <div class="log-group-entries">${entriesHtml}</div>
@@ -1385,9 +1393,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // "Open ↗" — re-open a saved note (Apple Notes) via the host. If the note is
+  // gone, drop the dead reference so it isn't offered again (auto re-renders).
+  $('log-list').addEventListener('click', (e) => {
+    const openBtn = e.target.closest('.log-open-btn');
+    if (!openBtn) return;
+    e.stopPropagation();
+    const ts = Number(openBtn.dataset.ts);
+    openBtn.disabled = true;
+    chrome.runtime.sendMessage({ type: 'MM2C_OPEN_NOTE', noteId: openBtn.dataset.noteid }, (resp) => {
+      if (resp && resp.ok) return; // Notes is now frontmost
+      if (resp && resp.reason === 'not_found') {
+        openBtn.textContent = 'Note gone';
+        chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => {
+          chrome.storage.local.set({ mm2c_logs: stripLogLink(mm2c_logs, ts) });
+        });
+      } else {
+        openBtn.disabled = false; // transient failure (host down) — allow retry
+      }
+    });
+  });
+
   // Collapsible log groups — toggle the DOM and persist the choice (UXF-6) so
   // the 10 s auto-refresh and future sessions remember it.
   $('log-list').addEventListener('click', (e) => {
+    if (e.target.closest('.log-open-btn')) return; // Open handled above; don't toggle
     const header = e.target.closest('.log-group-header');
     if (!header) return;
     const nowExpanded = header.closest('.log-group').classList.toggle('expanded');

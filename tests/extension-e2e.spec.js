@@ -94,6 +94,19 @@ test.describe('extension E2E harness', () => {
       }).toEqual({ notes: 1, words: 5, mins: 25, status: true, note: 'one two three four five' });
     });
 
+    test('MM2C_RESPONSE stores the host deep-link on the success log entry', async () => {
+      await stubNativeMessage(ext.serviceWorker, {
+        __default: { status: 'ok', title: 'Q3 Sync',
+                     link: { app: 'apple_notes', kind: 'note_id', value: 'x-coredata://S/ICNote/p9' } },
+      });
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'apple_notes', mm2c_logs: [] });
+      await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'one two three', meetingTitle: 'Q3 Sync' });
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, ['mm2c_logs']);
+        return (s.mm2c_logs || []).find(e => e.status === 'ok')?.link?.value || null;
+      }).toBe('x-coredata://S/ICNote/p9');
+    });
+
     test('MM2C_RESPONSE forwards the destinations repeater regardless of beta state (UXF-11)', async () => {
       const dests = [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }, { type: 'apple_notes' }];
       await seedStorage(ext.serviceWorker, {
@@ -634,6 +647,39 @@ test.describe('extension E2E harness', () => {
       });
       await page.click('#tab-logs');
       await expect(page.locator('#log-list')).toContainText('Q3 Sync');
+      await page.close();
+    });
+
+    test('History: a saved Apple Notes link shows an "Open ↗" control (beta)', async () => {
+      const page = await popupWith({
+        mm2c_beta_enabled: true,
+        mm2c_logs: [{ ts: 111, status: 'ok', title: 'Q3 Sync', message: 'Saved to Apple Notes', level: 'user',
+                      link: { app: 'apple_notes', kind: 'note_id', value: 'x-coredata://S/ICNote/p9' } }],
+      });
+      await page.click('#tab-logs');
+      const openBtn = page.locator('.log-open-btn');
+      await expect(openBtn).toBeVisible();
+      await expect(openBtn).toHaveAttribute('data-noteid', 'x-coredata://S/ICNote/p9');
+      await page.close();
+    });
+
+    test('History: clicking Open on a deleted note drops the dead link', async () => {
+      const page = await popupWith(
+        {
+          mm2c_beta_enabled: true,
+          mm2c_logs: [{ ts: 222, status: 'ok', title: 'Gone Mtg', message: 'Saved to Apple Notes', level: 'user',
+                        link: { app: 'apple_notes', kind: 'note_id', value: 'x-coredata://S/ICNote/dead' } }],
+        },
+        { open_note: { ok: false, reason: 'not_found' }, ping: { status: 'ok' }, __default: { status: 'ok' } },
+      );
+      await page.click('#tab-logs');
+      await page.click('.log-open-btn');
+      // not_found ⇒ the link is stripped from the entry (which re-renders → Open gone).
+      await expect
+        .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_logs']))
+          .mm2c_logs.find(e => e.ts === 222)?.link ?? 'removed')
+        .toBe('removed');
+      await expect(page.locator('.log-open-btn')).toHaveCount(0);
       await page.close();
     });
 
