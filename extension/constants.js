@@ -262,7 +262,6 @@ function dedupeDestinations(destinations, primaryApp) {
 // shared by the capture (MM2C_RESPONSE) and recover (MM2C_RECOVER) handlers so a
 // new setting is wired in ONE place (prevents the two from silently drifting).
 function buildForwardConfig(data) {
-  const betaOn = !!data.mm2c_beta_enabled;
   return {
     craftFolderId: data.mm2c_craft_folder_id || '',
     craftSpaceId: data.mm2c_craft_space_id || '',
@@ -282,7 +281,7 @@ function buildForwardConfig(data) {
       finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 30 },
     },
     destinations: dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
-    googleDocsOutput: betaOn ? (data.mm2c_gdocs_enabled === true) : false,
+    googleDocsOutput: data.mm2c_gdocs_enabled === true,
   };
 }
 
