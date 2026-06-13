@@ -13,7 +13,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
-_Nothing yet — next change goes here._
+### Changed
+- **Simplified the About → "Support development" widget to a single Ko-fi link.** It previously stacked an embedded Ko-fi tip **iframe** *and* a "Support on Ko-fi" link that both pointed at the same page — two ways to do one thing. The iframe (plus its lazy-load JS and CSS) is removed; the link stays. (No host change.)
 
 ---
 
