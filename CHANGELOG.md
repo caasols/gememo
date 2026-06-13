@@ -16,6 +16,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ### Changed
 - **Simplified the About → "Support development" widget to a single Ko-fi link.** It previously stacked an embedded Ko-fi tip **iframe** *and* a "Support on Ko-fi" link that both pointed at the same page — two ways to do one thing. The iframe (plus its lazy-load JS and CSS) is removed; the link stays. (No host change.)
 
+### Internal (no behavior change)
+- **Dead-code sweep (popup):** removed an unused `formatLogTime()` (superseded by `formatTimeOnly` + the day-section label), an orphaned `.rules-empty` CSS rule (the empty-state it styled is gone now that the Default rule is always present), and a redundant `id="snapshot-chevron"` (the chevron is styled by its class, never selected by id).
+
 ---
 
 ## [0.2.16] – 2026-06-13 · Unify destinations + Today/History tabs + BUG-9 layers 0/1
