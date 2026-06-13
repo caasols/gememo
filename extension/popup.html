@@ -678,6 +678,19 @@
       white-space: nowrap;
     }
 
+    /* "Open ↗" — re-open the saved note (e.g. Apple Notes) from a History row. */
+    .log-open-btn {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--primary);
+      font-size: 11px;
+      padding: 0 2px;
+      white-space: nowrap;
+    }
+    .log-open-btn:disabled { opacity: 0.5; cursor: default; }
+
     .log-group-entries { display: none; padding: 0 var(--widget-px); border-bottom: 1px solid var(--border); }
     .log-group.expanded .log-group-entries { display: block; }
 

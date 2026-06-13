@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import meeting_minutes_host as mh
 from meeting_minutes_host import (
     body_to_html, build_apple_notes_body, push_to_apple_notes, route_output, notify,
+    open_apple_note,
 )
 
 # The integration tests below create real notes via `osascript`, which LAUNCHES
@@ -211,6 +212,23 @@ class TestBuildAppleNotesBody(unittest.TestCase):
         self.assertIn('{body:noteBody}', script)
         self.assertNotIn('name:', script)
 
+    def test_push_returns_note_id_from_stdout(self):
+        """push_to_apple_notes returns the created note's id (from osascript
+        stdout) and the script asks for it."""
+        note_id = 'x-coredata://ABC-123/ICNote/p42'
+        with patch.object(mh.subprocess, 'run',
+                          return_value=types.SimpleNamespace(returncode=0, stdout=note_id + '\n')) as mrun:
+            result = push_to_apple_notes('My Meeting', '<h2>Attendees</h2>')
+        self.assertEqual(result, note_id)
+        script = mrun.call_args[0][0][2]
+        self.assertIn('return id of theNote', script)
+
+    def test_push_returns_none_when_no_id(self):
+        """No/garbled stdout → None, so saving never breaks on an unreadable id."""
+        with patch.object(mh.subprocess, 'run',
+                          return_value=types.SimpleNamespace(returncode=0, stdout='')):
+            self.assertIsNone(push_to_apple_notes('M', '<p>x</p>'))
+
 
 class TestSubprocessTimeouts(unittest.TestCase):
     """ARCH-2 — osascript calls must carry a timeout so the host can't hang forever."""
@@ -234,6 +252,33 @@ class TestSubprocessTimeouts(unittest.TestCase):
             notify('Title', 'message')
         _, kwargs = mrun.call_args
         self.assertIn('timeout', kwargs)
+
+
+class TestOpenAppleNote(unittest.TestCase):
+    """open_apple_note() — re-open a saved note by id; report not_found cleanly."""
+
+    def test_open_returns_true_when_osascript_says_ok(self):
+        with patch.object(mh.subprocess, 'run',
+                          return_value=types.SimpleNamespace(returncode=0, stdout='ok\n')) as mrun:
+            self.assertTrue(open_apple_note('x-coredata://S/ICNote/p1'))
+        script = mrun.call_args[0][0][2]
+        self.assertIn('show note id', script)
+        self.assertIn('timeout', mrun.call_args[1])  # bounded so it can't hang
+
+    def test_open_returns_false_when_not_found(self):
+        with patch.object(mh.subprocess, 'run',
+                          return_value=types.SimpleNamespace(returncode=0, stdout='not_found\n')):
+            self.assertFalse(open_apple_note('x-coredata://S/ICNote/gone'))
+
+    def test_open_returns_false_on_empty_id_without_running(self):
+        with patch.object(mh.subprocess, 'run') as mrun:
+            self.assertFalse(open_apple_note(''))
+        mrun.assert_not_called()
+
+    def test_open_returns_false_on_timeout(self):
+        with patch.object(mh.subprocess, 'run',
+                          side_effect=subprocess.TimeoutExpired(cmd='osascript', timeout=30)):
+            self.assertFalse(open_apple_note('x-coredata://S/ICNote/p1'))
 
 
 class TestRouteOutput(unittest.TestCase):
@@ -260,6 +305,19 @@ class TestRouteOutput(unittest.TestCase):
         self.assertIn('<h2>Summary</h2>', pushed[0][1])
         self.assertEqual(sent[0]['status'], 'ok')
         self.assertEqual(sent[0]['title'], 'My Meeting')
+        self.assertNotIn('link', sent[0], 'no link when push returns no id')
+
+    def test_apple_notes_includes_deeplink_when_push_returns_id(self):
+        sent = []
+        note_id = 'x-coredata://S/ICNote/p7'
+        route_output(
+            'apple_notes', '## Summary\nTest', 'My Meeting', None,
+            apple_push_fn=lambda t, h: note_id,
+            notify_fn=lambda t, m: None,
+            send_fn=lambda r: sent.append(r),
+        )
+        self.assertEqual(sent[0]['link'],
+                         {'app': 'apple_notes', 'kind': 'note_id', 'value': note_id})
 
     def test_none_sends_ok_without_push_and_returns_true(self):
         pushed, notified, sent, push_fn, note_fn, send_fn = self._deps()

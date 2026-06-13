@@ -41,8 +41,10 @@ refreshSelectorHotfix();
 let pendingLogs = []; // entries waiting to be written to storage
 let flushTimer  = null; // debounce handle
 
-function appendLog(status, title, message, level = 'user') {
-  pendingLogs.push({ ts: Date.now(), status, title: title || '', message: message || '', level });
+function appendLog(status, title, message, level = 'user', link = null) {
+  const entry = { ts: Date.now(), status, title: title || '', message: message || '', level };
+  if (link) entry.link = link; // deep-link reference (e.g. saved Apple Notes note id)
+  pendingLogs.push(entry);
   clearTimeout(flushTimer);
   flushTimer = setTimeout(flushLogs, 100);
 }
@@ -88,6 +90,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       chrome.runtime.sendNativeMessage(NATIVE_HOST, { type: msg.action }, (response) => {
         const err = chrome.runtime.lastError?.message || null;
         sendResponse(err ? { ok: false, error: err } : (response || {}));
+      });
+      return true; // async
+
+    case 'MM2C_OPEN_NOTE':
+      // Ask the host to re-open a saved note by id. Reply { ok, reason? } — a
+      // not_found lets the popup drop the dead deep-link reference.
+      chrome.runtime.sendNativeMessage(NATIVE_HOST, { type: 'open_note', noteId: msg.noteId }, (response) => {
+        const err = chrome.runtime.lastError?.message || null;
+        sendResponse(err ? { ok: false, error: err } : (response || { ok: false }));
       });
       return true; // async
 
@@ -507,7 +518,8 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         });
         if (tabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', tabId)]: label });
         else        chrome.storage.local.set({ mm2c_last_status: label });
-        appendLog('ok', meetingTitle, label);
+        // Deep-link reference (e.g. Apple Notes note id) so History can re-open it.
+        appendLog('ok', meetingTitle, label, 'user', response.link || null);
         setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
         if (callback) callback({ ok: true });
       } else {

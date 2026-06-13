@@ -2565,6 +2565,24 @@ window.MM2C_TESTS = (() => {
     supportNudgeEligible({ totalMeetingMinutes: 5000, wordsCaptured: 0 }) === false);
   assert('supportNudgeEligible: null/undefined stats → false',
     supportNudgeEligible(null) === false && supportNudgeEligible(undefined) === false);
+
+  // stripLogLink — drop a dead deep-link reference by ts.
+  {
+    const logs = [
+      { ts: 1, title: 'A', link: { app: 'apple_notes', kind: 'note_id', value: 'x://1' } },
+      { ts: 2, title: 'B' },
+      { ts: 3, title: 'C', link: { app: 'apple_notes', kind: 'note_id', value: 'x://3' } },
+    ];
+    const out = stripLogLink(logs, 1);
+    assert('stripLogLink: removes link from the matching ts entry',
+      out[0].link === undefined && out[0].title === 'A');
+    assert('stripLogLink: leaves other entries untouched',
+      out[1].title === 'B' && out[2].link && out[2].link.value === 'x://3');
+    assert('stripLogLink: unknown ts is a no-op',
+      JSON.stringify(stripLogLink(logs, 99)) === JSON.stringify(logs));
+    assert('stripLogLink: non-array → []',
+      Array.isArray(stripLogLink(null)) && stripLogLink(null).length === 0);
+  }
   assert('formatStatDuration: hours + minutes',
     formatStatDuration(75) === '1h 15m');
   assert('formatStatDuration: whole hours',
