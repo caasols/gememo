@@ -52,13 +52,19 @@ function appendLog(status, title, message, level = 'user', link = null) {
 function flushLogs() {
   const batch = pendingLogs.splice(0); // drain atomically before the async get
   if (!batch.length) return;
-  chrome.storage.local.get(['mm2c_logs'], (data) => {
-    const logs = Array.isArray(data.mm2c_logs) ? data.mm2c_logs : [];
-    // batch is in call order (oldest at index 0); reverse so newest ends up at index 0
-    logs.unshift(...batch.reverse());
-    if (logs.length > 200) logs.splice(200);
-    chrome.storage.local.set({ mm2c_logs: logs });
-  });
+  chrome.storage.local.get(
+    ['mm2c_logs', 'mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days'],
+    (data) => {
+      let logs = Array.isArray(data.mm2c_logs) ? data.mm2c_logs : [];
+      // batch is in call order (oldest at index 0); reverse so newest ends up at index 0
+      logs.unshift(...batch.reverse());
+      // Optional age-based pruning (History auto-cleanup).
+      if (data.mm2c_logs_cleanup_enabled === true) {
+        logs = pruneOldLogs(logs, data.mm2c_logs_cleanup_days || 30);
+      }
+      if (logs.length > 200) logs.splice(200);
+      chrome.storage.local.set({ mm2c_logs: logs });
+    });
 }
 
 const DEDUP_WINDOW_MS = 40 * 60 * 1000; // 40-minute same-meeting window

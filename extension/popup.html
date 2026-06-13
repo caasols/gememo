@@ -1430,6 +1430,18 @@
         <button class="btn danger" id="clear-logs">Clear</button>
       </div>
       <p class="hint">Removes all entries from the History tab. Your saved notes and on-disk backups are not affected.</p>
+      <div class="row">
+        <span class="label">Auto-delete old entries</span>
+        <label class="toggle-wrap"><input type="checkbox" id="logs-cleanup-enabled"><span class="toggle-track"></span></label>
+      </div>
+      <div class="row">
+        <span class="label">…older than</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="logs-cleanup-days" min="1" max="3650" value="30">
+          <span class="unit-label">days</span>
+        </div>
+      </div>
+      <p class="hint">History entries older than this are removed automatically — on new activity and when you open the popup.</p>
 
       <!-- Redaction + blocklist (RB-5b) — beta-gated; appears inside Privacy settings when Experimental is on. -->
       <div class="beta">

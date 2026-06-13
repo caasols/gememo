@@ -121,6 +121,17 @@ function stripLogLink(logs, ts) {
   });
 }
 
+// Drop activity-log entries older than `days` (by their ts). Used by the optional
+// History auto-cleanup. A non-positive/invalid `days` is a no-op, so a
+// misconfigured value can never silently wipe the whole log.
+function pruneOldLogs(logs, days, now = Date.now()) {
+  if (!Array.isArray(logs)) return [];
+  const d = parseInt(days, 10);
+  if (!Number.isFinite(d) || d <= 0) return logs;
+  const cutoff = now - d * 86400000; // days → ms
+  return logs.filter(e => !e || typeof e.ts !== 'number' || e.ts >= cutoff);
+}
+
 // Pure helper — minutes → "Xh Ym" / "Xh" / "Ym".
 function formatStatDuration(min) {
   const m = Math.max(0, Math.round(min || 0));
