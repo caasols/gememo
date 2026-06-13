@@ -441,27 +441,30 @@ class TestCaptureHooks(unittest.TestCase):
     _run = TestMainCaptureFlow._run
     _capture_msg = TestMainCaptureFlow._capture_msg
 
-    # 7 — googleDocsOutput → gdocs.create_doc(title, craft_md)
-    def test_google_docs_output_calls_create_doc(self):
+    # 7 — Google Docs as the PRIMARY output (backupType='google_docs') routes to create_doc
+    def test_google_docs_primary_routes_to_create_doc(self):
         with tempfile.TemporaryDirectory() as tmp:
             calls = []
-            with patch.object(host.gdocs, 'GDOCS_AVAILABLE', True), \
-                    patch.object(host.gdocs, 'create_doc',
-                                 side_effect=lambda t, b: calls.append((t, b)) or {"ok": True}):
-                sent = self._run(self._capture_msg(tmp, googleDocsOutput=True), _proc(0))
+            with patch.object(host.gdocs, 'create_doc',
+                              side_effect=lambda t, b: calls.append((t, b)) or
+                                  {"ok": True, "url": "https://docs.google.com/document/d/X/edit"}):
+                sent = self._run(self._capture_msg(tmp, backupType='google_docs'), _proc(0))
             self.assertEqual(sent[-1]["status"], "ok")
             self.assertEqual(len(calls), 1)
             title, body = calls[0]
             self.assertTrue(title.endswith("Q3 Planning"))
             self.assertIn("We shipped it.", body)
+            # The Doc URL rides back as a deep-link reference.
+            self.assertEqual(sent[-1]["link"],
+                             {"app": "gdocs", "kind": "url",
+                              "value": "https://docs.google.com/document/d/X/edit"})
 
-    def test_google_docs_output_isolated_when_create_doc_raises(self):
+    def test_google_docs_primary_not_connected_errors(self):
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.object(host.gdocs, 'GDOCS_AVAILABLE', True), \
-                    patch.object(host.gdocs, 'create_doc', side_effect=RuntimeError("docs down")):
-                sent = self._run(self._capture_msg(tmp, googleDocsOutput=True), _proc(0))
-            # best-effort except — capture still succeeds
-            self.assertEqual(sent[-1]["status"], "ok")
+            with patch.object(host.gdocs, 'create_doc', return_value={"ok": False, "error": "not_connected"}):
+                sent = self._run(self._capture_msg(tmp, backupType='google_docs'), _proc(0))
+            self.assertEqual(sent[-1]["status"], "error")
+            self.assertIn("connect", sent[-1]["error"].lower())
 
     # 8 — destinations → send_to_destinations(list, ...)
     def test_destinations_hook_wires_into_main(self):
