@@ -704,16 +704,6 @@ function groupLogs(logs) {
   return groups;
 }
 
-function formatLogTime(ts) {
-  const d = new Date(ts);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  if (isToday) return time;
-  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  return `${date} ${time}`;
-}
-
 // Just the HH:MM time — used for the group meta under a date section (UXF-4).
 function formatTimeOnly(ts) {
   return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
