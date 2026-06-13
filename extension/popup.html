@@ -892,6 +892,9 @@
     .dest-row .dest-config { flex: 1 1 auto; min-width: 0; }
     .dest-row .dest-config.hidden { display: none; }
     .dest-row .dest-remove { flex-shrink: 0; }
+    /* No config field (e.g. Apple Notes): the dropdown fills the row so the ✕
+       lines up with the other rows instead of leaving a gap. */
+    .dest-row.no-config .dest-type { flex: 1 1 auto; }
     #add-destination:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* Per-rule time condition (P5-L2) */

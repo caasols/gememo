@@ -993,6 +993,19 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Additional destinations: an Apple Notes row gets the no-config layout (hidden field)', async () => {
+      const page = await popupWith({
+        mm2c_output_app: 'craft', // so apple_notes is offered as an extra
+        mm2c_destinations: [{ type: 'apple_notes' }],
+      });
+      await page.click('#tab-settings');
+      const row = page.locator('#destinations-list .dest-row').first();
+      await expect(row.locator('.dest-type')).toHaveValue('apple_notes');
+      await expect(row).toHaveClass(/no-config/);            // dropdown fills the row → ✕ aligned
+      await expect(row.locator('.dest-config')).toBeHidden(); // no config field for Apple Notes
+      await page.close();
+    });
+
     test('Adding + filling an additional destination persists to storage (UXF-11)', async () => {
       const page = await popupWith({ mm2c_destinations: [] });
       await page.click('#tab-settings'); // promoted out of beta — now in Settings
