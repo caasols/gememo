@@ -2583,6 +2583,26 @@ window.MM2C_TESTS = (() => {
     assert('stripLogLink: non-array → []',
       Array.isArray(stripLogLink(null)) && stripLogLink(null).length === 0);
   }
+
+  // pruneOldLogs — drop entries older than N days by ts.
+  {
+    const now = 1_000_000_000_000;
+    const day = 86400000;
+    const logs = [
+      { ts: now - 2 * day, title: 'recent' },
+      { ts: now - 40 * day, title: 'old' },
+      { ts: now - 29 * day, title: 'edge-keep' },
+    ];
+    const out = pruneOldLogs(logs, 30, now);
+    assert('pruneOldLogs: keeps entries within the window',
+      out.some(e => e.title === 'recent') && out.some(e => e.title === 'edge-keep'));
+    assert('pruneOldLogs: drops entries older than N days',
+      !out.some(e => e.title === 'old'));
+    assert('pruneOldLogs: invalid/zero days is a no-op',
+      pruneOldLogs(logs, 0, now).length === 3 && pruneOldLogs(logs, 'x', now).length === 3);
+    assert('pruneOldLogs: non-array → []',
+      Array.isArray(pruneOldLogs(null, 30)) && pruneOldLogs(null, 30).length === 0);
+  }
   assert('formatStatDuration: hours + minutes',
     formatStatDuration(75) === '1h 15m');
   assert('formatStatDuration: whole hours',
