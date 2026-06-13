@@ -220,8 +220,8 @@ function normalizeDestinations(raw) {
       out.push({ type, vaultPath: String(entry.vaultPath || '').trim() });
     } else if (type === 'craft') {
       out.push({ type, folderId: String(entry.folderId || '').trim() });
-    } else if (type === 'apple_notes') {
-      out.push({ type });
+    } else if (type === 'apple_notes' || type === 'google_docs') {
+      out.push({ type }); // no per-row config
     }
     // unknown type → dropped
   }
@@ -1222,7 +1222,7 @@ function resolveBanner({ capturing = false, inMeeting = false, geminiActive = fa
 // Pure helper — map an output-app key to its human label (ARCH-7). Moved
 // verbatim from content_meet.js; unknown keys pass through unchanged.
 function outputAppName(appKey) {
-  return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear' })[appKey] || appKey;
+  return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear', google_docs: 'Google Docs' })[appKey] || appKey;
 }
 
 // Pure helper — turn one meeting-title candidate into a display title (ARCH-7).

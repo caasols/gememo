@@ -661,7 +661,7 @@ function applyDestRowType(row, type, entry = {}) {
     config.placeholder = 'Craft folder — optional';
     config.setAttribute('aria-label', 'Craft folder ID');
     config.value = entry.folderId || '';
-  } else { // apple_notes — no extra config
+  } else { // apple_notes / google_docs — no extra config
     config.classList.add('hidden');
     config.value = '';
   }
@@ -1159,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const app = e.target.value;
     $('craft-sub-options').classList.toggle('hidden', app !== 'craft');
     $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
-    $('gdocs-sub-options').classList.toggle('hidden', app !== 'google_docs');
+    updateGdocsConnVisibility(); // Google Docs connection shows if primary or an extra
     save({ mm2c_output_app: app });
     renderSetupWizard(lastHostOk); // checking off the "choose output app" step (RB-7a)
   });
