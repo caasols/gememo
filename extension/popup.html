@@ -1320,16 +1320,6 @@
         <p class="hint">Click the field to open a folder picker and select your Obsidian vault.</p>
       </div>
 
-      <!-- Google Docs sub-options — shown only when Google Docs is the primary (5.7).
-           Its own OAuth grant (separate consent + token from Calendar). -->
-      <div id="gdocs-sub-options" class="sub-options hidden">
-        <div class="row">
-          <span class="label" id="gdocs-status">Not connected</span>
-          <button class="btn" id="gdocs-connect" aria-label="Connect Google Docs">Connect</button>
-        </div>
-        <p class="hint">Each captured note is created as a Google Doc. This is a separate connection from Calendar (its own consent + token). Needs the Docs scope on the consent screen — see native_host/GDOCS_SETUP.md.</p>
-      </div>
-
       <!-- Wikilinks for graph apps — beta-gated -->
       <div class="beta">
         <div class="row" style="margin-top:8px">
@@ -1352,6 +1342,18 @@
       <div class="row">
         <button class="btn" id="add-destination" aria-label="Add destination">Add destination</button>
       </div>
+    </div>
+
+    <!-- Google Docs connection (5.7) — its own OAuth grant, shared whether Google
+         Docs is the Primary output or an Additional destination. Shown only when
+         Google Docs is in use anywhere (toggled by updateGdocsConnVisibility). -->
+    <div class="widget hidden" id="gdocs-conn">
+      <div class="widget-title">Google Docs connection</div>
+      <div class="row">
+        <span class="label" id="gdocs-status">Not connected</span>
+        <button class="btn" id="gdocs-connect" aria-label="Connect Google Docs">Connect</button>
+      </div>
+      <p class="hint">Used whenever Google Docs is your Primary output or an Additional destination. Separate connection from Calendar (its own consent + token) — needs the Docs scope on the consent screen; see native_host/GDOCS_SETUP.md.</p>
     </div>
 
     <!-- Action items → task manager (RB-3a) — beta-gated -->
