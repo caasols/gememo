@@ -13,6 +13,12 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+_Nothing yet — next change goes here._
+
+---
+
+## [0.2.17] – 2026-06-13 · Privacy settings, Google Docs (main) & open saved notes from History
+
 ### Added
 - **History auto-cleanup — delete activity entries older than N days.** Privacy settings → Activity history gains an **Auto-delete old entries** toggle + "…older than N days" (default 30, alongside the existing "Clear"). When on, History entries past the cutoff are pruned automatically — on new activity and when you open the popup. Off by default; only the in-extension activity log is affected (saved notes and on-disk backups aren't touched).
 - **Open a saved note from History — Apple Notes (🧪 under testing, Beta).** When a note is saved to Apple Notes, the host now records the created note's id; the History row shows an **"Open ↗"** control (behind Experimental) that re-opens it in Apple Notes. If the note no longer exists, the host reports it and the extension drops the dead reference so it isn't offered again. Beta-gated until the AppleScript re-open is confirmed against a live Notes. (Host change → re-run `install.sh`.) Obsidian + Google Docs reuse the same mechanism next.
