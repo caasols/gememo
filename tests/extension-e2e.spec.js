@@ -664,7 +664,7 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Settings: Backup cleanup sits between File backup and Experimental (UXF-13 reorder)', async () => {
+    test('Settings: Privacy settings sits between File backup and Experimental (UXF-13 reorder)', async () => {
       const page = await popupWith({});
       await page.click('#tab-settings');
       const order = await page.evaluate(() => {
@@ -672,13 +672,13 @@ test.describe('extension E2E harness', () => {
           .map(t => t.textContent.trim());
         return {
           fileBackup: titles.indexOf('File backup'),
-          cleanup: titles.findIndex(t => t.startsWith('Backup cleanup')),
+          privacy: titles.findIndex(t => t.startsWith('Privacy settings')),
           experimental: titles.indexOf('Experimental'),
         };
       });
       expect(order.fileBackup).toBeGreaterThanOrEqual(0);
-      expect(order.cleanup).toBeGreaterThan(order.fileBackup);
-      expect(order.experimental).toBeGreaterThan(order.cleanup);
+      expect(order.privacy).toBeGreaterThan(order.fileBackup);
+      expect(order.experimental).toBeGreaterThan(order.privacy);
       await page.close();
     });
 
@@ -854,7 +854,8 @@ test.describe('extension E2E harness', () => {
     test('advanced features are hidden when Experimental is OFF (beta gating)', async () => {
       const page = await popupWith({ mm2c_beta_enabled: false });
       await page.click('#tab-settings');
-      // Settings-tab gated widgets: Your name, Webhook, Privacy, action-item routing, wikilinks.
+      // Settings-tab gated widgets: Your name, Webhook, the Privacy-settings redaction
+      // sub-block, action-item routing, wikilinks.
       await expect(page.locator('#my-aliases')).not.toBeVisible();
       await expect(page.locator('#webhook-url')).not.toBeVisible();
       await expect(page.locator('#redact-keywords')).not.toBeVisible();
@@ -866,7 +867,9 @@ test.describe('extension E2E harness', () => {
       // visible regardless of the Experimental toggle.
       await expect(page.locator('#output-app')).toBeVisible();
       await expect(page.locator('#add-destination')).toBeVisible();
-      await expect(page.getByText('Backup cleanup')).toBeVisible();
+      await expect(page.getByText('Privacy settings')).toBeVisible();      // card title (production)
+      await expect(page.getByText('Local backups')).toBeVisible();         // retention sub-section stays
+      await expect(page.getByText('Redaction & blocklist')).not.toBeVisible(); // beta sub-block gated off
       // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).not.toBeVisible();

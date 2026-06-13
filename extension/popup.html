@@ -223,6 +223,14 @@
       color: var(--text-muted);
     }
 
+    /* Sub-group label inside a widget (e.g. the sections of Privacy settings). */
+    .subhead {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 12px 0 2px;
+    }
+
     .widget-header {
       display: flex;
       align-items: center;
@@ -1369,9 +1377,13 @@
 
     </div>
 
-    <!-- Backup-folder auto-cleanup (UXF-13) — promoted to production. Sits next to File backup since it prunes that same folder. -->
+    <!-- Privacy settings — all privacy-related controls in one place: local-backup
+         retention (production, always shown) + redaction/blocklist (beta-gated; the
+         .beta sub-block appears here only when Experimental is on). -->
     <div class="widget">
-      <div class="widget-title">Backup cleanup</div>
+      <div class="widget-title">Privacy settings</div>
+
+      <div class="subhead">Local backups</div>
       <div class="row">
         <span class="label">Delete old snapshots</span>
         <label class="toggle-wrap"><input type="checkbox" id="cleanup-snap-enabled"><span class="toggle-track"></span></label>
@@ -1395,6 +1407,28 @@
         </div>
       </div>
       <p class="hint">Prunes the file-backup folder on capture (once/day). Off by default. Deleting old notes also removes old recovered (<code>*-RECOVERED.md</code>) files.</p>
+
+      <!-- Redaction + blocklist (RB-5b) — beta-gated; appears inside Privacy settings when Experimental is on. -->
+      <div class="beta">
+        <div class="subhead">Redaction &amp; blocklist <span class="beta-pill">Beta</span></div>
+        <div class="row">
+          <span class="label">Redact PII</span>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="redact-pii">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="row">
+          <span class="label">Also redact</span>
+          <input type="text" id="redact-keywords" placeholder="comma,separated,keywords">
+        </div>
+        <p class="hint">Strips emails, phone numbers, and card-like numbers (plus your keywords) from notes and webhook payloads before anything is written.</p>
+        <div style="margin-top:4px">
+          <span class="label">Never capture (blocklist)</span>
+          <textarea id="blocklist" rows="2" placeholder="interview, 1:1 with HR, /salary/i"></textarea>
+        </div>
+        <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
+      </div>
     </div>
 
     <!-- Review before send (RB-4b) — beta-gated -->
@@ -1425,28 +1459,6 @@
       </div>
       <span class="field-error" id="slack-error" role="alert"></span>
       <p class="hint">Posts the title, summary, and action-item count to a Slack incoming webhook.</p>
-    </div>
-
-    <!-- Privacy: PII redaction (RB-5b) -->
-    <div class="widget beta">
-      <div class="widget-title">Privacy <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Redact PII</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="redact-pii">
-          <span class="toggle-track"></span>
-        </label>
-      </div>
-      <div class="row">
-        <span class="label">Also redact</span>
-        <input type="text" id="redact-keywords" placeholder="comma,separated,keywords">
-      </div>
-      <p class="hint">Strips emails, phone numbers, and card-like numbers (plus your keywords) from notes and webhook payloads before anything is written.</p>
-      <div style="margin-top:4px">
-        <span class="label">Never capture (blocklist)</span>
-        <textarea id="blocklist" rows="2" placeholder="interview, 1:1 with HR, /salary/i"></textarea>
-      </div>
-      <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
     </div>
 
     <!-- Experimental features toggle (UXF-1) — always the LAST widget in Settings. -->
