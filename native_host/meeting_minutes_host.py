@@ -1118,6 +1118,11 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
                 if folder_id:
                     cmd += ["--folder-id", folder_id]
                 subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+            elif dest == 'google_docs':
+                res = gdocs.create_doc(title, craft_md)
+                if isinstance(res, dict) and res.get('ok'):
+                    notify("Meeting Notes → Google Docs", title)
+                # not connected / error → silently skipped (best-effort, like other rows)
         except Exception:
             pass  # best-effort per-row output — never affect the primary capture
 

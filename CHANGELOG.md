@@ -14,8 +14,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Changed
-- **Google Docs is now a selectable Primary output** (Settings → Primary output → Google Docs), instead of a separate "also create a Doc" toggle. Picking it files each note straight to Google Docs (its own OAuth connect appears as a sub-option, like Craft's folder or Obsidian's vault); "not connected" surfaces as a capture error, same as choosing Obsidian without a vault. The standalone additive "Google Docs output" widget is removed — Google Docs is now *instead-of*, not *in-addition-to*. (As the primary, the created Doc's URL is also recorded for a future "Open in Docs" History link.)
-- **Renamed the "Output app" setting to "Primary output"** and removed the stale "Google Docs" entry from its "Coming soon" list. The dropdown is your single primary app; Google Docs (a separate additive output) and Additional destinations run alongside it — "Primary output" makes that relationship clear. Notion/Evernote remain under "Coming soon".
+- **Google Docs is now a first-class output — both Primary and an Additional destination.** Replaces the old "also create a Doc" toggle. Pick it as your **Primary output** (files each note straight to Google Docs; "not connected" surfaces as a capture error, like Obsidian without a vault), **and/or** add it under **Additional destinations** to send a Doc alongside another primary. A single **Google Docs connection** control (its own OAuth grant, separate from Calendar) appears whenever Google Docs is in use either way; it can't be both your primary and an extra (deduped). (As the primary, the created Doc's URL is recorded for a future "Open in Docs" History link.)
+- **Renamed the "Output app" setting to "Primary output"** and removed the stale "Google Docs" entry from its "Coming soon" list. The dropdown is your single primary app; Additional destinations (incl. Google Docs) run alongside it — "Primary output" makes that relationship clear. Notion/Evernote remain under "Coming soon".
 
 ---
 

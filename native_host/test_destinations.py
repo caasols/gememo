@@ -39,6 +39,19 @@ class TestSendToDestinations(unittest.TestCase):
             host.send_to_destinations([{'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
             pan.assert_called_once()
 
+    def test_google_docs_dispatch(self):
+        with patch.object(host.gdocs, 'create_doc', return_value={'ok': True}) as gd, \
+                patch.object(host, 'notify') as note:
+            host.send_to_destinations([{'type': 'google_docs'}], CRAFT_MD, TITLE, DT, LABEL)
+            gd.assert_called_once_with(TITLE, CRAFT_MD)
+            note.assert_called_once()
+
+    def test_google_docs_not_connected_skips_quietly(self):
+        with patch.object(host.gdocs, 'create_doc', return_value={'ok': False, 'error': 'not_connected'}), \
+                patch.object(host, 'notify') as note:
+            host.send_to_destinations([{'type': 'google_docs'}], CRAFT_MD, TITLE, DT, LABEL)
+            note.assert_not_called()  # best-effort — no notification on failure
+
     def test_obsidian_uses_row_vault(self):
         with tempfile.TemporaryDirectory() as tmp:
             host.send_to_destinations(

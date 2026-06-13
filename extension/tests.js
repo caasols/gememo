@@ -1221,6 +1221,9 @@ window.MM2C_TESTS = (() => {
     assertEq('normalizeDestinations: craft folderId trimmed, may be empty',
       JSON.stringify(normalizeDestinations([{ type: 'craft', folderId: '  abc  ' }, { type: 'craft' }])),
       JSON.stringify([{ type: 'craft', folderId: 'abc' }, { type: 'craft', folderId: '' }]));
+    assertEq('normalizeDestinations: google_docs kept as a no-config row',
+      JSON.stringify(normalizeDestinations([{ type: 'google_docs', junk: 1 }])),
+      JSON.stringify([{ type: 'google_docs' }]));
     assertEq('normalizeDestinations: order preserved',
       JSON.stringify(normalizeDestinations([
         { type: 'craft', folderId: 'f1' },
@@ -1839,6 +1842,7 @@ window.MM2C_TESTS = (() => {
     assertEq('none → None',                  outputAppName('none'),        'None');
     assertEq('obsidian → Obsidian',          outputAppName('obsidian'),    'Obsidian');
     assertEq('bear → Bear',                  outputAppName('bear'),        'Bear');
+    assertEq('google_docs → Google Docs',    outputAppName('google_docs'), 'Google Docs');
     assertEq('unknown key → returned as-is', outputAppName('unknown'),     'unknown');
     assertEq('foo → foo (passthrough)',      outputAppName('foo'),         'foo');
     console.groupEnd();

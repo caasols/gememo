@@ -1012,6 +1012,32 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Additional destinations: Google Docs is an option + reveals the connection widget (5.7)', async () => {
+      const page = await popupWith({
+        mm2c_output_app: 'craft', // craft primary → Google Docs offered as an extra
+        mm2c_destinations: [{ type: 'google_docs' }],
+      });
+      await page.click('#tab-settings');
+      const row = page.locator('#destinations-list .dest-row').first();
+      await expect(row.locator('.dest-type')).toHaveValue('google_docs');
+      // The option is selectable, and the shared connection widget shows because GDocs is in use.
+      await expect(row.locator('.dest-type option[value="google_docs"]')).toHaveCount(1);
+      await expect(page.locator('#gdocs-conn')).toBeVisible();
+      await page.close();
+    });
+
+    test('Additional destinations: Google Docs is excluded when it is the primary (dedupe)', async () => {
+      const page = await popupWith({
+        mm2c_output_app: 'google_docs', // primary → must not be offered/kept as an extra
+        mm2c_destinations: [{ type: 'apple_notes' }],
+      });
+      await page.click('#tab-settings');
+      const row = page.locator('#destinations-list .dest-row').first();
+      // The apple_notes row's type dropdown must NOT offer google_docs (it's the primary).
+      await expect(row.locator('.dest-type option[value="google_docs"]')).toHaveCount(0);
+      await page.close();
+    });
+
     test('Adding + filling an additional destination persists to storage (UXF-11)', async () => {
       const page = await popupWith({ mm2c_destinations: [] });
       await page.click('#tab-settings'); // promoted out of beta — now in Settings
@@ -1030,12 +1056,11 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Google Docs is a Primary-output option that reveals the Connect sub-options (5.7)', async () => {
+    test('Google Docs primary reveals the Google Docs connection widget (5.7)', async () => {
       const page = await popupWith({ mm2c_output_app: 'google_docs' });
       await page.click('#tab-settings');
-      // Selected as primary on load → its sub-options (status + Connect) are shown.
       await expect(page.locator('#output-app')).toHaveValue('google_docs');
-      await expect(page.locator('#gdocs-sub-options')).toBeVisible();
+      await expect(page.locator('#gdocs-conn')).toBeVisible();      // connection control shown
       await expect(page.locator('#gdocs-connect')).toBeVisible();
       await page.close();
     });
@@ -1082,15 +1107,15 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Selecting Google Docs as the primary persists mm2c_output_app + shows the sub-options (5.7)', async () => {
+    test('Selecting Google Docs as the primary persists mm2c_output_app + shows the connection widget (5.7)', async () => {
       const page = await popupWith({ mm2c_output_app: 'none' });
       await page.click('#tab-settings');
-      await expect(page.locator('#gdocs-sub-options')).toBeHidden(); // not selected yet
+      await expect(page.locator('#gdocs-conn')).toBeHidden(); // not in use yet
       await page.selectOption('#output-app', 'google_docs');
       await expect.poll(async () =>
         (await getStorage(ext.serviceWorker, ['mm2c_output_app'])).mm2c_output_app
       ).toBe('google_docs');
-      await expect(page.locator('#gdocs-sub-options')).toBeVisible(); // Connect now revealed
+      await expect(page.locator('#gdocs-conn')).toBeVisible(); // connection control revealed
       await page.close();
     });
 
@@ -1216,8 +1241,8 @@ test.describe('extension E2E harness', () => {
 
     test('popup disables Add destination when all apps are used', async () => {
       const page = await popupWith({
-        mm2c_output_app: 'craft', // craft is primary → only obsidian + apple_notes addable
-        mm2c_destinations: [{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '' }],
+        mm2c_output_app: 'craft', // craft is primary → obsidian + apple_notes + google_docs addable
+        mm2c_destinations: [{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '' }, { type: 'google_docs' }],
       });
       await page.click('#tab-settings');
       await expect(page.locator('#add-destination')).toBeDisabled();

@@ -428,7 +428,8 @@ function applyState(s, tabId, live = null) {
   $('output-app').value = outputApp;
   $('craft-sub-options').classList.toggle('hidden', outputApp !== 'craft');
   $('obsidian-sub-options').classList.toggle('hidden', outputApp !== 'obsidian');
-  $('gdocs-sub-options').classList.toggle('hidden', outputApp !== 'google_docs');
+  // Google Docs connection visibility is handled by renderDestinations →
+  // updateGdocsConnVisibility (covers both primary + additional-destination use).
   $('obsidian-vault-path').value = s.mm2c_obsidian_vault_path || '';
 
   $('craft-folder-id').value = s.mm2c_craft_folder_id || '';
@@ -592,6 +593,7 @@ const _DEST_TYPES = [
   { value: 'obsidian',    label: 'Obsidian' },
   { value: 'apple_notes', label: 'Apple Notes' },
   { value: 'craft',       label: 'Craft' },
+  { value: 'google_docs', label: 'Google Docs' },
 ];
 const _DEST_TYPE_VALUES = _DEST_TYPES.map(t => t.value);
 
@@ -659,7 +661,7 @@ function applyDestRowType(row, type, entry = {}) {
     config.placeholder = 'Craft folder — optional';
     config.setAttribute('aria-label', 'Craft folder ID');
     config.value = entry.folderId || '';
-  } else { // apple_notes — no extra config
+  } else { // apple_notes / google_docs — no extra config
     config.classList.add('hidden');
     config.value = '';
   }
@@ -699,6 +701,16 @@ function updateAddDestinationState() {
   btn.disabled = availableDestTypes(_DEST_TYPE_VALUES, _destPrimary, used, null).length === 0;
 }
 
+// Show the Google Docs connection control whenever Google Docs is in use — as the
+// primary output OR as an additional destination — so its OAuth is reachable either way.
+function updateGdocsConnVisibility() {
+  const widget = $('gdocs-conn');
+  if (!widget) return;
+  const asPrimary = $('output-app').value === 'google_docs';
+  const asExtra = normalizeDestinations(readDestinationsFromDom()).some(e => e.type === 'google_docs');
+  widget.classList.toggle('hidden', !(asPrimary || asExtra));
+}
+
 // Render the repeater from a destinations list, deduped + primary-excluded.
 function renderDestinations(destinations, primaryApp = _destPrimary) {
   _destPrimary = primaryApp;
@@ -709,6 +721,7 @@ function renderDestinations(destinations, primaryApp = _destPrimary) {
   list.innerHTML = '';
   for (const entry of deduped) list.appendChild(buildDestinationRow(entry, { primaryApp, usedTypes }));
   updateAddDestinationState();
+  updateGdocsConnVisibility();
 }
 
 // ── Logs ───────────────────────────────────────────────────────────────────
@@ -1146,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const app = e.target.value;
     $('craft-sub-options').classList.toggle('hidden', app !== 'craft');
     $('obsidian-sub-options').classList.toggle('hidden', app !== 'obsidian');
-    $('gdocs-sub-options').classList.toggle('hidden', app !== 'google_docs');
+    updateGdocsConnVisibility(); // Google Docs connection shows if primary or an extra
     save({ mm2c_output_app: app });
     renderSetupWizard(lastHostOk); // checking off the "choose output app" step (RB-7a)
   });
