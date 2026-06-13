@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Added
+- **Open a saved note from History — Apple Notes (🧪 under testing, Beta).** When a note is saved to Apple Notes, the host now records the created note's id; the History row shows an **"Open ↗"** control (behind Experimental) that re-opens it in Apple Notes. If the note no longer exists, the host reports it and the extension drops the dead reference so it isn't offered again. Beta-gated until the AppleScript re-open is confirmed against a live Notes. (Host change → re-run `install.sh`.) Obsidian + Google Docs reuse the same mechanism next.
+
 ### Changed
 - **Moved the History "Clear" button into Privacy settings.** Clearing your activity history is a privacy action, so it now lives under **Privacy settings → Activity history** (always available) instead of the History-tab footer. The History footer now holds only the Beta "Download" export, so it's hidden entirely unless Experimental is on.
 - **Grouped all privacy controls under one "Privacy settings" section.** The production "Backup cleanup" widget and the Beta "Privacy" (PII redaction) widget are now a single **Privacy settings** card: a **Local backups** section (delete old snapshots/notes after N days — always shown) and a **Redaction & blocklist** section (Redact PII, keywords, never-capture blocklist — appears inside the card only when Experimental is on). Same toggles, same storage; just regrouped so the privacy-related settings live together.

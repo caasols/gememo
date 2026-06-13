@@ -422,13 +422,16 @@ def build_apple_notes_body(title: str, body_html: str) -> str:
     return f'<h1>{_html.escape(title.strip())}</h1><br>' + body_html
 
 
-def push_to_apple_notes(title: str, body_html: str) -> None:
-    """Push a note to Apple Notes via osascript.
+def push_to_apple_notes(title: str, body_html: str) -> str | None:
+    """Push a note to Apple Notes via osascript; return the created note's id.
 
     HTML body is written to a temp file to avoid AppleScript string-escaping
     issues with embedded quotes, backslashes, and newlines. The note name is
     derived by Apple Notes from the leading <h1> (see build_apple_notes_body),
     so no `name` property is set here.
+
+    Returns the note id (an `x-coredata://…` URI) so callers can deep-link back
+    to the note later, or None if the id can't be read (the save still succeeds).
     Raises subprocess.CalledProcessError on osascript failure.
     """
     import tempfile
@@ -442,14 +445,47 @@ def push_to_apple_notes(title: str, body_html: str) -> None:
         script = (
             f'set noteBody to read (POSIX file "{tmp_path}") as «class utf8»\n'
             f'tell application "Notes"\n'
-            f'  make new note with properties {{body:noteBody}}\n'
+            f'  set theNote to make new note with properties {{body:noteBody}}\n'
+            f'  return id of theNote\n'
             f'end tell'
         )
         # timeout guards against AppleScript hanging on a modal/permission prompt,
         # which would otherwise block the native host (and Chrome's port) forever.
-        subprocess.run(['osascript', '-e', script], check=True, capture_output=True, timeout=30)
+        proc = subprocess.run(['osascript', '-e', script], check=True,
+                              capture_output=True, text=True, timeout=30)
+        note_id = (getattr(proc, 'stdout', '') or '').strip()
+        return note_id or None
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+
+
+def open_apple_note(note_id: str) -> bool:
+    """Bring the Apple Notes note with this id to the front.
+
+    Returns True if the note was shown, False if it no longer exists (so the
+    caller can drop the stored deep-link reference). Bounded by a timeout so a
+    permission/modal prompt can't hang the host.
+    """
+    if not note_id:
+        return False
+    safe_id = note_id.replace('"', '')  # coredata URIs carry no quotes; strip defensively
+    script = (
+        f'tell application "Notes"\n'
+        f'  try\n'
+        f'    show note id "{safe_id}"\n'
+        f'    activate\n'
+        f'    return "ok"\n'
+        f'  on error\n'
+        f'    return "not_found"\n'
+        f'  end try\n'
+        f'end tell'
+    )
+    try:
+        proc = subprocess.run(['osascript', '-e', script],
+                              capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return False
+    return (getattr(proc, 'stdout', '') or '').strip() == 'ok'
 
 
 def notify(title: str, message: str) -> None:
@@ -978,11 +1014,14 @@ def route_output(
     if back_type == 'apple_notes':
         try:
             html = body_to_html(craft_md)
-            _push(title, html)
+            note_id = _push(title, html)
             _note("Meeting Notes → Apple Notes", title)
             resp: dict = {"status": "ok", "title": title}
             if file_path:
                 resp["file"] = str(file_path)
+            if note_id:
+                # Deep-link reference so History can re-open the note later.
+                resp["link"] = {"app": "apple_notes", "kind": "note_id", "value": note_id}
             _send(resp)
         except Exception as exc:
             _send({"status": "error", "error": str(exc)})
@@ -1401,6 +1440,15 @@ def main() -> None:
             send_message({"status": "ok", "started": True})
         except Exception as exc:
             send_message({"status": "error", "error": str(exc)})
+        return
+
+    if msg.get("type") == "open_note":
+        # Open a previously-saved Apple Notes note by id; report not_found so the
+        # extension can drop a dead deep-link reference.
+        if open_apple_note(msg.get("noteId") or ""):
+            send_message({"ok": True})
+        else:
+            send_message({"ok": False, "reason": "not_found"})
         return
 
     handle_capture(msg)

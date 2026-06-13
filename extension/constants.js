@@ -107,6 +107,20 @@ function supportNudgeEligible(stats) {
     && computeTimeSavedMin(stats) > 0;
 }
 
+// Remove the deep-link reference from the log entry whose ts matches — used when
+// the target note no longer exists, so a dead "Open" link self-heals. Returns a
+// new array; non-matching entries (and entries without a link) are untouched.
+function stripLogLink(logs, ts) {
+  if (!Array.isArray(logs)) return [];
+  return logs.map(e => {
+    if (e && e.ts === ts && e.link) {
+      const { link, ...rest } = e;
+      return rest;
+    }
+    return e;
+  });
+}
+
 // Pure helper — minutes → "Xh Ym" / "Xh" / "Ym".
 function formatStatDuration(min) {
   const m = Math.max(0, Math.round(min || 0));
