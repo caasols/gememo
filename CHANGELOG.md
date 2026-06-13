@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Changed
+- **History tab summary now reads "N meetings in the past days"** (was "N meetings · M entries") — the raw entry count was noise; only the meeting count is meaningful.
 - **The impact "time saved · please support" line now appears only after 24h of meetings.** The About-panel nudge ("These notes saved you roughly X of writing time. If Gememo helps you, please consider supporting it ☕") stays hidden until you've logged **24h of cumulative meeting time** — so the ask only shows once Gememo has demonstrably saved you real time. Below the threshold the block is hidden entirely; the four stat cells still render throughout, and the "Capture your first meeting…" onboarding line is unchanged.
 - **Simplified the About → "Support development" widget to a single Ko-fi link.** It previously stacked an embedded Ko-fi tip **iframe** *and* a "Support on Ko-fi" link that both pointed at the same page — two ways to do one thing. The iframe (plus its lazy-load JS and CSS) is removed; the link stays. (No host change.)
 
