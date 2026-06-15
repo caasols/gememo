@@ -310,6 +310,31 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
       return true; // async
 
+    case 'MM2C_RECOVER_SNAPSHOT':
+      // Leave-time fallback: Gemini wasn't capturable live, so ask the host to file
+      // the latest on-disk snapshot for this meeting. Replies { ok } so the content
+      // script shows "saved" or falls back to the "no notes saved" warning.
+      chrome.storage.local.get(FORWARD_KEYS, (data) => {
+        chrome.runtime.sendNativeMessage(NATIVE_HOST, {
+          type: 'recover_snapshot',
+          ...buildForwardConfig(data),
+          backupType: data.mm2c_output_app || 'none',
+          meetingTitle: msg.meetingTitle || '',
+        }, (response) => {
+          const err = chrome.runtime.lastError?.message || null;
+          if (!err && response?.status === 'ok') {
+            const dest  = outputAppName(data.mm2c_output_app || 'none');
+            const label = `Recovered from the latest snapshot → ${dest}${response.title ? `: ${response.title}` : ''}`;
+            chrome.storage.local.set({ mm2c_last_status: label });
+            appendLog('ok', msg.meetingTitle || '', label, 'user', response.link || null);
+            sendResponse({ ok: true });
+          } else {
+            sendResponse({ ok: false, reason: response?.reason || err || 'error' });
+          }
+        });
+      });
+      return true; // async
+
     case 'MM2C_SNAPSHOT':
       chrome.storage.local.get([
         'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',

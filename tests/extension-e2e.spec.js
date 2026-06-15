@@ -330,6 +330,30 @@ test.describe('extension E2E harness', () => {
       ).toBeUndefined();
     });
 
+    test('MM2C_RECOVER_SNAPSHOT files the host snapshot + logs it (leave fallback)', async () => {
+      await stubNativeMessage(ext.serviceWorker, {
+        recover_snapshot: { status: 'ok', title: 'Sprint Planning' },
+        __default: { status: 'ok' },
+      });
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'craft', mm2c_logs: [] });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RECOVER_SNAPSHOT', meetingTitle: 'Sprint Planning' });
+      expect(resp.ok).toBe(true);
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_logs'])).mm2c_logs.some(e => /Recovered from the latest snapshot/.test(e.message))
+      ).toBe(true);
+    });
+
+    test('MM2C_RECOVER_SNAPSHOT returns ok:false when the host has no snapshot', async () => {
+      await stubNativeMessage(ext.serviceWorker, {
+        recover_snapshot: { ok: false, reason: 'no_snapshot' },
+        __default: { status: 'ok' },
+      });
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'craft' });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RECOVER_SNAPSHOT', meetingTitle: 'X' });
+      expect(resp.ok).toBe(false);
+      expect(resp.reason).toBe('no_snapshot');
+    });
+
     test('MM2C_RECOVER counts the recovered note\'s meeting time (STATS-1)', async () => {
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',

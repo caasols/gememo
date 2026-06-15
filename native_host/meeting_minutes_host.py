@@ -1460,6 +1460,22 @@ def main() -> None:
             send_message({"status": "error", "error": str(exc)})
         return
 
+    if msg.get("type") == "recover_snapshot":
+        # Leave-time fallback: Gemini wasn't capturable live, so file the most recent
+        # on-disk snapshot for this meeting through the normal save pipeline. Replies
+        # {ok:False, reason:'no_snapshot'} cleanly (no error machinery) when there's none.
+        label = (msg.get("meetingTitle") or "").strip() or "Meeting"
+        slug = _file_slug(label)
+        file_ext = ".txt" if msg.get("fileBackupType") == "txt" else ".md"
+        backup_path = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
+        snap = find_latest_snapshot(backup_path, slug, file_ext)
+        if not snap:
+            send_message({"ok": False, "reason": "no_snapshot"})
+            return
+        msg["transcript"] = _strip_frontmatter(snap.read_text(encoding="utf-8"))
+        handle_capture(msg)  # files it + sends its own {status: ok|error} reply
+        return
+
     if msg.get("type") == "open_note":
         # Open a previously-saved Apple Notes note by id; report not_found so the
         # extension can drop a dead deep-link reference.
