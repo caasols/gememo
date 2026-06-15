@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Internal (no behavior change)
+- **In-meeting overlay CSS now uses one palette of CSS variables.** `content_meet.css` had the design-token hex values repeated across rules + a per-rule dark-mode block; it now defines `--mm2c-*` vars once (light) and flips them in a single `@media (prefers-color-scheme: dark)` block. Identical colors, far less duplication.
+
 ### Fixed
 - **"Gemini wasn't active — no notes saved" no longer fires when a snapshot exists.** If the Gemini panel wasn't detectable at the moment you left *and* the in-memory cache was empty, the leave-capture gave up and warned "no notes saved" — even though the host had a fresh on-disk snapshot of the meeting. It now falls back to that snapshot (a new `recover_snapshot` host action files the latest one for the meeting) and only shows the warning when there's genuinely nothing to recover. (Host change → re-run `install.sh`.)
 - **Clicking a link shared in Meet chat no longer drags you out of the call.** The in-call navigation guard treated *every* link click as "leaving" — so opening a URL from chat popped the "leave without notes?" prompt, and both of its buttons exited the meeting. Now links that open in a new tab (chat URLs are `target="_blank"`) and modifier/middle clicks pass straight through, and the prompt gained a **"Stay in meeting"** option to abort the leave entirely.
