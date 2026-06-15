@@ -1110,6 +1110,24 @@
   <!-- ── Main panel ─────────────────────────────────────────────── -->
   <div class="panel" id="main-panel" role="tabpanel" aria-labelledby="tab-main">
 
+    <!-- Gememo status — the main "is it working" feedback; kept at the top. -->
+    <div class="widget">
+      <div class="host-row">
+        <span class="host-dot" id="host-dot" role="img" aria-label="Gememo status"></span>
+        <span id="host-label">Waking up…</span>
+        <button class="btn hidden" id="setup-btn">Set up</button>
+      </div>
+    </div>
+
+    <!-- Setup panel (shown when host not found) — paired with the status above. -->
+    <div class="setup-panel hidden" id="setup-panel">
+      <span>Run this command in Terminal:</span>
+      <div class="id-row">
+        <span class="id-box" id="install-cmd"></span>
+        <button class="btn" id="copy-cmd">Copy</button>
+      </div>
+    </div>
+
     <!-- Meeting picker — shown when 2+ Meet tabs open and none is focused -->
     <div id="meeting-picker" class="hidden">
       <div class="row" style="gap:var(--space-3)">
@@ -1137,24 +1155,6 @@
 
     <!-- Retry list — one card per mm2c_failed_list entry; populated by popup.js -->
     <div id="retry-list"></div>
-
-    <!-- Native host status -->
-    <div class="widget">
-      <div class="host-row">
-        <span class="host-dot" id="host-dot" role="img" aria-label="Gememo status"></span>
-        <span id="host-label">Waking up…</span>
-        <button class="btn hidden" id="setup-btn">Set up</button>
-      </div>
-    </div>
-
-    <!-- Setup panel (shown when host not found) -->
-    <div class="setup-panel hidden" id="setup-panel">
-      <span>Run this command in Terminal:</span>
-      <div class="id-row">
-        <span class="id-box" id="install-cmd"></span>
-        <button class="btn" id="copy-cmd">Copy</button>
-      </div>
-    </div>
 
     <!-- Snapshot preview — shown only when in meeting and snapshot exists -->
     <div class="widget hidden" id="snapshot-widget">
