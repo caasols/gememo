@@ -519,5 +519,30 @@ class TestCaptureHooks(unittest.TestCase):
             self.assertEqual(len(list(Path(tmp).glob("*.md"))), 1)
 
 
+class TestRecoverSnapshot(unittest.TestCase):
+    """recover_snapshot — leave-time fallback that files the latest on-disk snapshot."""
+
+    _run = TestMainCaptureFlow._run
+
+    def test_files_latest_snapshot_for_the_meeting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            slug = host._file_slug("Sprint Planning")
+            (Path(tmp) / f"20260615-1200-{slug}-snap.md").write_text(
+                "---\ntitle: x\n---\n## Summary\nRecovered body.\n", encoding="utf-8")
+            sent = self._run({
+                "type": "recover_snapshot", "meetingTitle": "Sprint Planning",
+                "backupType": "none", "fileBackupPath": tmp, "fileBackupType": "markdown",
+            }, _proc(0))
+            self.assertEqual(sent[-1].get("status"), "ok")
+
+    def test_no_snapshot_returns_not_found_cleanly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sent = self._run({
+                "type": "recover_snapshot", "meetingTitle": "Never Happened",
+                "backupType": "none", "fileBackupPath": tmp, "fileBackupType": "markdown",
+            }, _proc(0))
+            self.assertEqual(sent[-1], {"ok": False, "reason": "no_snapshot"})
+
+
 if __name__ == "__main__":
     unittest.main()

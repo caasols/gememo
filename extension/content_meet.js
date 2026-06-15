@@ -1299,9 +1299,26 @@
 
     } catch (err) {
       if (err instanceof GeminiNotActiveError) {
-        console.info('[MM2C] Gemini not active, skipping summary.');
-        showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
-        safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
+        // Gemini wasn't capturable live and the in-RAM cache was empty — but the host
+        // may still hold a recent on-disk snapshot for this meeting (file backup on).
+        // File that before declaring "no notes saved".
+        console.info('[MM2C] Gemini not active at leave — trying the host snapshot fallback.');
+        const warnNoNotes = () => {
+          showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
+          safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
+        };
+        try {
+          chrome.runtime.sendMessage({ type: 'MM2C_RECOVER_SNAPSHOT', meetingTitle }, (r) => {
+            if (chrome.runtime.lastError) { warnNoNotes(); return; }
+            if (r && r.ok) {
+              showStatus('Gemini wasn’t active at leave — saved from the latest snapshot instead.', 'ok');
+            } else {
+              warnNoNotes();
+            }
+          });
+        } catch (e) {
+          warnNoNotes();
+        }
       } else {
         console.error('[MM2C]', err);
         safeSend({ type: 'MM2C_ERROR', error: err.message, meetingTitle });
