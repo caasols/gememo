@@ -572,8 +572,9 @@ function setHostStatus(ok, error, hostVersion, versionMismatch) {
   } else if (ok) {
     dot.className = 'host-dot ok';
     // First-person, version-free — the version lives in About. Pairs with the
-    // pulsing dot to convey "running and watching for meetings".
-    label.textContent = "I'm alive and listening for meetings…";
+    // pulsing dot to convey ready-and-helpful (not surveilling — Gememo never
+    // listens to audio; it saves Gemini's notes when you leave).
+    label.textContent = "I'm here whenever you need meeting notes.";
     setupBtn.classList.add('hidden');
     panel.classList.add('hidden');
   } else {
