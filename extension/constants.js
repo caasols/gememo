@@ -651,7 +651,7 @@ function extractBackupPath(message) {
 function friendlyError(raw) {
   const s = String(raw == null ? '' : raw);
   if (/native (messaging )?host not found|not found.*host|host.*not found|forbidden|not allowed|access to the specified native messaging host is forbidden/i.test(s))
-    return 'Native host not found — open the Set up panel to install it.';
+    return "Gememo isn't set up yet — open the Set up panel to finish.";
   if (/Craft is not running/i.test(s))
     return "Craft isn't running — open Craft and click Retry.";
   if (/context invalidated|Extension context/i.test(s))
@@ -673,7 +673,7 @@ function shouldPreviewBeforeSend(enabled, transcript) {
 // user's actual output app instead of a hardcoded "Craft", which was factually
 // wrong for Apple Notes / Obsidian users.
 function closeOverlayBody(appName) {
-  return `Gemini notes are active. Save a summary to ${appName} before leaving?`;
+  return `Gemini notes are active — save them to ${appName} before you go?`;
 }
 
 // Canonical user-facing copy for "Gemini wasn't active in this meeting" (UXC-2).
@@ -682,7 +682,7 @@ function closeOverlayBody(appName) {
 // path — so the wording and grammar stay in sync. Previously three different
 // strings existed, one with a subject-verb agreement error ("Gemini notes was
 // not active").
-const GEMINI_INACTIVE_MESSAGE = "Gemini wasn't active in this meeting — no notes were saved.";
+const GEMINI_INACTIVE_MESSAGE = "No notes this time — Gemini didn't make a summary for this meeting.";
 
 // Pure helper — custom vocabulary/glossary → a prompt prefix (RB-4a). Terms are
 // comma- or newline-separated; the model is told to keep them verbatim.

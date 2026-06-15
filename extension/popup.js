@@ -1554,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.textContent = 'Reconnect';
           btn.dataset.action = 'connect';
         } else {
-          label.textContent = r.available === false ? 'Not installed (re-run install.sh)' : 'Not connected';
+          label.textContent = r.available === false ? 'Not set up — re-run install' : 'Not connected';
           btn.textContent = 'Connect';
           btn.dataset.action = 'connect';
         }
