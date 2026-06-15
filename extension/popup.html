@@ -1509,6 +1509,16 @@
       <p class="hint">Posts the title, summary, and action-item count to a Slack incoming webhook.</p>
     </div>
 
+    <!-- Diagnostics (RB-7b) — maintenance tool; moved here from the About tab. -->
+    <div class="widget">
+      <div class="widget-header">
+        <div class="widget-title">Diagnostics</div>
+        <button class="btn" id="run-diagnostics">Run diagnostics</button>
+      </div>
+      <pre id="diag-output" class="diag-output hidden"></pre>
+      <button class="btn hidden" id="copy-diagnostics" style="align-self:flex-start">Copy report</button>
+    </div>
+
     <!-- Experimental features toggle (UXF-1) — always the LAST widget in Settings. -->
     <div class="widget">
       <div class="widget-title">Experimental</div>
@@ -1561,7 +1571,14 @@
   <!-- ── About panel ────────────────────────────────────────────── -->
   <div class="panel hidden" id="about-panel" role="tabpanel" aria-labelledby="tab-about">
 
-    <!-- App identity -->
+    <!-- Usage stats (UX-8) — at the top of About. -->
+    <div class="widget">
+      <div class="widget-title">Your impact</div>
+      <div class="stats-grid" id="stats-grid"></div>
+      <p class="hint stats-savings" id="stats-savings" style="margin:10px 0 0"></p>
+    </div>
+
+    <!-- About — app identity, links, extension ID, and support, unified into one card. -->
     <div class="widget">
       <div class="widget-header">
         <div>
@@ -1569,18 +1586,7 @@
           <div class="hint" id="about-version" style="margin-top:2px"></div>
         </div>
       </div>
-      <p class="hint" style="margin:0">Bot-free meeting notes from Google Meet's built-in Gemini AI.</p>
-    </div>
-
-    <!-- Usage stats (UX-8) -->
-    <div class="widget">
-      <div class="widget-title">Your impact</div>
-      <div class="stats-grid" id="stats-grid"></div>
-      <p class="hint stats-savings" id="stats-savings" style="margin:10px 0 0"></p>
-    </div>
-
-    <!-- Links -->
-    <div class="widget">
+      <p class="hint" style="margin:0 0 4px">Bot-free meeting notes from Google Meet's built-in Gemini AI.</p>
       <div class="row">
         <span class="label">GitHub</span>
         <a href="https://github.com/caasols/gememo" target="_blank" rel="noopener" class="btn">View on GitHub</a>
@@ -1589,33 +1595,12 @@
         <span class="label">Report an issue</span>
         <a id="report-issue" href="https://github.com/caasols/gememo/issues/new" target="_blank" rel="noopener" class="btn">Report issue</a>
       </div>
-    </div>
-
-    <!-- Diagnostics (RB-7b) -->
-    <div class="widget">
-      <div class="widget-header">
-        <div class="widget-title">Diagnostics</div>
-        <button class="btn" id="run-diagnostics">Run diagnostics</button>
-      </div>
-      <pre id="diag-output" class="diag-output hidden"></pre>
-      <button class="btn hidden" id="copy-diagnostics" style="align-self:flex-start">Copy report</button>
-    </div>
-
-    <!-- Extension ID -->
-    <div class="widget">
-      <div class="widget-title">Extension ID</div>
-      <div class="row" style="gap:var(--space-3);margin-top:4px">
-        <span id="about-ext-id" style="font-family:Monaco,Menlo,'Ubuntu Mono',monospace;font-size:11px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <div class="row" style="gap:var(--space-3)">
+        <span class="label" style="flex:none">Extension ID</span>
+        <span id="about-ext-id" style="font-family:Monaco,Menlo,'Ubuntu Mono',monospace;font-size:11px;color:var(--text-muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="btn" id="copy-ext-id">Copy</button>
       </div>
-    </div>
-
-    <!-- Support development (MON-1) — a plain link to Ko-fi. (An inline iframe
-         embed was tried but dropped: it duplicated this link, and the floating
-         Ko-fi JS widget is blocked by MV3 CSP anyway.) -->
-    <div class="widget">
-      <div class="widget-title">Support development</div>
-      <p class="hint" style="margin:0">If Gememo saves you time, a small tip keeps it maintained.</p>
+      <p class="hint" style="margin:10px 0 0">If Gememo saves you time, a small tip keeps it maintained.</p>
       <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener" class="btn kofi-btn" style="margin-top:8px">Support on Ko-fi ☕</a>
     </div>
 
