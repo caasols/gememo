@@ -1212,7 +1212,7 @@ test.describe('extension E2E harness', () => {
       });
       await page.click('#tab-settings');
       await expect.poll(async () => page.locator('#gdocs-status').textContent())
-        .toContain('Not installed (re-run install.sh)');
+        .toContain('Not set up — re-run install');
       await expect(page.locator('#gdocs-connect')).toHaveText('Connect');
       await page.close();
     });
