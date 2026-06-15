@@ -1488,13 +1488,21 @@
       <div class="mm2c-overlay-card">
         <div class="mm2c-overlay-title">Leaving without notes?</div>
         <div class="mm2c-overlay-body">${closeOverlayBody(outputAppName(currentOutputApp))}</div>
-        <div class="mm2c-overlay-actions">
-          <button id="mm2c-close-leave" class="mm2c-overlay-btn">Leave without saving</button>
+        <div class="mm2c-overlay-actions mm2c-overlay-actions--stacked">
           <button id="mm2c-close-save" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save and leave</button>
+          <button id="mm2c-close-leave" class="mm2c-overlay-btn">Leave without saving</button>
+          <button id="mm2c-close-stay" class="mm2c-overlay-btn">Stay in meeting</button>
         </div>
       </div>`;
 
     document.body.appendChild(closeOverlay);
+
+    // Cancel — abort the leave and stay in the call. The click that triggered this
+    // was already preventDefault'd, so simply dismissing the overlay keeps the user put.
+    document.getElementById('mm2c-close-stay').addEventListener('click', () => {
+      sendLog('User chose: Stay in meeting from close prompt');
+      removeCloseOverlay();
+    });
 
     document.getElementById('mm2c-close-save').addEventListener('click', () => {
       sendLog('User chose: Save & leave from close prompt');
@@ -1543,13 +1551,22 @@
   window.addEventListener('beforeunload', onBeforeUnload);
   window.addEventListener('pagehide', removeCloseOverlay);
 
-  // Intercept clicks that navigate away from Meet while in a call
+  // Intercept clicks that navigate the Meet tab away while in a call. Crucially,
+  // links that open in a NEW tab never unload Meet — e.g. a URL someone shares in
+  // the chat (rendered as <a target="_blank">) — so those must pass through
+  // untouched. Otherwise clicking a chat link would pop the "leave without notes?"
+  // prompt and any choice there would drop the user out of the meeting.
   document.addEventListener('click', (e) => {
     if (!enabled || intercepting || capturedProactively || !getLeaveButton() || !isGeminiAvailable()) return;
+    // Modified / non-primary clicks open a new tab or window — Meet stays put.
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const link = e.target.closest('a[href]');
     if (!link) return;
     const href = link.getAttribute('href');
     if (!href || href.startsWith('#') || href.startsWith('javascript')) return;
+    // target="_blank" (or any named target) opens elsewhere — the call isn't left.
+    const target = (link.getAttribute('target') || '').toLowerCase();
+    if (target && target !== '_self') return;
     e.preventDefault();
     e.stopImmediatePropagation();
     showCloseOverlay();
