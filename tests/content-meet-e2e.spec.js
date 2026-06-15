@@ -232,6 +232,68 @@ test.describe('content_meet e2e (fake Meet over localhost)', () => {
     }
   });
 
+  // ── 2c-link — clicking a URL shared in chat (opens a new tab) must NOT pop the
+  // "leave without notes?" prompt, and the prompt must offer a "Stay" escape. ────
+  async function joinFake(page) {
+    await page.goto(fake.url, { waitUntil: 'domcontentloaded' });
+    await expect
+      .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.meetingsAttended,
+        { timeout: 15_000 })
+      .toBe(1); // join registered ⇒ interceptor attached + Gemini available
+  }
+
+  test('a chat link (target=_blank) does not trigger the leave prompt', async () => {
+    test.setTimeout(60_000);
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      mm2c_output_app: 'craft',
+    });
+    const page = await ext.context.newPage();
+    try {
+      await joinFake(page);
+      // A URL shared in chat is rendered as <a target="_blank"> (opens a new tab).
+      await page.evaluate(() => {
+        const a = document.createElement('a');
+        a.id = 'chat-link'; a.href = 'https://example.com/'; a.target = '_blank'; a.textContent = 'shared link';
+        a.addEventListener('click', (e) => e.preventDefault()); // bubble phase — neutralise real navigation
+        document.body.appendChild(a);
+      });
+      await page.click('#chat-link');
+      // The interceptor must let new-tab links through → no leave overlay.
+      await expect(page.locator('#mm2c-close-stay')).toHaveCount(0);
+      await expect(page.locator('button[aria-label="Leave call"]')).toBeVisible(); // still in the call
+    } finally {
+      await page.close();
+    }
+  });
+
+  test('the leave prompt offers "Stay in meeting" to abort (same-tab nav)', async () => {
+    test.setTimeout(60_000);
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      mm2c_output_app: 'craft',
+    });
+    const page = await ext.context.newPage();
+    try {
+      await joinFake(page);
+      // A same-tab navigation while in a call → interceptor preventDefaults + prompts.
+      await page.evaluate(() => {
+        const a = document.createElement('a');
+        a.id = 'nav-link'; a.href = 'https://example.com/'; a.textContent = 'go'; // no target = same tab
+        document.body.appendChild(a);
+      });
+      await page.click('#nav-link');
+      await expect(page.locator('#mm2c-close-stay')).toBeVisible();   // the new third option
+      await page.click('#mm2c-close-stay');                          // abort the leave
+      await expect(page.locator('#mm2c-close-stay')).toHaveCount(0); // overlay dismissed
+      await expect(page.locator('button[aria-label="Leave call"]')).toBeVisible(); // stayed in the call
+    } finally {
+      await page.close();
+    }
+  });
+
   // ── 2d (auto-activation) — OFF → "Start now" → panel, via plain clicks ───────
   // Guards the activation path that regressed against Meet's 2026-06 redesign.
   // The OFF-state fixture starts with the spark_off Ask Gemini toggle (jsname

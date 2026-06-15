@@ -64,6 +64,10 @@
   gap: 8px;
   justify-content: center;
 }
+/* Stacked variant — the leave prompt's three actions don't fit in a single row. */
+.mm2c-overlay-actions--stacked {
+  flex-direction: column;
+}
 .mm2c-overlay-btn {
   flex: 1;
   height: 36px;
