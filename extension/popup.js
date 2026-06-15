@@ -558,6 +558,11 @@ function setHostStatus(ok, error, hostVersion, versionMismatch) {
   const setupBtn = $('setup-btn');
   const panel    = $('setup-panel');
 
+  // Surface the native-host version in About (next to the Extension ID), where
+  // the technical detail belongs — the main tab stays version-free.
+  const aboutHost = $('about-host-version');
+  if (aboutHost) aboutHost.textContent = ok ? (hostVersion ? `v${hostVersion}` : 'ready') : 'not installed';
+
   if (ok && versionMismatch) {
     dot.className = 'host-dot warn';
     const extVersion = chrome.runtime.getManifest().version;
@@ -566,12 +571,14 @@ function setHostStatus(ok, error, hostVersion, versionMismatch) {
     panel.classList.add('hidden');
   } else if (ok) {
     dot.className = 'host-dot ok';
-    label.textContent = hostVersion ? `Native host ready (v${hostVersion})` : 'Native host ready';
+    // First-person, version-free — the version lives in About. Pairs with the
+    // pulsing dot to convey "running and watching for meetings".
+    label.textContent = "I'm alive and listening for meetings…";
     setupBtn.classList.add('hidden');
     panel.classList.add('hidden');
   } else {
     dot.className = 'host-dot err';
-    label.textContent = error || 'Native host not found — click Set up to install';
+    label.textContent = "I'm not set up yet — click Set up to finish installing";
     setupBtn.classList.remove('hidden');
     // Pre-fill the install command with the actual extension ID
     const extId = chrome.runtime.id;
