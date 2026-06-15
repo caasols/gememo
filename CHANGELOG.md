@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Fixed
+- **Clicking a link shared in Meet chat no longer drags you out of the call.** The in-call navigation guard treated *every* link click as "leaving" — so opening a URL from chat popped the "leave without notes?" prompt, and both of its buttons exited the meeting. Now links that open in a new tab (chat URLs are `target="_blank"`) and modifier/middle clicks pass straight through, and the prompt gained a **"Stay in meeting"** option to abort the leave entirely.
+
 ### Changed
 - **Google Docs is now a first-class output — both Primary and an Additional destination.** Replaces the old "also create a Doc" toggle. Pick it as your **Primary output** (files each note straight to Google Docs; "not connected" surfaces as a capture error, like Obsidian without a vault), **and/or** add it under **Additional destinations** to send a Doc alongside another primary. A single **Google Docs connection** control (its own OAuth grant, separate from Calendar) appears whenever Google Docs is in use either way; it can't be both your primary and an extra (deduped). (As the primary, the created Doc's URL is recorded for a future "Open in Docs" History link.)
 - **Renamed the "Output app" setting to "Primary output"** and removed the stale "Google Docs" entry from its "Coming soon" list. The dropdown is your single primary app; Additional destinations (incl. Google Docs) run alongside it — "Primary output" makes that relationship clear. Notion/Evernote remain under "Coming soon".
