@@ -13,6 +13,12 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+_Nothing yet — next change goes here._
+
+---
+
+## [0.2.18] – 2026-06-15 · Google Docs as a first-class output, leave-flow fixes & a UI/copy polish pass
+
 ### Internal (no behavior change)
 - **In-meeting overlay CSS now uses one palette of CSS variables.** `content_meet.css` had the design-token hex values repeated across rules + a per-rule dark-mode block; it now defines `--mm2c-*` vars once (light) and flips them in a single `@media (prefers-color-scheme: dark)` block. Identical colors, far less duplication.
 
