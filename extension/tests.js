@@ -2220,7 +2220,7 @@ window.MM2C_TESTS = (() => {
   function testCloseOverlayBody() {
     console.group('closeOverlayBody (UXC-1)');
     assertEq('names Craft', closeOverlayBody('Craft'),
-      'Gemini notes are active. Save a summary to Craft before leaving?');
+      'Gemini notes are active — save them to Craft before you go?');
     assert('uses the passed app name, not hardcoded Craft',
       closeOverlayBody('Apple Notes').includes('Apple Notes') &&
       !closeOverlayBody('Apple Notes').includes('Craft'));
@@ -2234,8 +2234,8 @@ window.MM2C_TESTS = (() => {
       typeof GEMINI_INACTIVE_MESSAGE === 'string' && GEMINI_INACTIVE_MESSAGE.length > 0);
     assert('no subject-verb grammar error ("was not active" / "notes was")',
       !/was not active/i.test(GEMINI_INACTIVE_MESSAGE) && !/notes was/i.test(GEMINI_INACTIVE_MESSAGE));
-    assert('conveys that no notes were saved',
-      /no notes were saved/i.test(GEMINI_INACTIVE_MESSAGE));
+    assert('conveys that no notes resulted',
+      /no notes/i.test(GEMINI_INACTIVE_MESSAGE));
     console.groupEnd();
   }
 

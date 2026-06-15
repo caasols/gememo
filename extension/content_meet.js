@@ -1082,7 +1082,7 @@
       } catch (err) {
         intercepting = false; // release so Leave button can still fire normally
         if (err instanceof GeminiNotActiveError) {
-          sendLog('Proactive live capture: Gemini not active — meeting too short for notes');
+          sendLog('Meeting was too short — no notes to save');
           showStatus(GEMINI_INACTIVE_MESSAGE, 'warn');
           safeSend({ type: 'MM2C_WARNING', message: GEMINI_INACTIVE_MESSAGE, meetingTitle });
         } else {
@@ -1379,7 +1379,7 @@
         meetingSnapshotTimer = setTimeout(() => {
           if (!getLeaveButton()) { meetingSnapshotTimer = null; return; } // meeting ended
           if (document.hidden) {
-            sendLog('Periodic snapshot deferred: tab not active');
+            sendLog('Snapshot paused — Meet tab not focused');
           } else {
             lastSnapshotAt = Date.now();
             takePeriodicSnapshot();
@@ -1479,7 +1479,7 @@
           <div class="mm2c-preview">${transcript.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>
           <div class="mm2c-overlay-actions">
             <button id="mm2c-preview-discard" class="mm2c-overlay-btn">Discard</button>
-            <button id="mm2c-preview-send" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save &amp; leave</button>
+            <button id="mm2c-preview-send" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save and leave</button>
           </div>
         </div>`;
       document.body.appendChild(ov);
@@ -1503,7 +1503,7 @@
     closeOverlay.id = 'mm2c-close-overlay';
     closeOverlay.innerHTML = `
       <div class="mm2c-overlay-card">
-        <div class="mm2c-overlay-title">Leaving without notes?</div>
+        <div class="mm2c-overlay-title">Save your notes before you go?</div>
         <div class="mm2c-overlay-body">${closeOverlayBody(outputAppName(currentOutputApp))}</div>
         <div class="mm2c-overlay-actions mm2c-overlay-actions--stacked">
           <button id="mm2c-close-save" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save and leave</button>
@@ -1522,7 +1522,7 @@
     });
 
     document.getElementById('mm2c-close-save').addEventListener('click', () => {
-      sendLog('User chose: Save & leave from close prompt');
+      sendLog('User chose: Save and leave from close prompt');
       removeCloseOverlay();
       const btn = getLeaveButton();
       if (btn && !intercepting) btn.click();
