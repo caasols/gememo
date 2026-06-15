@@ -556,6 +556,8 @@
       border-radius: 6px;
       overflow: hidden;
     }
+    /* Inside the History card the widget frame is the border — drop the inner one. */
+    .widget > .log-list-wrap { border: none; border-radius: 0; }
 
     /* Logs action bar — pinned to the bottom of the scrollport so Clear/Download
        stay reachable while the log list scrolls. Opaque so logs don't show through. */
@@ -1559,14 +1561,18 @@
       <div id="search-results"></div>
     </div>
 
-    <div class="logs-toolbar">
-      <span class="logs-count" id="logs-count"></span>
-      <label class="logs-debug-toggle beta"><input type="checkbox" id="show-debug-logs"> Developer logs</label>
-    </div>
+    <!-- History card — wraps the count/toolbar + the log list so the tab matches
+         the card layout used by Today/Rules/Settings/About. -->
+    <div class="widget">
+      <div class="logs-toolbar">
+        <span class="logs-count" id="logs-count"></span>
+        <label class="logs-debug-toggle beta"><input type="checkbox" id="show-debug-logs"> Developer logs</label>
+      </div>
 
-    <div class="log-list-wrap">
-      <div id="log-list">
-        <div class="log-empty">No activity yet. Notes will appear here after your meetings.</div>
+      <div class="log-list-wrap">
+        <div id="log-list">
+          <div class="log-empty">No activity yet. Notes will appear here after your meetings.</div>
+        </div>
       </div>
     </div>
 
