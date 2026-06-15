@@ -348,9 +348,20 @@
       flex-shrink: 0;
       transition: background 0.3s;
     }
-    .host-dot.ok   { background: var(--success); }
+    .host-dot.ok   {
+      background: var(--success);
+      /* Gentle "alive & listening" heartbeat — breathing scale + glow. */
+      animation: mm2c-heartbeat 2s ease-in-out infinite;
+    }
     .host-dot.warn { background: var(--warn); }
     .host-dot.err  { background: var(--danger); }
+    @keyframes mm2c-heartbeat {
+      0%, 100% { transform: scale(1);    box-shadow: 0 0 3px 1px var(--success); opacity: 0.85; }
+      50%      { transform: scale(1.3);  box-shadow: 0 0 8px 2px var(--success); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .host-dot.ok { animation: none; box-shadow: 0 0 3px 1px var(--success); }
+    }
     #host-label { font-size: 11px; color: var(--text-muted); flex: 1; }
 
     /* Setup panel */
@@ -1130,8 +1141,8 @@
     <!-- Native host status -->
     <div class="widget">
       <div class="host-row">
-        <span class="host-dot" id="host-dot" role="img" aria-label="Native host status"></span>
-        <span id="host-label">Checking native host…</span>
+        <span class="host-dot" id="host-dot" role="img" aria-label="Gememo status"></span>
+        <span id="host-label">Waking up…</span>
         <button class="btn hidden" id="setup-btn">Set up</button>
       </div>
     </div>
@@ -1599,6 +1610,10 @@
         <span class="label" style="flex:none">Extension ID</span>
         <span id="about-ext-id" style="font-family:Monaco,Menlo,'Ubuntu Mono',monospace;font-size:11px;color:var(--text-muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="btn" id="copy-ext-id">Copy</button>
+      </div>
+      <div class="row">
+        <span class="label">Native host</span>
+        <span id="about-host-version" class="hint" style="margin:0">—</span>
       </div>
       <p class="hint" style="margin:10px 0 0">If Gememo saves you time, a small tip keeps it maintained.</p>
       <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener" class="btn kofi-btn" style="margin-top:8px">Support on Ko-fi ☕</a>
