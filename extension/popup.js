@@ -256,13 +256,33 @@ function renderStats(stats) {
       <div class="stat-label">${escapeHtml(label)}</div>
     </div>`).join('');
 
+  const saved = computeTimeSavedMin(s);
+  const eligible = supportNudgeEligible(s);
+
+  // Hero banner — the headline time-saved, promoted to the top of About. Gated at
+  // the same 24h-of-meetings threshold as the support nudge: we only claim the
+  // impact once the product has demonstrably earned it.
+  const hero = $('impact-hero');
+  if (hero) {
+    if (eligible) {
+      const notes = s.notesSaved || 0, meetings = s.meetingsAttended || 0;
+      $('impact-hero-headline').innerHTML =
+        `You've saved roughly <strong>${escapeHtml(formatStatDuration(saved))}</strong> with Gememo`;
+      $('impact-hero-sub').textContent =
+        `${formatStatNumber(notes)} note${notes === 1 ? '' : 's'} saved across ` +
+        `${formatStatNumber(meetings)} meeting${meetings === 1 ? '' : 's'}.`;
+      hero.classList.remove('hidden');
+    } else {
+      hero.classList.add('hidden');
+    }
+  }
+
   const savingsEl = $('stats-savings');
   if (savingsEl) {
-    const saved = computeTimeSavedMin(s);
-    if (supportNudgeEligible(s)) {
-      // Earned the ask: ≥24h of meetings + real saved-time.
+    if (eligible) {
+      // Earned the ask: ≥24h of meetings + real saved-time. The time itself now
+      // lives in the hero banner, so this line is just the support ask.
       savingsEl.innerHTML =
-        `These notes saved you roughly <strong>${escapeHtml(formatStatDuration(saved))}</strong> of writing time. ` +
         `If Gememo helps you, please consider <a href="https://ko-fi.com/caasols" target="_blank" rel="noopener">supporting it ☕</a>.`;
       savingsEl.classList.remove('hidden');
     } else if (saved === 0) {
