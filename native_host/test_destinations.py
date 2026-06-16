@@ -35,6 +35,16 @@ LABEL = "2026-06-01 Q3 Planning"
 class TestSendToDestinations(unittest.TestCase):
     """Unified fan-out: per-row config falls back to the global default when blank."""
 
+    def setUp(self):
+        # The craft branch writes a temp note into CACHE_DIR before the (mocked)
+        # subprocess.run, so redirect CACHE_DIR to a throwaway dir — otherwise the
+        # craft tests dump "Q3 Planning.md" into the user's real ~/.cache/mm2c.
+        self._cache = tempfile.TemporaryDirectory()
+        self._cache_patch = patch.object(host, 'CACHE_DIR', Path(self._cache.name))
+        self._cache_patch.start()
+        self.addCleanup(self._cache_patch.stop)
+        self.addCleanup(self._cache.cleanup)
+
     def test_apple_notes_dispatch(self):
         with patch.object(host, 'push_to_apple_notes') as pan, patch.object(host, 'notify'):
             host.send_to_destinations([{'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
