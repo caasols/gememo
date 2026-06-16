@@ -1115,12 +1115,16 @@ def _obsidian_filename(label, dt) -> str:
     Obsidian shows the filename as the note title, so (unlike internal backup/
     snapshot names) it keeps real words and casing — matching what Craft displays —
     rather than a lowercased hyphen-slug. The colon in the time is intentional (macOS
-    allows it; it mirrors Craft). Illegal chars inside the title are dropped, an
-    over-long title is trimmed at a word boundary (no mid-word cut), and a label with
-    nothing usable falls back to just the timestamp."""
+    allows it; it mirrors Craft). Only genuinely-unsafe characters are stripped (path
+    separators, the Windows-reserved set, control chars) — ordinary punctuation like
+    % & : ( ) , . is kept so the title reads like Craft shows it. An over-long title
+    is trimmed at a word boundary (no mid-word cut), and a label with no usable
+    characters falls back to just the timestamp."""
     _MAX_TITLE = 80
-    clean = re.sub(r'[^\w\s\-]', '', str(label or ''))
+    clean = re.sub(r'[/\\*?"<>|\x00-\x1f]', '', str(label or ''))
     clean = re.sub(r'\s+', ' ', clean).strip()
+    if not re.search(r'\w', clean):   # only punctuation/blank → no usable title
+        clean = ''
     if len(clean) > _MAX_TITLE:
         head = clean[:_MAX_TITLE]
         # Drop the trailing partial word unless the cut already landed on a space.

@@ -213,11 +213,17 @@ class TestObsidianFilename(unittest.TestCase):
             host._obsidian_filename('Trip Advisor Migration Discussion', self.DTT),
             '20260616 11:29 Trip Advisor Migration Discussion.md')
 
-    def test_strips_filesystem_illegal_chars(self):
-        # The colon in the *time* is kept; colons/slashes/etc inside the title are dropped.
+    def test_keeps_ordinary_punctuation_strips_only_reserved(self):
+        # Reserved chars (path separators, Windows-reserved, control) are stripped;
+        # ordinary punctuation like % & : ( ) is KEPT so the title reads like Craft.
         self.assertEqual(
-            host._obsidian_filename('Q3/Q4: Planning *draft*', self.DTT),
-            '20260616 11:29 Q3Q4 Planning draft.md')
+            host._obsidian_filename('100% A/B test: (final) *v2*', self.DTT),
+            '20260616 11:29 100% AB test: (final) v2.md')
+
+    def test_keeps_percent_and_ampersand(self):
+        self.assertEqual(
+            host._obsidian_filename('Support 100% rollout for markets & domains', self.DTT),
+            '20260616 11:29 Support 100% rollout for markets & domains.md')
 
     def test_collapses_whitespace_and_caps_length(self):
         self.assertEqual(host._obsidian_filename('A     B', self.DTT), '20260616 11:29 A B.md')
