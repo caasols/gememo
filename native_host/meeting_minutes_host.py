@@ -18,6 +18,7 @@ import re
 import struct
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -1184,6 +1185,39 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
             pass  # best-effort per-row output — never affect the primary capture
 
 
+# Wall-clock budget for Google Calendar enrichment. The google API client has no
+# network timeout, so a stalled token-refresh or events query would otherwise hang
+# the whole capture indefinitely (the "best-effort, never blocks capture" promise).
+_GCAL_ENRICH_TIMEOUT = 12  # seconds
+
+
+def _enrich_calendar_bounded(msg, timeout=_GCAL_ENRICH_TIMEOUT) -> dict:
+    """Run Calendar enrichment with a hard wall-clock cap. A try/except can't rescue
+    a *hung* network call, so the work runs on a daemon thread we simply stop waiting
+    on after `timeout`; on timeout or any error we return {} and the capture proceeds.
+    The abandoned thread dies with the (one-shot) host process."""
+    result: dict = {}
+
+    def _run():
+        try:
+            cf, _status = gcal.enrich_frontmatter_fields(
+                msg.get("meetingCode", ""), msg.get("timestamp", ""),
+                msg.get("meetingTitle", ""), bool(msg.get("redactPii")),
+                events_provider=gcal.live_events_provider(msg.get("timestamp", "")),
+            )
+            if isinstance(cf, dict):
+                result["cal"] = cf
+        except Exception:
+            pass  # best-effort — a Calendar failure never affects the note
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        _heartbeat("gcal_enrich_timeout")  # visible: enrichment abandoned, capture continues
+    return result.get("cal", {})
+
+
 def handle_capture(msg) -> None:
     transcript = msg.get("transcript", "").strip()
     # Recovery (RB-1d): when re-sending a note that failed mid-send, prefer the
@@ -1209,14 +1243,13 @@ def handle_capture(msg) -> None:
     # promote it to YAML frontmatter; the line never reaches the rendered note.
     topic_tags, craft_md = extract_tags(craft_md)
 
-    # Google Calendar enrichment (5.3) — best-effort, never blocks capture.
+    # Google Calendar enrichment (5.3) — best-effort, never blocks capture. Bounded
+    # by a wall-clock timeout because the google client has no network timeout, so a
+    # stalled refresh/query would otherwise hang the capture (the failure we saw:
+    # the capture froze right after "parsed" with no note written).
     cal_fields = {}
     if msg.get("calendarEnabled") and gcal.GCAL_AVAILABLE:
-        cal_fields, _cal_status = gcal.enrich_frontmatter_fields(
-            msg.get("meetingCode", ""), msg.get("timestamp", ""),
-            msg.get("meetingTitle", ""), bool(msg.get("redactPii")),
-            events_provider=gcal.live_events_provider(msg.get("timestamp", "")),
-        )
+        cal_fields = _enrich_calendar_bounded(msg)
 
     # Resolve the timestamp — convert to local timezone so the Craft note title
     # shows wall-clock time rather than UTC (e.g. 09:12 CEST not 07:12 UTC).

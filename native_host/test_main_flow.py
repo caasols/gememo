@@ -544,5 +544,32 @@ class TestRecoverSnapshot(unittest.TestCase):
             self.assertEqual(sent[-1], {"ok": False, "reason": "no_snapshot"})
 
 
+class TestCalendarEnrichBounded(unittest.TestCase):
+    """Calendar enrichment must never block the capture: a hung Calendar API call
+    (the google client has no network timeout) is abandoned after a wall-clock
+    timeout and the capture proceeds with no enrichment."""
+
+    def test_returns_fields_on_success(self):
+        with patch.object(host.gcal, 'enrich_frontmatter_fields',
+                          return_value=({'organizer': 'https://x'}, 'ok')):
+            out = host._enrich_calendar_bounded({'timestamp': '', 'meetingCode': ''}, timeout=5)
+        self.assertEqual(out, {'organizer': 'https://x'})
+
+    def test_hang_is_abandoned_and_returns_empty_quickly(self):
+        import time
+        with patch.object(host.gcal, 'enrich_frontmatter_fields',
+                          side_effect=lambda *a, **k: time.sleep(5)):
+            t0 = time.time()
+            out = host._enrich_calendar_bounded({'timestamp': '', 'meetingCode': ''}, timeout=0.2)
+            elapsed = time.time() - t0
+        self.assertEqual(out, {})            # gave up on the hang
+        self.assertLess(elapsed, 2.0)        # and returned promptly, not after 5s
+
+    def test_exception_is_swallowed(self):
+        with patch.object(host.gcal, 'enrich_frontmatter_fields',
+                          side_effect=RuntimeError('boom')):
+            self.assertEqual(host._enrich_calendar_bounded({'timestamp': ''}, timeout=5), {})
+
+
 if __name__ == "__main__":
     unittest.main()
