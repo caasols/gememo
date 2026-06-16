@@ -211,28 +211,39 @@ class TestObsidianFilename(unittest.TestCase):
     def test_matches_craft_readable_format(self):
         self.assertEqual(
             host._obsidian_filename('Trip Advisor Migration Discussion', self.DTT),
-            '20260616 1129 Trip Advisor Migration Discussion.md')
+            '20260616 11:29 Trip Advisor Migration Discussion.md')
 
     def test_strips_filesystem_illegal_chars(self):
+        # The colon in the *time* is kept; colons/slashes/etc inside the title are dropped.
         self.assertEqual(
             host._obsidian_filename('Q3/Q4: Planning *draft*', self.DTT),
-            '20260616 1129 Q3Q4 Planning draft.md')
+            '20260616 11:29 Q3Q4 Planning draft.md')
 
     def test_collapses_whitespace_and_caps_length(self):
-        self.assertEqual(host._obsidian_filename('A     B', self.DTT), '20260616 1129 A B.md')
-        clean = host._obsidian_filename('x' * 200, self.DTT)[len('20260616 1129 '):-len('.md')]
+        self.assertEqual(host._obsidian_filename('A     B', self.DTT), '20260616 11:29 A B.md')
+        clean = host._obsidian_filename('x' * 200, self.DTT)[len('20260616 11:29 '):-len('.md')]
         self.assertLessEqual(len(clean), 80)
 
+    def test_long_title_trims_at_word_boundary(self):
+        # 93 chars of whole words → must trim to <=80 WITHOUT leaving a word fragment.
+        title = ('alpha bravo charlie delta echo foxtrot golf hotel india '
+                 'juliett kilo lima mike november oscar')
+        body = host._obsidian_filename(title, self.DTT)[len('20260616 11:29 '):-len('.md')]
+        self.assertLessEqual(len(body), 80)
+        self.assertFalse(body.endswith(' '))
+        # every token in the result is a whole word from the source (no mid-word cut)
+        self.assertTrue(set(body.split()).issubset(set(title.split())))
+
     def test_blank_or_symbol_only_label_falls_back_to_timestamp(self):
-        self.assertEqual(host._obsidian_filename('   ', self.DTT), '20260616 1129.md')
-        self.assertEqual(host._obsidian_filename('!!!', self.DTT), '20260616 1129.md')
+        self.assertEqual(host._obsidian_filename('   ', self.DTT), '20260616 11:29.md')
+        self.assertEqual(host._obsidian_filename('!!!', self.DTT), '20260616 11:29.md')
 
     def test_write_obsidian_note_uses_readable_filename(self):
         with tempfile.TemporaryDirectory() as tmp:
             host._write_obsidian_note(tmp, 'Trip Advisor Migration Discussion', self.DTT, '## Summary\nx\n')
             self.assertEqual(
                 [p.name for p in Path(tmp).glob('*.md')],
-                ['20260616 1129 Trip Advisor Migration Discussion.md'])
+                ['20260616 11:29 Trip Advisor Migration Discussion.md'])
 
 
 class TestFileSlug(unittest.TestCase):
