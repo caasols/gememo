@@ -9,6 +9,7 @@ Apple Notes, or the network.
 """
 
 import datetime as _dt
+import json
 import subprocess
 import sys
 import tempfile
@@ -66,12 +67,37 @@ class TestSendToDestinations(unittest.TestCase):
                 obsidian_vault_path=tmp)
             self.assertEqual(len(list(Path(tmp).glob('*.md'))), 1)
 
-    def test_obsidian_no_vault_anywhere_skipped(self):
-        with patch.object(host.subprocess, 'run') as run:
+    def test_obsidian_blank_auto_detects_vault(self):
+        # The user's case: Craft primary, Obsidian an additional row with a blank
+        # vault. Row + global both blank → fall back to the vault detected from
+        # Obsidian's own config, fulfilling the "uses your vault if blank" promise.
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(host, '_detect_obsidian_vault', return_value=tmp), \
+                patch.object(host, 'notify') as note:
             host.send_to_destinations(
                 [{'type': 'obsidian', 'vaultPath': ''}], CRAFT_MD, TITLE, DT, LABEL,
                 obsidian_vault_path='')
-            run.assert_not_called()
+            self.assertEqual(len(list(Path(tmp).glob('*.md'))), 1)
+            note.assert_called_once()  # obsidian now notifies on success, like the other rows
+
+    def test_obsidian_row_vault_beats_autodetect(self):
+        with tempfile.TemporaryDirectory() as row_vault, \
+                tempfile.TemporaryDirectory() as detected, \
+                patch.object(host, '_detect_obsidian_vault', return_value=detected), \
+                patch.object(host, 'notify'):
+            host.send_to_destinations(
+                [{'type': 'obsidian', 'vaultPath': row_vault}], CRAFT_MD, TITLE, DT, LABEL)
+            self.assertEqual(len(list(Path(row_vault).glob('*.md'))), 1)
+            self.assertEqual(len(list(Path(detected).glob('*.md'))), 0)
+
+    def test_obsidian_no_vault_anywhere_skipped(self):
+        # Blank row + blank global + nothing detectable → no note written, no raise.
+        with patch.object(host, '_detect_obsidian_vault', return_value=''), \
+                patch.object(host, '_write_obsidian_note') as w:
+            host.send_to_destinations(
+                [{'type': 'obsidian', 'vaultPath': ''}], CRAFT_MD, TITLE, DT, LABEL,
+                obsidian_vault_path='')
+            w.assert_not_called()
 
     def test_craft_uses_row_folder(self):
         with patch.object(host.subprocess, 'run') as run:
@@ -125,6 +151,45 @@ class TestSendToDestinations(unittest.TestCase):
             md = next(Path(tmp).glob('*.md')).read_text(encoding='utf-8')
             self.assertIn('organizer', md)
             self.assertIn('https://example.com/evt', md)
+
+
+class TestSelectObsidianVault(unittest.TestCase):
+    """Pure selection over a parsed obsidian.json dict."""
+
+    def test_prefers_open_vault(self):
+        cfg = {'vaults': {
+            'a': {'path': '/one', 'ts': 100, 'open': False},
+            'b': {'path': '/two', 'ts': 50, 'open': True},
+        }}
+        self.assertEqual(host._select_obsidian_vault(cfg), '/two')
+
+    def test_falls_back_to_most_recent_when_none_open(self):
+        cfg = {'vaults': {
+            'a': {'path': '/old', 'ts': 100},
+            'b': {'path': '/new', 'ts': 999},
+        }}
+        self.assertEqual(host._select_obsidian_vault(cfg), '/new')
+
+    def test_empty_or_malformed_returns_blank(self):
+        self.assertEqual(host._select_obsidian_vault({}), '')
+        self.assertEqual(host._select_obsidian_vault({'vaults': {}}), '')
+        self.assertEqual(host._select_obsidian_vault({'vaults': 'nope'}), '')
+        self.assertEqual(host._select_obsidian_vault(None), '')
+        self.assertEqual(host._select_obsidian_vault({'vaults': {'a': {'ts': 1}}}), '')  # no path
+
+
+class TestDetectObsidianVault(unittest.TestCase):
+    """Reading the on-disk obsidian.json (best-effort)."""
+
+    def test_reads_config_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfgp = Path(tmp) / 'obsidian.json'
+            cfgp.write_text(json.dumps(
+                {'vaults': {'a': {'path': '/v', 'ts': 1, 'open': True}}}), encoding='utf-8')
+            self.assertEqual(host._detect_obsidian_vault(cfgp), '/v')
+
+    def test_missing_file_returns_blank(self):
+        self.assertEqual(host._detect_obsidian_vault(Path('/no/such/obsidian.json')), '')
 
 
 class TestFileSlug(unittest.TestCase):
