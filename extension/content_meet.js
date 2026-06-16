@@ -54,6 +54,7 @@
   let meetingJoinedAt      = 0;          // Date.now() when Leave button first appeared; used by snapshot age log
   let snapshotIntervalMs   = 8 * 60_000; // effective snapshot interval; set from storage in .then() callback
   let lastSnapshotAt       = 0;          // Date.now() of most recent snapshot; 0 before first snapshot
+  let snapshotCount        = 0;          // successful snapshots taken this meeting (for the Today status)
   let meetingSnapshotTimer = null;       // setTimeout handle for meeting-anchored snapshot schedule
   let currentOutputApp     = 'craft';    // mirrors mm2c_output_app; updated from storage
   let currentTitleTemplate = '';         // per-rule note-title template, resolved at join (RB-4d)
@@ -98,6 +99,7 @@
     priorContext                = '';
     meetingBlocked              = false;
     captureProactivelyAttempted = false;
+    snapshotCount               = 0;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
     safeSend({ type: 'MM2C_SET_SNAPSHOT', snapshot: null });
     sendLog('Meeting state reset for new meeting');
@@ -113,6 +115,8 @@
         geminiActive:    isGeminiAvailable(),
         nextSnapshotAt:  lastSnapshotAt > 0 ? lastSnapshotAt + snapshotIntervalMs : 0,
         firstSnapshotAt: computeFirstSnapshotAt(meetingJoinedAt, lastSnapshotAt, snapshotIntervalMs),
+        meetingJoinedAt: meetingJoinedAt,  // for "you've been here X min" (Today status)
+        snapshotCount:   snapshotCount,    // for "I've taken N snapshots"
       });
     }
     if (msg.type === 'MM2C_CAPTURE_NOW') {
@@ -957,6 +961,7 @@
       const transcript = await runGeminiFlow(90_000); // 90 s timeout for background snapshots
       cachedTranscript   = transcript;
       cachedTranscriptAt = Date.now();
+      snapshotCount++;
       sendLog(`Periodic snapshot saved (${transcript.length} chars)`);
       showStatus('✓ Notes snapshot saved', 'ok'); // auto-dismisses in 5 s
       // Store a short preview so the popup can show "Last snapshot: N min ago ▸"
