@@ -1109,12 +1109,23 @@ def _detect_obsidian_vault(config_path=None) -> str:
         return ""
 
 
+def _obsidian_filename(label, dt) -> str:
+    """Readable, filesystem-safe Obsidian note filename: 'YYYYMMDD HHMM Title.md'.
+    Obsidian shows the filename as the note title, so (unlike internal backup/
+    snapshot names) it keeps real words and casing — matching what Craft displays —
+    rather than a lowercased hyphen-slug. Illegal chars are dropped; a label with
+    nothing usable falls back to just the timestamp."""
+    clean = re.sub(r'[^\w\s\-]', '', str(label or ''))
+    clean = re.sub(r'\s+', ' ', clean).strip()[:80].strip()
+    stamp = dt.strftime('%Y%m%d %H%M')
+    return f"{stamp} {clean}.md" if clean else f"{stamp}.md"
+
+
 def _write_obsidian_note(vault_path, label, dt, body, cal_fields=None):
     """Write a note .md into an Obsidian vault folder with YAML frontmatter."""
     vault = Path(vault_path).expanduser()
     vault.mkdir(parents=True, exist_ok=True)
-    slug = _file_slug(label)
-    (vault / f"{dt.strftime('%Y%m%d-%H%M')}-{slug}.md").write_text(
+    (vault / _obsidian_filename(label, dt)).write_text(
         build_yaml_frontmatter(label, dt, cal_fields=cal_fields) + body, encoding='utf-8')
 
 
