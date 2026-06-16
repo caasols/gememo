@@ -1079,6 +1079,36 @@ def _file_slug(label: str) -> str:
     return re.sub(r'[^\w\-]', '', label.lower().replace(' ', '-'), flags=re.ASCII)[:50]
 
 
+# Obsidian records its known vaults here; we read it so a blank "additional
+# destination" Obsidian row can fall back to the user's actual vault — the
+# "uses your vault if blank" promise shown in the popup.
+_OBSIDIAN_CONFIG = Path.home() / "Library" / "Application Support" / "obsidian" / "obsidian.json"
+
+
+def _select_obsidian_vault(config) -> str:
+    """Pure — pick a vault path from a parsed obsidian.json dict. Prefers the
+    currently-open vault, else the most recently used (max ts); '' when there are
+    no usable vaults or the shape is unexpected."""
+    vaults = config.get("vaults") if isinstance(config, dict) else None
+    if not isinstance(vaults, dict):
+        return ""
+    entries = [v for v in vaults.values() if isinstance(v, dict) and v.get("path")]
+    if not entries:
+        return ""
+    pool = [v for v in entries if v.get("open")] or entries
+    return str(max(pool, key=lambda v: v.get("ts", 0))["path"])
+
+
+def _detect_obsidian_vault(config_path=None) -> str:
+    """Best-effort — the user's Obsidian vault from Obsidian's own config. Returns
+    '' when it can't be determined (Obsidian not installed, no vaults, unreadable)."""
+    try:
+        raw = Path(config_path or _OBSIDIAN_CONFIG).read_text(encoding="utf-8")
+        return _select_obsidian_vault(json.loads(raw))
+    except Exception:
+        return ""
+
+
 def _write_obsidian_note(vault_path, label, dt, body, cal_fields=None):
     """Write a note .md into an Obsidian vault folder with YAML frontmatter."""
     vault = Path(vault_path).expanduser()
@@ -1104,10 +1134,17 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
                 push_to_apple_notes(title, body_to_html(craft_md))
                 notify("Meeting Notes → Apple Notes", title)
             elif dest == 'obsidian':
-                vault_path = str(entry.get('vaultPath') or '').strip() or obsidian_vault_path
+                # Row vault → global default → the vault detected from Obsidian's
+                # own config (the "uses your vault if blank" fallback). Only when
+                # none of those resolve do we skip — and we log it so the skip is
+                # visible instead of silent.
+                vault_path = (str(entry.get('vaultPath') or '').strip()
+                              or obsidian_vault_path or _detect_obsidian_vault())
                 if not vault_path:
-                    continue  # no target vault (row blank AND no global) → skip
+                    _heartbeat("obsidian_skip no_vault")
+                    continue
                 _write_obsidian_note(vault_path, label, dt, craft_md, cal_fields=cal_fields)
+                notify("Meeting Notes → Obsidian", title)
             elif dest == 'craft':
                 CACHE_DIR.mkdir(parents=True, exist_ok=True)
                 safe = re.sub(r'[^\w\s\-]', '', title)[:80].strip() or dt.strftime('%Y%m%d')

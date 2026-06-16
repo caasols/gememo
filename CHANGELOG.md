@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Fixed
+- **An Obsidian "additional destination" with a blank vault no longer silently does nothing.** The vault field's hint said "uses your vault if blank," but that fallback was never implemented — so if Obsidian wasn't your *primary* output (e.g. Craft primary + Obsidian as an extra), a blank row meant the host skipped Obsidian on every capture with no note, log, or notification. The host now makes that promise real: a blank Obsidian vault falls back to the global default and then to the vault auto-detected from Obsidian's own config (`obsidian.json`, preferring your open vault). Obsidian writes now also fire a "→ Obsidian" notification like the other destinations, and an unresolvable vault is logged instead of skipped silently. (Host change → re-run `install.sh`.)
+
 ### Changed
 - **The About tab now leads with a "you've saved …" hero banner.** Once you've logged enough meetings (the same 24h threshold that earns the support ask), About opens with a headline — e.g. _"You've saved roughly **3h 12m** with Gememo"_ and _"42 notes saved across 18 meetings."_ — instead of burying that figure in a footnote. The support line below it is now just the Ko-fi ask, so the time isn't repeated. Inspired by VoiceInk's stats screen.
 - **The Today tab now opens with one "living status" card instead of three separate boxes.** The status banner, the host line, and the snapshot widget used to stack as three disconnected panels; they're now a single card where Gememo speaks in the first person ("I'm in your meeting — I'll save your notes when you leave") with a pulsing dot and one compact detail line underneath — e.g. _"You've been here 12 min · 3 snapshots · next in 4m 4s."_ The chevron still expands the latest snapshot preview inline. Idle copy is the friendlier "I'm here whenever you need meeting notes."
