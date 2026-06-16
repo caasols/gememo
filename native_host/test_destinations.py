@@ -192,6 +192,39 @@ class TestDetectObsidianVault(unittest.TestCase):
         self.assertEqual(host._detect_obsidian_vault(Path('/no/such/obsidian.json')), '')
 
 
+class TestObsidianFilename(unittest.TestCase):
+    """Obsidian uses the filename as the note title, so it must be readable
+    (Craft-style), not a lowercased hyphen-slug."""
+
+    DTT = _dt.datetime(2026, 6, 16, 11, 29)
+
+    def test_matches_craft_readable_format(self):
+        self.assertEqual(
+            host._obsidian_filename('Trip Advisor Migration Discussion', self.DTT),
+            '20260616 1129 Trip Advisor Migration Discussion.md')
+
+    def test_strips_filesystem_illegal_chars(self):
+        self.assertEqual(
+            host._obsidian_filename('Q3/Q4: Planning *draft*', self.DTT),
+            '20260616 1129 Q3Q4 Planning draft.md')
+
+    def test_collapses_whitespace_and_caps_length(self):
+        self.assertEqual(host._obsidian_filename('A     B', self.DTT), '20260616 1129 A B.md')
+        clean = host._obsidian_filename('x' * 200, self.DTT)[len('20260616 1129 '):-len('.md')]
+        self.assertLessEqual(len(clean), 80)
+
+    def test_blank_or_symbol_only_label_falls_back_to_timestamp(self):
+        self.assertEqual(host._obsidian_filename('   ', self.DTT), '20260616 1129.md')
+        self.assertEqual(host._obsidian_filename('!!!', self.DTT), '20260616 1129.md')
+
+    def test_write_obsidian_note_uses_readable_filename(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            host._write_obsidian_note(tmp, 'Trip Advisor Migration Discussion', self.DTT, '## Summary\nx\n')
+            self.assertEqual(
+                [p.name for p in Path(tmp).glob('*.md')],
+                ['20260616 1129 Trip Advisor Migration Discussion.md'])
+
+
 class TestFileSlug(unittest.TestCase):
     def test_basic(self):
         self.assertEqual(host._file_slug('Q3 Planning'), 'q3-planning')
