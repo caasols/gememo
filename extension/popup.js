@@ -135,25 +135,28 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// formatSnapshotAge + formatCountdown now live in constants.js (loaded before
-// this script) — shared so they're unit-tested directly against the real code.
+// formatCountdown lives in constants.js (loaded before this script) — shared so
+// it's unit-tested directly against the real code.
 
-// Shows/hides widget AND updates content. Only called from MM2C_STATUS_QUERY callback.
+// The snapshot "peek" lives inside the living-status card: a chevron appears when
+// a snapshot exists; clicking it expands the preview. Called from the status query.
 function renderSnapshotWidget(snap) {
+  const chevron = $('status-chevron');
+  const preview = $('snapshot-preview');
   if (!snap) {
-    $('snapshot-widget').classList.add('hidden');
+    chevron.classList.add('hidden');
+    chevron.classList.remove('expanded');
+    preview.classList.add('hidden');
+    preview.textContent = '';
     return;
   }
-  $('snapshot-widget').classList.remove('hidden');
-  $('snapshot-age').textContent = `Last snapshot: ${formatSnapshotAge(snap.ts)}`;
-  $('snapshot-preview').textContent = snap.preview || '';
+  chevron.classList.remove('hidden');          // a snapshot exists → offer the peek
+  preview.textContent = snap.preview || '';     // collapsed until the chevron is clicked
 }
 
-// Updates content ONLY if widget is already visible. Called from applyState and onChanged.
+// Refresh just the preview text (visibility owned by renderSnapshotWidget + the chevron).
 function updateSnapshotContent(snap) {
-  if ($('snapshot-widget').classList.contains('hidden')) return;
   if (!snap) return;
-  $('snapshot-age').textContent = `Last snapshot: ${formatSnapshotAge(snap.ts)}`;
   $('snapshot-preview').textContent = snap.preview || '';
 }
 
@@ -485,16 +488,13 @@ function applyState(s, tabId, live = null) {
   $('file-type').value = s.mm2c_file_backup_type || 'markdown';
   $('file-path').value = s.mm2c_file_backup_path || DEFAULT_FILE_PATH;
 
-  // Single owner of the status banner — resolveBanner applies precedence
-  // (capturing > in-meeting > last status > idle) so there is no second writer.
-  const banner = resolveBanner({
-    capturing:    captureStateVal === 'capturing',
-    inMeeting:    !!(live && live.inMeeting),
-    geminiActive: !!(live && live.geminiActive),
-    lastStatus:   lastStatusVal,
-  });
-  $('status').textContent = banner.text;
-  $('status-banner').className = 'status-banner' + (banner.cls ? ' ' + banner.cls : '');
+  // Feed the living-status card — renderStatus() is the single owner of the lead
+  // line + detail (resolveBanner applies precedence inside it).
+  _status.capturing    = captureStateVal === 'capturing';
+  _status.inMeeting    = !!(live && live.inMeeting);
+  _status.geminiActive = !!(live && live.geminiActive);
+  _status.lastStatus   = lastStatusVal;
+  renderStatus();
 
   // Update snapshot preview content (visibility is controlled by MM2C_STATUS_QUERY callback)
   updateSnapshotContent(lastSnapshotVal);
@@ -550,41 +550,71 @@ function applyState(s, tabId, live = null) {
   renderStats(s.mm2c_stats);
 }
 
+// Single source of truth for the living-status card. Every writer (host check,
+// applyState, the status query) updates _status, then calls renderStatus() — one
+// renderer, no dual-writer race.
+const _status = {
+  hostOk: null, hostVersion: '', versionMismatch: false,
+  inMeeting: false, geminiActive: false, capturing: false, lastStatus: '',
+  joinedAt: 0, snapshotCount: 0, nextInLabel: '',
+};
+
+function renderStatus() {
+  const dot = $('host-dot'), label = $('host-label'), detail = $('status-detail');
+  const card = $('status-card'), setupBtn = $('setup-btn');
+  if (!card) return;
+  detail.classList.add('hidden'); detail.textContent = '';
+  card.classList.remove('warn', 'err');
+
+  // Host not set up overrides everything (nothing saves without it).
+  if (_status.versionMismatch) {
+    dot.className = 'host-dot warn'; card.classList.add('warn');
+    label.textContent = `Version mismatch — click Set up to reinstall (host v${_status.hostVersion}, extension v${chrome.runtime.getManifest().version})`;
+    setupBtn.classList.remove('hidden');
+    return;
+  }
+  if (_status.hostOk === false) {
+    dot.className = 'host-dot err'; card.classList.add('err');
+    label.textContent = "I'm not set up yet — click Set up to finish installing";
+    setupBtn.classList.remove('hidden');
+    return;
+  }
+  setupBtn.classList.add('hidden');
+
+  // Otherwise the meeting/last-result narrative (resolveBanner owns precedence).
+  const banner = resolveBanner({
+    capturing: _status.capturing, inMeeting: _status.inMeeting,
+    geminiActive: _status.geminiActive, lastStatus: _status.lastStatus,
+  });
+  const cls = banner.cls || 'ok';
+  dot.className = 'host-dot ' + cls;       // 'ok' pulses (alive); warn/err don't
+  if (cls === 'warn' || cls === 'err') card.classList.add(cls);
+  label.textContent = banner.text;
+
+  // Compact in-meeting detail: "You've been here 12 min · 3 snapshots · next in 4m".
+  if (_status.inMeeting && _status.geminiActive && !_status.capturing) {
+    const elapsedMin = _status.joinedAt ? Math.floor((Date.now() - _status.joinedAt) / 60000) : 0;
+    const d = meetingStatusDetail({ elapsedMin, snapshotCount: _status.snapshotCount, nextInLabel: _status.nextInLabel });
+    if (d) { detail.textContent = d; detail.classList.remove('hidden'); }
+  }
+}
+
 function setHostStatus(ok, error, hostVersion, versionMismatch) {
   lastHostOk = ok === true;
   renderSetupWizard(lastHostOk); // refresh the first-run checklist (RB-7a)
-  const dot      = $('host-dot');
-  const label    = $('host-label');
-  const setupBtn = $('setup-btn');
-  const panel    = $('setup-panel');
-
-  // Surface the native-host version in About (next to the Extension ID), where
-  // the technical detail belongs — the main tab stays version-free.
+  _status.hostOk = ok === true;
+  _status.hostVersion = hostVersion || '';
+  _status.versionMismatch = !!(ok && versionMismatch);
+  // Surface the native-host version in About (next to the Extension ID).
   const aboutHost = $('about-host-version');
   if (aboutHost) aboutHost.textContent = ok ? (hostVersion ? `v${hostVersion}` : 'ready') : 'not installed';
-
-  if (ok && versionMismatch) {
-    dot.className = 'host-dot warn';
-    const extVersion = chrome.runtime.getManifest().version;
-    label.textContent = `Version mismatch — click Set up to reinstall (host v${hostVersion}, extension v${extVersion})`;
-    setupBtn.classList.remove('hidden');
-    panel.classList.add('hidden');
-  } else if (ok) {
-    dot.className = 'host-dot ok';
-    // First-person, version-free — the version lives in About. Pairs with the
-    // pulsing dot to convey ready-and-helpful (not surveilling — Gememo never
-    // listens to audio; it saves Gemini's notes when you leave).
-    label.textContent = "I'm here whenever you need meeting notes.";
-    setupBtn.classList.add('hidden');
-    panel.classList.add('hidden');
+  // The install command + setup panel only matter when the host isn't found.
+  if (!ok && !versionMismatch) {
+    $('install-cmd').textContent = `bash "$(mdfind -name install.sh | grep gememo | head -1)" ${chrome.runtime.id}`;
   } else {
-    dot.className = 'host-dot err';
-    label.textContent = "I'm not set up yet — click Set up to finish installing";
-    setupBtn.classList.remove('hidden');
-    // Pre-fill the install command with the actual extension ID
-    const extId = chrome.runtime.id;
-    $('install-cmd').textContent = `bash "$(mdfind -name install.sh | grep gememo | head -1)" ${extId}`;
+    $('setup-panel').classList.add('hidden');
   }
+  renderStatus();
 }
 
 function save(patch) {
@@ -958,7 +988,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!tabId) {
           $('capture-footer').classList.add('hidden');
           $('capture-footer-spacer').classList.add('hidden');
-          $('snapshot-widget').classList.add('hidden');
+          renderSnapshotWidget(null);
           loadAndApplyState(null);
           return;
         }
@@ -973,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (chrome.runtime.lastError) {
         $('capture-footer').classList.add('hidden');
         $('capture-footer-spacer').classList.add('hidden');
-        $('snapshot-widget').classList.add('hidden');
+        renderSnapshotWidget(null);
         loadAndApplyState(tabId);
         return;
       }
@@ -982,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
       $('capture-footer').classList.toggle('hidden', !inMeeting);
       $('capture-footer-spacer').classList.toggle('hidden', !inMeeting);
       if (!inMeeting) {
-        $('snapshot-widget').classList.add('hidden');
+        renderSnapshotWidget(null);
         loadAndApplyState(tabId, { inMeeting: false, geminiActive });
         return;
       }
@@ -992,20 +1022,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // state. Banner + capture button stay owned solely by applyState (BUG-C).
       chrome.storage.local.get([...GLOBAL_KEYS, 'mm2c_also_send', ...tabScopedKeys(tabId)], (s) => {
         renderSnapshotWidget(s[tabKey('mm2c_last_snapshot', tabId)] || null);
-        const nextEl = $('snapshot-next');
-        if (nextEl) {
-          const countdown = formatCountdown(response.nextSnapshotAt || 0);
-          const firstEta  = formatCountdown(response.firstSnapshotAt || 0);
-          if (countdown) {
-            nextEl.textContent = `Next in: ${countdown}`;
-            nextEl.classList.remove('hidden');
-          } else if (firstEta) {
-            nextEl.textContent = `First snapshot in: ${firstEta}`;
-            nextEl.classList.remove('hidden');
-          } else {
-            nextEl.classList.add('hidden');
-          }
-        }
+        // Feed the in-meeting detail fields; applyState() → renderStatus() renders them.
+        _status.joinedAt      = response.meetingJoinedAt || 0;
+        _status.snapshotCount = response.snapshotCount || 0;
+        const countdown       = formatCountdown(response.nextSnapshotAt || 0);
+        _status.nextInLabel   = countdown || formatCountdown(response.firstSnapshotAt || 0) || '';
         applyState(s, tabId, { inMeeting: true, geminiActive });
       });
     });
@@ -1406,11 +1427,8 @@ document.addEventListener('DOMContentLoaded', () => {
         captureBtn.textContent = capturing ? 'Capturing notes…' : 'Capture now';
       }
       if (capturing) {
-        // Route through resolveBanner so there is one banner writer (UXC-15) —
-        // no hardcoded text/class that can drift from applyState's version.
-        const b = resolveBanner({ capturing: true });
-        $('status').textContent = b.text;
-        $('status-banner').className = 'status-banner' + (b.cls ? ' ' + b.cls : '');
+        _status.capturing = true;
+        renderStatus();
       } else {
         loadAndApplyState(activeMetTabId);
       }
@@ -1471,11 +1489,11 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_expanded_groups: [...expandedGroups] });
   });
 
-  // Snapshot preview expand/collapse
-  $('snapshot-header').addEventListener('click', () => {
-    const header  = $('snapshot-header');
+  // Snapshot peek — the chevron toggles the latest-snapshot preview in the status card.
+  $('status-chevron').addEventListener('click', () => {
+    const chevron = $('status-chevron');
     const preview = $('snapshot-preview');
-    const isOpen  = header.classList.toggle('expanded');
+    const isOpen  = chevron.classList.toggle('expanded');
     preview.classList.toggle('hidden', !isOpen);
   });
 

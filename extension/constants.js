@@ -622,13 +622,6 @@ function computeFirstSnapshotAt(meetingJoinedAt, lastSnapshotAt, snapshotInterva
 }
 
 // ── Popup display formatters (pure; shared so they're unit-tested directly) ──
-// "Xs ago" / "X min ago" for a snapshot timestamp.
-function formatSnapshotAge(ts, now = Date.now()) {
-  const diffMs  = Math.max(0, now - ts);
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return `${Math.floor(diffMs / 1000)}s ago`;
-  return `${diffMin} min ago`;
-}
 // "Xm Ys" / "Xs" / "due now" until nextAt (ms ts); null when nextAt is 0 (unscheduled).
 function formatCountdown(nextAt, now = Date.now()) {
   if (!nextAt) return null;
@@ -1204,11 +1197,11 @@ function inflightRecoverable(inflight, now = Date.now(), graceMs = 60000) {
 // and applyState both wrote #status from independent async callbacks (BUG-C).
 // Precedence: capturing > in-meeting message > last status > idle default.
 function resolveBanner({ capturing = false, inMeeting = false, geminiActive = false, lastStatus = '' } = {}) {
-  if (capturing) return { text: 'Capturing notes…', cls: 'ok' };
+  if (capturing) return { text: 'Capturing your notes…', cls: 'ok' };
   if (inMeeting) {
     return geminiActive
-      ? { text: 'In meeting — notes captured when you leave', cls: 'ok' }
-      : { text: 'In meeting — open the Gemini panel to enable capture', cls: 'warn' };
+      ? { text: "I'm in your meeting — I'll save your notes when you leave", cls: 'ok' }
+      : { text: "I'm here, but Gemini notes aren't on — click the ✦ button in Meet to start", cls: 'warn' };
   }
   if (lastStatus) {
     const cls = (lastStatus.startsWith('Error') || lastStatus.startsWith('Native host') || lastStatus.startsWith('Host'))
@@ -1216,7 +1209,18 @@ function resolveBanner({ capturing = false, inMeeting = false, geminiActive = fa
       : lastStatus.startsWith('Warning') ? 'warn' : 'ok';
     return { text: lastStatus, cls };
   }
-  return { text: 'Not in a meeting', cls: '' };
+  return { text: "I'm here whenever you need meeting notes.", cls: 'ok' };
+}
+
+// Pure helper — the compact in-meeting detail line under the status lead, e.g.
+// "You've been here 12 min · 3 snapshots · next in 4m 4s". Pieces are omitted
+// when unknown (0 min / 0 snapshots / no ETA). `nextInLabel` is pre-formatted.
+function meetingStatusDetail({ elapsedMin = 0, snapshotCount = 0, nextInLabel = '' } = {}) {
+  const parts = [];
+  if (elapsedMin >= 1) parts.push(`You've been here ${elapsedMin} min`);
+  if (snapshotCount > 0) parts.push(`${snapshotCount} snapshot${snapshotCount === 1 ? '' : 's'}`);
+  if (nextInLabel) parts.push(`next in ${nextInLabel}`);
+  return parts.join(' · ');
 }
 
 // Pure helper — map an output-app key to its human label (ARCH-7). Moved
