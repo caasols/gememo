@@ -879,6 +879,27 @@
     .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
     .stats-savings a { color: var(--primary); }
 
+    /* Hero "impact" banner (UX-8) — the headline time-saved, gated at 24h. */
+    .impact-hero {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-subtle);
+      padding: 16px 18px;
+      text-align: center;
+    }
+    .impact-hero-headline {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .impact-hero-headline strong { color: var(--text-strong); }
+    .impact-hero-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
     /* Action items checklist (P6-B) */
     #action-items-list { display: flex; flex-direction: column; gap: 4px; }
     .action-item {
@@ -1572,6 +1593,12 @@
 
   <!-- ── About panel ────────────────────────────────────────────── -->
   <div class="panel hidden" id="about-panel" role="tabpanel" aria-labelledby="tab-about">
+
+    <!-- Hero "impact" banner (UX-8) — the headline time-saved, gated at 24h. -->
+    <div class="impact-hero hidden" id="impact-hero">
+      <div class="impact-hero-headline" id="impact-hero-headline"></div>
+      <div class="impact-hero-sub" id="impact-hero-sub"></div>
+    </div>
 
     <!-- Usage stats (UX-8) — at the top of About. -->
     <div class="widget">

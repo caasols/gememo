@@ -621,23 +621,29 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Support nudge appears once meetings pass 24h', async () => {
+    test('Hero banner + support nudge appear once meetings pass 24h', async () => {
       const page = await popupWith({
         mm2c_stats: { meetingsAttended: 9, notesSaved: 9, wordsCaptured: 1200, totalMeetingMinutes: 1500 },
       });
       await page.click('#tab-about');
-      await expect(page.locator('#stats-savings')).toContainText('saved you roughly');
+      // The headline time-saved is promoted to the hero banner…
+      await expect(page.locator('#impact-hero')).toBeVisible();
+      await expect(page.locator('#impact-hero')).toContainText('saved roughly');
+      await expect(page.locator('#impact-hero')).toContainText('9 notes saved across 9 meetings');
+      // …and the savings line below is just the support ask (no duplicated time).
       await expect(page.locator('#stats-savings')).toContainText('supporting it');
+      await expect(page.locator('#stats-savings')).not.toContainText('saved roughly');
       await page.close();
     });
 
-    test('Support nudge stays hidden under 24h of meetings', async () => {
+    test('Hero banner + support nudge stay hidden under 24h of meetings', async () => {
       const page = await popupWith({
         mm2c_stats: { meetingsAttended: 3, notesSaved: 3, wordsCaptured: 1200, totalMeetingMinutes: 100 },
       });
       await page.click('#tab-about');
       await expect(page.locator('#stats-grid')).toContainText('1,200'); // stats still render
-      await expect(page.locator('#stats-savings')).toBeHidden();        // but the nudge block is gated off
+      await expect(page.locator('#impact-hero')).toBeHidden();          // but the hero is gated off
+      await expect(page.locator('#stats-savings')).toBeHidden();        // and so is the nudge
       await page.close();
     });
 
