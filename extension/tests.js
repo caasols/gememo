@@ -1027,25 +1027,6 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  // formatSnapshotAge now lives in constants.js (bucket A) — test the real helper.
-  function testFormatSnapshotAge() {
-    console.group('formatSnapshotAge');
-    const now = Date.now();
-
-    assertEq('0s ago when ts = now',
-      formatSnapshotAge(now, now), '0s ago');
-    assertEq('30s ago when 30s elapsed',
-      formatSnapshotAge(now - 30000, now), '30s ago');
-    assertEq('1 min ago when exactly 60s elapsed',
-      formatSnapshotAge(now - 60000, now), '1 min ago');
-    assertEq('3 min ago when 3.5 min elapsed (floor)',
-      formatSnapshotAge(now - 210000, now), '3 min ago');
-    assertEq('59s ago when 59s elapsed (under 1 min threshold)',
-      formatSnapshotAge(now - 59000, now), '59s ago');
-
-    console.groupEnd();
-  }
-
   // formatCountdown now lives in constants.js (bucket A) — test the real helper.
   function testFormatCountdown() {
     console.group('formatCountdown');
@@ -2377,15 +2358,15 @@ window.MM2C_TESTS = (() => {
   // Precedence: capturing > in-meeting > last status > idle default.
   const b1 = resolveBanner({ capturing: true, inMeeting: true, geminiActive: false, lastStatus: 'Error: x' });
   assert('resolveBanner: capturing wins over everything',
-    b1.text === 'Capturing notes…' && b1.cls === 'ok');
+    b1.text === 'Capturing your notes…' && b1.cls === 'ok');
 
   const b2 = resolveBanner({ capturing: false, inMeeting: true, geminiActive: true, lastStatus: 'Saved to Craft: X' });
   assert('resolveBanner: in-meeting + gemini active',
-    b2.text === 'In meeting — notes captured when you leave' && b2.cls === 'ok');
+    b2.text === "I'm in your meeting — I'll save your notes when you leave" && b2.cls === 'ok');
 
   const b3 = resolveBanner({ capturing: false, inMeeting: true, geminiActive: false, lastStatus: '' });
   assert('resolveBanner: in-meeting without gemini → warn',
-    b3.text === 'In meeting — open the Gemini panel to enable capture' && b3.cls === 'warn');
+    b3.text === "I'm here, but Gemini notes aren't on — click the ✦ button in Meet to start" && b3.cls === 'warn');
 
   assert('resolveBanner: error last status → err',
     resolveBanner({ lastStatus: 'Error: boom' }).cls === 'err');
@@ -2400,8 +2381,20 @@ window.MM2C_TESTS = (() => {
     b4.cls === 'ok' && b4.text === 'Saved to Craft: Daily');
 
   const b5 = resolveBanner({});
-  assert('resolveBanner: idle default (no trailing period — UXC-17)',
-    b5.text === 'Not in a meeting' && b5.cls === '');
+  assert('resolveBanner: idle default is the friendly first-person line (ok → pulsing dot)',
+    b5.text === "I'm here whenever you need meeting notes." && b5.cls === 'ok');
+
+  // meetingStatusDetail — the compact in-meeting detail line.
+  assertEq('meetingStatusDetail: full line',
+    meetingStatusDetail({ elapsedMin: 12, snapshotCount: 3, nextInLabel: '4m 4s' }),
+    "You've been here 12 min · 3 snapshots · next in 4m 4s");
+  assertEq('meetingStatusDetail: singular snapshot, no ETA',
+    meetingStatusDetail({ elapsedMin: 5, snapshotCount: 1, nextInLabel: '' }),
+    "You've been here 5 min · 1 snapshot");
+  assertEq('meetingStatusDetail: omits zero/blank pieces',
+    meetingStatusDetail({ elapsedMin: 0, snapshotCount: 0, nextInLabel: '2m' }),
+    'next in 2m');
+  assertEq('meetingStatusDetail: nothing known → empty', meetingStatusDetail({}), '');
 
   // extractMeetingCode — Meet room code from the URL path (P9-A3a)
   assert('extractMeetingCode: standard path',
@@ -2738,7 +2731,6 @@ window.MM2C_TESTS = (() => {
     await testAdminDisabledDetection();
     await testRegenerationGuard();
     testOnBeforeUnloadGuard();
-    testFormatSnapshotAge();
     testFormatCountdown();
     testCaptureNow();
     await testAutoActivate();

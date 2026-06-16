@@ -157,21 +157,6 @@
       margin: 0;
     }
 
-    /* Status banner */
-    .status-banner {
-      padding: 8px var(--widget-px);
-      background: var(--surface-subtle);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 12px;
-      color: var(--text-muted);
-      line-height: 1.4;
-      word-break: break-word;
-    }
-    .status-banner.ok   { color: var(--success-text); background: var(--success-bg); border-color: var(--success-border); }
-    .status-banner.warn { color: var(--warn-text);    background: var(--warn-bg);    border-color: var(--warn-border);    }
-    .status-banner.err  { color: var(--danger-text);  background: var(--danger-bg);  border-color: var(--danger-border);  }
-
     /* Tab bar */
     .tab-bar {
       display: flex;
@@ -337,12 +322,19 @@
     .btn.danger { color: var(--danger); }
     .btn.danger:hover { background: var(--danger-bg); border-color: var(--danger-border); }
 
-    /* Host status row */
+    /* Living status card row */
     .host-row {
       display: flex;
       align-items: center;
       gap: var(--space-3);
     }
+    .status-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+    .status-detail { font-size: 11px; color: var(--text-muted); }
+    #status-chevron { cursor: pointer; }
+    .snapshot-chevron.expanded { transform: rotate(90deg); }
+    /* The dot carries the state; tint the lead line too for warn/err legibility. */
+    #status-card.warn #host-label { color: var(--warn-text); }
+    #status-card.err  #host-label { color: var(--danger-text); }
     .host-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
@@ -364,7 +356,7 @@
     @media (prefers-reduced-motion: reduce) {
       .host-dot.ok { animation: none; box-shadow: 0 0 3px 1px var(--success); }
     }
-    #host-label { font-size: 11px; color: var(--text-muted); flex: 1; }
+    #host-label { font-size: 12px; color: var(--text); }
 
     /* Setup panel */
     .setup-panel {
@@ -1114,13 +1106,21 @@
   <!-- ── Main panel ─────────────────────────────────────────────── -->
   <div class="panel" id="main-panel" role="tabpanel" aria-labelledby="tab-main">
 
-    <!-- Gememo status — the main "is it working" feedback; kept at the top. -->
-    <div class="widget">
+    <!-- Gememo living status — one card: a pulsing dot + an adaptive first-person
+         line, a compact in-meeting detail (duration · snapshots · next), and an
+         expandable peek at the latest snapshot. Replaces the old separate
+         status-banner + snapshot widgets so it reads as one living signal. -->
+    <div class="widget" id="status-card">
       <div class="host-row">
         <span class="host-dot" id="host-dot" role="img" aria-label="Gememo status"></span>
-        <span id="host-label">Waking up…</span>
+        <div class="status-text">
+          <span id="host-label">Waking up…</span>
+          <span id="status-detail" class="status-detail hidden"></span>
+        </div>
         <button class="btn hidden" id="setup-btn">Set up</button>
+        <span class="snapshot-chevron hidden" id="status-chevron" role="button" tabindex="0" aria-label="Show latest snapshot" title="Latest snapshot">▶</span>
       </div>
+      <div class="snapshot-preview hidden" id="snapshot-preview"></div>
     </div>
 
     <!-- Setup panel (shown when host not found) — paired with the status above. -->
@@ -1149,28 +1149,11 @@
       <div id="setup-wizard-steps"></div>
     </div>
 
-    <!-- Status banner -->
-    <div class="status-banner" id="status-banner">
-      <span id="status">Not in a meeting</span>
-    </div>
-
     <!-- Recovery card — an in-flight note that never confirmed saving (RB-1d) -->
     <div id="recovery-list"></div>
 
     <!-- Retry list — one card per mm2c_failed_list entry; populated by popup.js -->
     <div id="retry-list"></div>
-
-    <!-- Snapshot preview — shown only when in meeting and snapshot exists -->
-    <div class="widget hidden" id="snapshot-widget">
-      <div class="snapshot-header" id="snapshot-header">
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <span id="snapshot-age">Last snapshot: —</span>
-          <span id="snapshot-next" class="hidden" style="font-size:11px;color:var(--text-muted)">Next in: —</span>
-        </div>
-        <span class="snapshot-chevron">▶</span>
-      </div>
-      <div class="snapshot-preview hidden" id="snapshot-preview"></div>
-    </div>
 
     <!-- Email this note (RB-3c, beta) — zero-config mailto destination -->
     <div class="widget beta hidden" id="email-note-widget">
