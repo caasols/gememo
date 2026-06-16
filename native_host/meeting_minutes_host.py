@@ -1110,14 +1110,23 @@ def _detect_obsidian_vault(config_path=None) -> str:
 
 
 def _obsidian_filename(label, dt) -> str:
-    """Readable, filesystem-safe Obsidian note filename: 'YYYYMMDD HHMM Title.md'.
+    """Readable, filesystem-safe Obsidian note filename: 'YYYYMMDD HH:MM Title.md'.
     Obsidian shows the filename as the note title, so (unlike internal backup/
     snapshot names) it keeps real words and casing — matching what Craft displays —
-    rather than a lowercased hyphen-slug. Illegal chars are dropped; a label with
+    rather than a lowercased hyphen-slug. The colon in the time is intentional (macOS
+    allows it; it mirrors Craft). Illegal chars inside the title are dropped, an
+    over-long title is trimmed at a word boundary (no mid-word cut), and a label with
     nothing usable falls back to just the timestamp."""
+    _MAX_TITLE = 80
     clean = re.sub(r'[^\w\s\-]', '', str(label or ''))
-    clean = re.sub(r'\s+', ' ', clean).strip()[:80].strip()
-    stamp = dt.strftime('%Y%m%d %H%M')
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    if len(clean) > _MAX_TITLE:
+        head = clean[:_MAX_TITLE]
+        # Drop the trailing partial word unless the cut already landed on a space.
+        if not clean[_MAX_TITLE].isspace() and ' ' in head:
+            head = head[:head.rfind(' ')]
+        clean = head.strip()
+    stamp = dt.strftime('%Y%m%d %H:%M')
     return f"{stamp} {clean}.md" if clean else f"{stamp}.md"
 
 
