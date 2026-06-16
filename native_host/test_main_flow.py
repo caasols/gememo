@@ -544,6 +544,28 @@ class TestRecoverSnapshot(unittest.TestCase):
             self.assertEqual(sent[-1], {"ok": False, "reason": "no_snapshot"})
 
 
+class TestMainNeverCrashes(unittest.TestCase):
+    """A handler raising before it replies must not crash the host process — Chrome
+    surfaces that as a cryptic 'Native host has exited'. main() must instead send a
+    single clean error reply so the popup shows a real (friendly) message."""
+
+    def test_uncaught_dispatch_error_becomes_clean_reply(self):
+        sent = []
+        with patch.object(host, '_dispatch', side_effect=RuntimeError('boom')), \
+                patch.object(host, 'send_message', side_effect=lambda d: sent.append(d)), \
+                patch.object(host, '_heartbeat'):
+            host.main()  # must NOT raise
+        self.assertEqual([d.get('status') for d in sent], ['error'])
+        self.assertIn('boom', sent[0]['error'])
+
+    def test_clean_dispatch_is_left_alone(self):
+        sent = []
+        with patch.object(host, '_dispatch', return_value=None), \
+                patch.object(host, 'send_message', side_effect=lambda d: sent.append(d)):
+            host.main()
+        self.assertEqual(sent, [])  # guard only fires on an uncaught exception
+
+
 class TestCalendarEnrichBounded(unittest.TestCase):
     """Calendar enrichment must never block the capture: a hung Calendar API call
     (the google client has no network timeout) is abandoned after a wall-clock

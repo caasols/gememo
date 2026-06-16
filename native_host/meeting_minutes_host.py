@@ -1432,6 +1432,18 @@ def handle_capture(msg) -> None:
 
 
 def main() -> None:
+    """Top-level guard: a handler that raises before replying would otherwise let
+    the host process exit on the traceback, which Chrome surfaces as the cryptic
+    'Native host has exited' (and the popup shows a generic error with no detail).
+    Catch any uncaught error and reply once with a clean message instead."""
+    try:
+        _dispatch()
+    except Exception as exc:
+        send_message({"status": "error", "error": str(exc) or exc.__class__.__name__})
+        _heartbeat("replied status=uncaught")
+
+
+def _dispatch() -> None:
     msg = read_message()
     if not msg:
         send_message({"status": "error", "error": "empty message"})
