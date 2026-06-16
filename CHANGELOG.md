@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Changed
+- **The About tab now leads with a "you've saved …" hero banner.** Once you've logged enough meetings (the same 24h threshold that earns the support ask), About opens with a headline — e.g. _"You've saved roughly **3h 12m** with Gememo"_ and _"42 notes saved across 18 meetings."_ — instead of burying that figure in a footnote. The support line below it is now just the Ko-fi ask, so the time isn't repeated. Inspired by VoiceInk's stats screen.
 - **The Today tab now opens with one "living status" card instead of three separate boxes.** The status banner, the host line, and the snapshot widget used to stack as three disconnected panels; they're now a single card where Gememo speaks in the first person ("I'm in your meeting — I'll save your notes when you leave") with a pulsing dot and one compact detail line underneath — e.g. _"You've been here 12 min · 3 snapshots · next in 4m 4s."_ The chevron still expands the latest snapshot preview inline. Idle copy is the friendlier "I'm here whenever you need meeting notes."
 
 ### Internal (no behavior change)
