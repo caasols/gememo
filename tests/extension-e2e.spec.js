@@ -373,7 +373,7 @@ test.describe('extension E2E harness', () => {
       const at = Date.parse('2026-06-01T09:12:00Z');
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
-        mm2c_calendar_enabled: true,
+        mm2c_calendar_enabled: true, mm2c_beta_enabled: true,  // Calendar enrichment is beta-gated
         mm2c_cleanup_snap_enabled: true, mm2c_cleanup_snap_days: 7,
         mm2c_inflight: { title: 'Recovered', text: 'recovered body', durationMin: 20, at },
       });
