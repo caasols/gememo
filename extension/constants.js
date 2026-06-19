@@ -272,7 +272,9 @@ function buildForwardConfig(data) {
     redactKeywords: data.mm2c_redact_keywords || '',
     emitIcs: data.mm2c_emit_ics === true,
     wikilinks: data.mm2c_wikilinks === true,
-    calendarEnabled: data.mm2c_calendar_enabled === true,
+    // Google Calendar enrichment is experimental — gate it behind the beta flag so
+    // a persisted connection never runs (or breaks) a capture unless beta is on.
+    calendarEnabled: data.mm2c_calendar_enabled === true && data.mm2c_beta_enabled === true,
     fileBackupEnabled: data.mm2c_file_backup_enabled === true,
     fileBackupType: data.mm2c_file_backup_type || 'markdown',
     fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',

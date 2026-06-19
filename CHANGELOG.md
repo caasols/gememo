@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Changed
+- **Google Calendar enrichment is now gated behind the Experimental (beta) flag.** It's an opt-in extra that adds the matching event's attendees/agenda to a note's frontmatter, but a persisted connection was running on every capture even with Experimental off — and an expired token could stall the save. Enrichment now runs only when **both** Calendar is connected **and** Experimental is enabled; with beta off it's never invoked. The Calendar widget already lived in the beta section of Settings.
+
 ### Fixed
 - **Obsidian note titles keep ordinary punctuation (`%`, `&`, `:`, `()`, …).** The filename sanitizer was an aggressive allowlist that stripped everything except letters, numbers, spaces and hyphens — so a meeting like "Support 100% rollout … & … A/B" became "Support 100 rollout … AB" in Obsidian, even though Craft and the note's own `title` kept the full text. It now strips only genuinely-unsafe characters (path separators, the Windows-reserved set, control chars), so titles read like Craft shows them. (Host change → re-run `install.sh`.)
 - **The native host no longer hard-crashes on an unexpected error.** If a capture hit an unhandled exception before its internal error handler (e.g. during parsing, redaction, or the file backup), the process exited on the traceback and Chrome surfaced the cryptic "Native host has exited" — the popup then showed a generic "something went wrong" with no detail. `main()` now wraps the whole dispatch in a last-resort guard that replies a single clean error and logs `replied status=uncaught`, so a recoverable failure never takes the process down. (Host change → re-run `install.sh`.)
