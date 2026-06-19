@@ -47,6 +47,9 @@ build/
 # Session context (local only)
 context.md
 
+# New-session handoff prompt (local only; references the gitignored docs above)
+RESUME_PROMPT.md
+
 # Python coverage (dev tool)
 .coverage
 htmlcov/
