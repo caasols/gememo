@@ -2111,12 +2111,18 @@ window.MM2C_TESTS = (() => {
   function testBuildForwardConfig() {
     console.group('buildForwardConfig');
     const cfg = buildForwardConfig({
-      mm2c_output_app: 'craft', mm2c_obsidian_vault_path: '/v', mm2c_calendar_enabled: true,
+      mm2c_output_app: 'craft', mm2c_obsidian_vault_path: '/v',
+      mm2c_calendar_enabled: true, mm2c_beta_enabled: true,
       mm2c_destinations: [{ type: 'apple_notes' }, { type: 'apple_notes' }, { type: 'craft' }],
       mm2c_cleanup_snap_enabled: true, mm2c_cleanup_snap_days: 10,
     });
     assert('maps obsidian vault', cfg.obsidianVaultPath === '/v');
-    assert('calendarEnabled true', cfg.calendarEnabled === true);
+    assert('calendarEnabled true when connected AND beta on', cfg.calendarEnabled === true);
+    // Calendar enrichment is beta-gated: connected but beta off → not used.
+    assert('calendarEnabled false when beta off',
+      buildForwardConfig({ mm2c_calendar_enabled: true, mm2c_beta_enabled: false }).calendarEnabled === false);
+    assert('calendarEnabled false when beta on but not connected',
+      buildForwardConfig({ mm2c_calendar_enabled: false, mm2c_beta_enabled: true }).calendarEnabled === false);
     assert('dedups + drops primary craft',
       JSON.stringify(cfg.destinations) === JSON.stringify([{ type: 'apple_notes' }]));
     assert('backupCleanup nested',
