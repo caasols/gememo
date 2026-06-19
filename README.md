@@ -40,7 +40,7 @@ Gememo writes **plain Markdown files you own** — with YAML frontmatter — str
 - **Python 3.9+**
 - One of: **Craft**, **Apple Notes**, **Obsidian**, or **Bear**
 
-> **Note:** Craft and Apple Notes are the actively-tested output apps. **Obsidian and Bear are implemented but not yet verified against a live app** — please report any issues.
+> **Note:** Craft, Apple Notes, and **Obsidian** are the actively-tested output apps. **Bear is implemented but not yet verified against a live app** — please report any issues. (Obsidian tip: keep the vault **out of** iCloud "Desktop & Documents" sync — iCloud can reconcile away freshly-written notes.)
 
 ### Setup
 
@@ -86,7 +86,7 @@ bash native_host/install.sh
 - **Action items → tasks** — send each captured action item to **Things / Todoist / OmniFocus**, and flag items assigned to you with a "N for you" badge
 - **Private reflection** *(beta)* — optionally run a second Gemini pass with a private prompt and save it to a separate destination
 - **Google Calendar enrichment** *(beta)* — connect a Google account once; each note's frontmatter gains the matching event's attendees, agenda, recurrence, and scheduled time (read-only; one-time setup in [`native_host/CALENDAR_SETUP.md`](native_host/CALENDAR_SETUP.md))
-- **Output apps** — Craft and Apple Notes (tested), plus Obsidian and Bear (untested); pick a primary app and optionally **"Also send to"** others (multi-destination)
+- **Output apps** — Craft, Apple Notes, and Obsidian (tested), plus Bear (untested); pick a primary app and optionally **"Also send to"** others (multi-destination)
 - **Webhooks** — POST every captured note as structured JSON to any URL (Zapier, n8n, Make, your own endpoint), plus a dedicated **Slack** option (title, summary, action-item count)
 - **.ics export** — optionally write a calendar file next to each note, one all-day event per **Next Steps** line (no Calendar OAuth)
 
@@ -116,7 +116,7 @@ bash native_host/install.sh
 
 | Feature | Status | What it does |
 |---|---|---|
-| **Google Calendar enrichment** | 🧪 under testing | Read-only event metadata (attendees, agenda, recurrence, scheduled time) into note frontmatter. Live OAuth flow not yet maintainer-verified end-to-end. Setup: [`native_host/CALENDAR_SETUP.md`](native_host/CALENDAR_SETUP.md). |
+| **Google Calendar enrichment** | 🧪 under testing | Read-only event metadata (attendees, agenda, recurrence, scheduled time) into note frontmatter. **Only runs when Experimental is on** (it's beta-gated) and is bounded by a 12s timeout so a slow lookup can never delay a capture. Live OAuth flow not yet maintainer-verified end-to-end. Setup: [`native_host/CALENDAR_SETUP.md`](native_host/CALENDAR_SETUP.md). |
 | **Google Docs output** | 🧪 under testing | Selectable as your **Primary output** *or* an **Additional destination** — files each captured note as a Google Doc. A **separate** OAuth connect from Calendar (its own `documents` scope + token), surfaced via a "Google Docs connection" control whenever it's in use. Live OAuth + Doc creation not yet maintainer-verified end-to-end. Setup: [`native_host/GDOCS_SETUP.md`](native_host/GDOCS_SETUP.md). |
 | **Pre-meeting brief** | 🧪 under testing | A 3-bullet prep brief (agenda, who, context) for the Meet tab you have open, built from the matching Calendar event. Reuses the Calendar connection. **Manual trigger** for now (a button in the Beta tab) — automatic pre-start detection is a follow-up. Live match needs a connected Calendar + a real meeting. |
 | **Private reflection (dual output)** | 🧪 under testing | A second Gemini pass with your private prompt, saved to a separate destination. The live second pass is unverified and adds latency at leave. |
@@ -124,7 +124,7 @@ bash native_host/install.sh
 | **Review before saving** | 🧪 under testing | A 15-second review/discard gate before a captured note is sent. |
 | **Action items → task managers** | 🧪 needs the app | Push each action item to Things / Todoist / OmniFocus via URL schemes. |
 | **Remote selector hotfix** | 🧪 advanced | Patch a broken Meet selector via a hosted `selectors.json` without shipping a release. |
-| **Obsidian & Bear output** | 🧪 untested | Implemented but not yet verified against a live app (see the table below). |
+| **Bear output** | 🧪 untested | Implemented but not yet verified against a live app (see the table below). Obsidian is now live-verified and out of this list. |
 | **Additional destinations** | 🧪 under testing | A repeater (in **Settings** — promoted out of beta) to send each note to **N** extra destinations, each with its **own** inline config — e.g. two different Obsidian vaults, or a Craft folder + Apple Notes — independent of the primary/​"Also send to" picker. Purely additive; off by default. |
 
 **Also behind the Experimental toggle (stable, just tucked away for a lean default):** Glossary, Your name (action-item aliases), Wikilinks for graph apps, Webhook (generic + Slack), Privacy controls (PII redaction, keywords, capture blocklist), Action items (in-popup checklist + task-manager routing), past-meeting search, Note language, Review-before-saving, and the `.ics` export. These work and are tested — they're hidden from the default UI to keep onboarding focused, and reappear in their usual tabs when Experimental is on.
@@ -137,7 +137,7 @@ If you try one of these, please [report an issue](https://github.com/caasols/gem
 |---|---|---|
 | **Craft** | Creates a document via `craftdocs://createdocument` with inline markdown content | Optional folder ID in Settings |
 | **Apple Notes** | Creates a note via `osascript` with HTML body (headings, bullets, paragraphs) | No config needed |
-| **Obsidian** *(untested)* | Writes a YAML-frontmatted `.md` file directly to your vault folder | Select vault folder in Settings |
+| **Obsidian** | Writes a YAML-frontmatted `.md` file directly to your vault folder (readable `YYYYMMDD HH:MM Title.md` filename). A blank vault auto-detects your open vault from Obsidian's own config | Vault path optional in Settings; keep the vault **out of** iCloud Desktop & Documents sync |
 | **Bear** *(untested)* | Creates a note via `bear://x-callback-url/create` | No config needed |
 | **Webhook** (any) | POSTs the note as structured JSON to a URL — runs alongside whichever app above is selected | Webhook URL in Settings |
 
