@@ -214,11 +214,21 @@ class TestObsidianFilename(unittest.TestCase):
             '20260616 11:29 Trip Advisor Migration Discussion.md')
 
     def test_keeps_ordinary_punctuation_strips_only_reserved(self):
-        # Reserved chars (path separators, Windows-reserved, control) are stripped;
-        # ordinary punctuation like % & : ( ) is KEPT so the title reads like Craft.
+        # Path separators (/ \) become a SPACE so words don't run together; the
+        # other Windows-reserved + control chars are dropped; ordinary punctuation
+        # like % & : ( ) is KEPT so the title reads like Craft.
         self.assertEqual(
             host._obsidian_filename('100% A/B test: (final) *v2*', self.DTT),
-            '20260616 11:29 100% AB test: (final) v2.md')
+            '20260616 11:29 100% A B test: (final) v2.md')
+
+    def test_path_separators_become_space_not_joined(self):
+        # Regression: "Reigo/Carlos" must read "Reigo Carlos", not "ReigoCarlos".
+        self.assertEqual(
+            host._obsidian_filename('Reigo/Carlos', self.DTT),
+            '20260616 11:29 Reigo Carlos.md')
+        self.assertEqual(
+            host._obsidian_filename(r'a\b', self.DTT),
+            '20260616 11:29 a b.md')
 
     def test_keeps_percent_and_ampersand(self):
         self.assertEqual(
