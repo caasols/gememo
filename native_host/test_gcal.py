@@ -184,6 +184,74 @@ class TestTokenOps(unittest.TestCase):
         self.assertFalse(s["available"])
 
 
+class TestLoadCreds(unittest.TestCase):
+    """Refresh-on-expiry branch of _load_creds() — fakes injected (no FS, no libs)."""
+
+    def _run(self, creds, token_present=True):
+        from unittest.mock import patch
+        with patch.object(gcal, 'GCAL_AVAILABLE', True), \
+                patch.object(gcal, 'Credentials', create=True) as FakeCreds, \
+                patch.object(gcal, 'Request', create=True), \
+                patch.object(gcal, '_save_token') as fake_save, \
+                patch.object(gcal, 'TOKEN_PATH') as fake_path:
+            fake_path.exists.return_value = token_present
+            if isinstance(creds, Exception):
+                FakeCreds.from_authorized_user_file.side_effect = creds
+            else:
+                FakeCreds.from_authorized_user_file.return_value = creds
+            result = gcal._load_creds()
+            return result, FakeCreds, fake_save
+
+    def _creds(self, **attrs):
+        from unittest.mock import Mock
+        c = Mock()
+        for k, v in attrs.items():
+            setattr(c, k, v)
+        return c
+
+    def test_load_creds_valid_no_refresh(self):
+        creds = self._creds(valid=True)
+        result, _, fake_save = self._run(creds)
+        self.assertIs(result, creds)
+        creds.refresh.assert_not_called()
+        fake_save.assert_not_called()
+
+    def test_load_creds_expired_refreshes_and_saves(self):
+        creds = self._creds(valid=False, expired=True, refresh_token='rt')
+
+        def _refresh(req):
+            creds.valid = True
+        creds.refresh.side_effect = _refresh
+        result, _, fake_save = self._run(creds)
+        self.assertIs(result, creds)
+        creds.refresh.assert_called_once()
+        fake_save.assert_called_once_with(creds)
+
+    def test_load_creds_expired_no_refresh_token(self):
+        creds = self._creds(valid=False, expired=True, refresh_token=None)
+        result, _, fake_save = self._run(creds)
+        self.assertIs(result, creds)
+        creds.refresh.assert_not_called()
+        fake_save.assert_not_called()
+
+    def test_load_creds_refresh_failure_returns_none(self):
+        creds = self._creds(valid=False, expired=True, refresh_token='rt')
+        creds.refresh.side_effect = Exception('boom')
+        result, _, fake_save = self._run(creds)
+        self.assertIsNone(result)
+        fake_save.assert_not_called()
+
+    def test_load_creds_malformed_token_returns_none(self):
+        result, _, fake_save = self._run(Exception('bad token'))
+        self.assertIsNone(result)
+        fake_save.assert_not_called()
+
+    def test_load_creds_no_token_file_returns_none(self):
+        result, FakeCreds, _ = self._run(self._creds(valid=True), token_present=False)
+        self.assertIsNone(result)
+        FakeCreds.from_authorized_user_file.assert_not_called()
+
+
 class TestPureEdges(unittest.TestCase):
     """Cheap branch coverage for the small pure helpers."""
 
