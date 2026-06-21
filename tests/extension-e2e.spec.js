@@ -760,7 +760,7 @@ test.describe('extension E2E harness', () => {
       });
       await expect(page.locator('#setup-wizard')).toBeVisible();
       await expect(page.locator('#setup-wizard-steps')).toContainText('Capture your first meeting');
-      expect((await getStorage(ext.serviceWorker, ['mm2c_setup_done'])).mm2c_setup_done).toBeFalsy();
+      expect((await getStorage(ext.serviceWorker, ['mm2c_setup_dismissed'])).mm2c_setup_dismissed).toBeFalsy();
       await page.close();
     });
 
@@ -778,22 +778,32 @@ test.describe('extension E2E harness', () => {
       await x.click();
       await expect(page.locator('#setup-wizard')).toBeHidden();
       await expect.poll(async () =>
-        (await getStorage(ext.serviceWorker, ['mm2c_setup_done'])).mm2c_setup_done
+        (await getStorage(ext.serviceWorker, ['mm2c_setup_dismissed'])).mm2c_setup_dismissed
       ).toBe(true);
       await page.close();
     });
 
-    test('setup wizard auto-dismisses once all three steps are complete (RB-7a)', async () => {
-      // host ping ok + output app set + a note already saved (notesSaved>0) ⇒
-      // every step is done, so the card persists mm2c_setup_done and hides.
+    test('setup wizard auto-hides once every step (incl. optional Connect Google) is done (RB-7a)', async () => {
+      // host ok + output app + a note saved + Google connected ⇒ every step incl.
+      // the optional one is done, so nothing's left to show and the card hides.
+      const page = await popupWith({
+        mm2c_output_app: 'craft',
+        mm2c_stats: { meetingsAttended: 2, notesSaved: 1, wordsCaptured: 50, totalMeetingMinutes: 20 },
+        mm2c_google_connected: true,
+      });
+      await expect(page.locator('#setup-wizard')).toBeHidden();
+      await page.close();
+    });
+
+    test('setup wizard stays up with the optional Connect-Google step pending (RB-7a)', async () => {
+      // Required steps done but Google not connected ⇒ card stays, showing the
+      // optional step — this is what re-surfaces for users who onboarded earlier.
       const page = await popupWith({
         mm2c_output_app: 'craft',
         mm2c_stats: { meetingsAttended: 2, notesSaved: 1, wordsCaptured: 50, totalMeetingMinutes: 20 },
       });
-      await expect.poll(async () =>
-        (await getStorage(ext.serviceWorker, ['mm2c_setup_done'])).mm2c_setup_done
-      ).toBe(true);
-      await expect(page.locator('#setup-wizard')).toBeHidden();
+      await expect(page.locator('#setup-wizard')).toBeVisible();
+      await expect(page.locator('#setup-wizard-steps')).toContainText('Connect Google');
       await page.close();
     });
 
