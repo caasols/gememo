@@ -56,8 +56,11 @@ const GLOBAL_KEYS = [
 function renderSetupWizard(hostOk) {
   const panel = $('setup-wizard');
   if (!panel) return;
-  chrome.storage.local.get(['mm2c_setup_done', 'mm2c_output_app', 'mm2c_stats', 'mm2c_google_connected'], ({ mm2c_setup_done, mm2c_output_app, mm2c_stats, mm2c_google_connected }) => {
-    if (mm2c_setup_done === true) { panel.classList.add('hidden'); return; }
+  chrome.storage.local.get(['mm2c_setup_dismissed', 'mm2c_output_app', 'mm2c_stats', 'mm2c_google_connected'], ({ mm2c_setup_dismissed, mm2c_output_app, mm2c_stats, mm2c_google_connected }) => {
+    // Only a manual ✕ permanently hides the card. (Finishing the required steps
+    // no longer hides it forever — a still-pending optional step like Connect
+    // Google should keep showing until done or dismissed.)
+    if (mm2c_setup_dismissed === true) { panel.classList.add('hidden'); return; }
     const captured = !!(mm2c_stats && typeof mm2c_stats === 'object' && (mm2c_stats.notesSaved || 0) > 0);
     const steps = firstRunChecklist({ hostOk, outputApp: mm2c_output_app || 'none', captured, googleConnected: mm2c_google_connected === true });
     $('setup-wizard-steps').innerHTML = steps.map(s =>
@@ -65,9 +68,9 @@ function renderSetupWizard(hostOk) {
          <span style="color:${s.ok ? 'var(--success)' : 'var(--text-muted)'}">${s.ok ? '✓' : '○'}</span>
          <span style="color:var(--text)">${escapeHtml(s.label)}</span>
        </div>`).join('');
-    // Once every REQUIRED step is complete the card has served its purpose —
-    // dismiss it. Optional steps (e.g. connecting Google) never block dismissal.
-    if (steps.filter(s => !s.optional).every(s => s.ok)) { chrome.storage.local.set({ mm2c_setup_done: true }); panel.classList.add('hidden'); return; }
+    // Hide once EVERY step (including the optional Connect-Google one) is done —
+    // nothing left to show. Otherwise keep the card up so pending steps stay visible.
+    if (steps.every(s => s.ok)) { panel.classList.add('hidden'); return; }
     panel.classList.remove('hidden');
   });
 }
@@ -1126,9 +1129,9 @@ document.addEventListener('DOMContentLoaded', () => {
     $('setup-panel').classList.toggle('hidden');
   });
 
-  // First-run setup checklist dismiss (RB-7a)
+  // First-run setup checklist dismiss (RB-7a) — manual ✕ hides it for good.
   $('setup-wizard-dismiss').addEventListener('click', () => {
-    save({ mm2c_setup_done: true });
+    save({ mm2c_setup_dismissed: true });
     $('setup-wizard').classList.add('hidden');
   });
 
