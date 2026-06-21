@@ -271,5 +271,137 @@ class TestFileSlug(unittest.TestCase):
         self.assertEqual(len(host._file_slug('x' * 80)), 50)
 
 
+class TestBuildDestinationStatus(unittest.TestCase):
+    """Pure builder for the destination_status reply map (no I/O)."""
+
+    GDOCS_CONNECTED = {'connected': True, 'available': True, 'email': ''}
+
+    def _build(self, **kw):
+        base = dict(
+            craft_installed=True, bear_installed=True,
+            gdocs_status=self.GDOCS_CONNECTED, obsidian_vault='/v')
+        base.update(kw)
+        return host.build_destination_status(**base)
+
+    def test_craft_available(self):
+        d = self._build(craft_installed=True)['craft']
+        self.assertEqual(d, {'available': True, 'reason': ''})
+
+    def test_craft_unavailable(self):
+        d = self._build(craft_installed=False)['craft']
+        self.assertEqual(d, {'available': False, 'reason': "Craft isn't installed"})
+
+    def test_bear_available(self):
+        d = self._build(bear_installed=True)['bear']
+        self.assertEqual(d, {'available': True, 'reason': ''})
+
+    def test_bear_unavailable(self):
+        d = self._build(bear_installed=False)['bear']
+        self.assertEqual(d, {'available': False, 'reason': "Bear isn't installed"})
+
+    def test_apple_notes_always_available(self):
+        self.assertEqual(
+            self._build()['apple_notes'], {'available': True, 'reason': ''})
+        # even when nothing else is available
+        d = host.build_destination_status(
+            craft_installed=False, bear_installed=False,
+            gdocs_status={'available': False}, obsidian_vault='')
+        self.assertEqual(d['apple_notes'], {'available': True, 'reason': ''})
+
+    def test_google_docs_connected(self):
+        d = self._build(gdocs_status=self.GDOCS_CONNECTED)['google_docs']
+        self.assertEqual(d, {'available': True, 'reason': ''})
+
+    def test_google_docs_not_connected(self):
+        d = self._build(gdocs_status={'connected': False, 'available': True})['google_docs']
+        self.assertEqual(d, {'available': False, 'reason': 'Connect Google Docs first'})
+
+    def test_google_docs_needs_reconnect(self):
+        d = self._build(gdocs_status={
+            'connected': False, 'available': True, 'needs_reconnect': True})['google_docs']
+        self.assertEqual(d, {'available': False, 'reason': 'Reconnect Google Docs'})
+
+    def test_google_docs_libs_missing(self):
+        d = self._build(gdocs_status={'available': False})['google_docs']
+        self.assertEqual(
+            d, {'available': False,
+                'reason': 'Google libraries missing — re-run install.sh'})
+
+    def test_obsidian_available(self):
+        d = self._build(obsidian_vault='/Users/me/vault')['obsidian']
+        self.assertEqual(d, {'available': True, 'reason': ''})
+
+    def test_obsidian_unavailable(self):
+        d = self._build(obsidian_vault='')['obsidian']
+        self.assertEqual(d, {'available': False, 'reason': 'Set an Obsidian vault'})
+
+    def test_shape_has_exactly_five_destinations(self):
+        d = self._build()
+        self.assertEqual(
+            set(d), {'craft', 'bear', 'apple_notes', 'google_docs', 'obsidian'})
+
+
+class TestAppInstalled(unittest.TestCase):
+    """_app_installed shells out to mdfind; mocked so it never depends on real apps."""
+
+    def setUp(self):
+        host._APP_INSTALLED_CACHE.clear()
+        self.addCleanup(host._APP_INSTALLED_CACHE.clear)
+
+    def test_mdfind_hit_returns_true(self):
+        with patch.object(host.subprocess, 'run',
+                          return_value=_proc(stdout='/Applications/Craft.app\n')), \
+                patch.object(host.Path, 'exists', return_value=False):
+            self.assertTrue(host._app_installed('com.lukilabs.lukiapp'))
+
+    def test_mdfind_miss_returns_false(self):
+        with patch.object(host.subprocess, 'run', return_value=_proc(stdout='')), \
+                patch.object(host.Path, 'exists', return_value=False):
+            self.assertFalse(host._app_installed('net.shinyfrog.bear'))
+
+    def test_exception_returns_false(self):
+        with patch.object(host.subprocess, 'run', side_effect=OSError('boom')), \
+                patch.object(host.Path, 'exists', return_value=False):
+            self.assertFalse(host._app_installed('com.example.x'))
+
+    def test_caches_result(self):
+        with patch.object(host.subprocess, 'run',
+                          return_value=_proc(stdout='/Applications/Bear.app\n')) as run, \
+                patch.object(host.Path, 'exists', return_value=False):
+            self.assertTrue(host._app_installed('net.shinyfrog.bear'))
+            self.assertTrue(host._app_installed('net.shinyfrog.bear'))
+            run.assert_called_once()
+
+
+class TestHandleDestinationStatus(unittest.TestCase):
+    """Orchestration: probes apps/gdocs/obsidian, returns the ok-wrapped map."""
+
+    def test_returns_ok_with_full_map(self):
+        with patch.object(host, '_app_installed', return_value=True), \
+                patch.object(host.gdocs, 'status',
+                             return_value={'connected': True, 'available': True}), \
+                patch.object(host, '_detect_obsidian_vault', return_value='/v'):
+            out = host.handle_destination_status({'type': 'destination_status'})
+        self.assertEqual(out['status'], 'ok')
+        self.assertEqual(
+            set(out['destinations']),
+            {'craft', 'bear', 'apple_notes', 'google_docs', 'obsidian'})
+        self.assertTrue(out['destinations']['craft']['available'])
+        self.assertTrue(out['destinations']['google_docs']['available'])
+        self.assertTrue(out['destinations']['obsidian']['available'])
+
+    def test_unavailable_everywhere(self):
+        with patch.object(host, '_app_installed', return_value=False), \
+                patch.object(host.gdocs, 'status', return_value={'available': False}), \
+                patch.object(host, '_detect_obsidian_vault', return_value=''):
+            out = host.handle_destination_status({'type': 'destination_status'})
+        dests = out['destinations']
+        self.assertFalse(dests['craft']['available'])
+        self.assertFalse(dests['bear']['available'])
+        self.assertTrue(dests['apple_notes']['available'])  # stock
+        self.assertFalse(dests['google_docs']['available'])
+        self.assertFalse(dests['obsidian']['available'])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -610,6 +610,66 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('OUT-1: greys out unavailable outputs + warns when the selected primary is dead', async () => {
+      const page = await popupWith(
+        { mm2c_output_app: 'craft' },
+        {
+          ping: { status: 'ok' },
+          destination_status: {
+            status: 'ok',
+            destinations: {
+              craft:       { available: false, reason: "Craft isn't installed" },
+              bear:        { available: true,  reason: '' },
+              apple_notes: { available: true,  reason: '' },
+              google_docs: { available: false, reason: 'Connect Google Docs first' },
+              obsidian:    { available: true,  reason: '' },
+            },
+          },
+          __default: { status: 'ok' },
+        }
+      );
+      await page.click('#tab-settings');
+      // Unavailable options are disabled + carry their reason as the title.
+      await expect(page.locator('#output-app option[value="craft"]')).toBeDisabled();
+      await expect(page.locator('#output-app option[value="craft"]')).toHaveAttribute('title', "Craft isn't installed");
+      await expect(page.locator('#output-app option[value="google_docs"]')).toBeDisabled();
+      await expect(page.locator('#output-app option[value="google_docs"]')).toHaveAttribute('title', 'Connect Google Docs first');
+      // Available ones stay enabled.
+      await expect(page.locator('#output-app option[value="bear"]')).not.toBeDisabled();
+      await expect(page.locator('#output-app option[value="apple_notes"]')).not.toBeDisabled();
+      // The selected primary (craft) is unavailable → banner visible + names Craft + its reason.
+      await expect(page.locator('#output-unavailable')).toBeVisible();
+      await expect(page.locator('#output-unavailable')).toContainText('Craft');
+      await expect(page.locator('#output-unavailable')).toContainText("Craft isn't installed");
+      await page.close();
+    });
+
+    test('OUT-1: no banner when the selected primary output is available', async () => {
+      const page = await popupWith(
+        { mm2c_output_app: 'apple_notes' },
+        {
+          ping: { status: 'ok' },
+          destination_status: {
+            status: 'ok',
+            destinations: {
+              craft:       { available: false, reason: "Craft isn't installed" },
+              apple_notes: { available: true,  reason: '' },
+              google_docs: { available: true,  reason: '' },
+              obsidian:    { available: true,  reason: '' },
+              bear:        { available: true,  reason: '' },
+            },
+          },
+          __default: { status: 'ok' },
+        }
+      );
+      await page.click('#tab-settings');
+      // craft is still disabled, but the banner stays hidden since the *selected*
+      // primary (apple_notes) is fine.
+      await expect(page.locator('#output-app option[value="craft"]')).toBeDisabled();
+      await expect(page.locator('#output-unavailable')).toBeHidden();
+      await page.close();
+    });
+
     test('About tab renders the impact stats', async () => {
       const page = await popupWith({
         mm2c_stats: { meetingsAttended: 4, notesSaved: 3, wordsCaptured: 1200, totalMeetingMinutes: 95 },

@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.20'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.21'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1110,6 +1110,87 @@ def _detect_obsidian_vault(config_path=None) -> str:
         return ""
 
 
+# --- destination_status probe -----------------------------------------------
+# Bundle id → fallback /Applications path, so a sandboxed/mdfind-blind install
+# still resolves the common case.
+_APP_FALLBACK_PATHS = {
+    'com.lukilabs.lukiapp': Path('/Applications/Craft.app'),
+    'net.shinyfrog.bear':   Path('/Applications/Bear.app'),
+}
+_APP_INSTALLED_CACHE: dict[str, bool] = {}
+
+
+def _app_installed(bundle_id: str) -> bool:
+    """True if a macOS app with this bundle id is installed. Best-effort: asks
+    Spotlight (mdfind) and falls back to a known /Applications path. Any failure
+    or timeout → False. Cached per-process so repeated probes don't re-shell."""
+    if bundle_id in _APP_INSTALLED_CACHE:
+        return _APP_INSTALLED_CACHE[bundle_id]
+    found = False
+    try:
+        result = subprocess.run(
+            ["mdfind", f"kMDItemCFBundleIdentifier == '{bundle_id}'"],
+            capture_output=True, text=True, timeout=5,
+        )
+        found = bool(result.stdout.strip())
+    except Exception:
+        found = False
+    if not found:
+        fallback = _APP_FALLBACK_PATHS.get(bundle_id)
+        if fallback is not None:
+            try:
+                found = fallback.exists()
+            except Exception:
+                found = False
+    _APP_INSTALLED_CACHE[bundle_id] = found
+    return found
+
+
+def build_destination_status(craft_installed: bool, bear_installed: bool,
+                             gdocs_status: dict, obsidian_vault: str) -> dict:
+    """Pure — assemble the per-destination availability map from already-probed
+    inputs. No I/O. Reasons are '' when available, else a short human string."""
+    gd = gdocs_status if isinstance(gdocs_status, dict) else {}
+    if gd.get('available') is False:
+        gdocs = (False, 'Google libraries missing — re-run install.sh')
+    elif gd.get('connected'):
+        gdocs = (True, '')
+    elif gd.get('needs_reconnect'):
+        gdocs = (False, 'Reconnect Google Docs')
+    else:
+        gdocs = (False, 'Connect Google Docs first')
+
+    obsidian_ok = bool(isinstance(obsidian_vault, str) and obsidian_vault)
+
+    return {
+        'craft':       {'available': craft_installed,
+                        'reason': '' if craft_installed else "Craft isn't installed"},
+        'bear':        {'available': bear_installed,
+                        'reason': '' if bear_installed else "Bear isn't installed"},
+        'apple_notes': {'available': True, 'reason': ''},
+        'google_docs': {'available': gdocs[0], 'reason': gdocs[1]},
+        'obsidian':    {'available': obsidian_ok,
+                        'reason': '' if obsidian_ok else 'Set an Obsidian vault'},
+    }
+
+
+def handle_destination_status(msg: dict) -> dict:
+    """Probe which output destinations can actually receive a note and return the
+    ok-wrapped availability map. Best-effort: a failing gdocs import is treated as
+    not-connected so the probe never raises."""
+    craft = _app_installed('com.lukilabs.lukiapp')
+    bear = _app_installed('net.shinyfrog.bear')
+    try:
+        gdocs_status = gdocs.status()
+    except Exception:
+        gdocs_status = {'connected': False, 'available': True}
+    obsidian_vault = _detect_obsidian_vault()
+    return {
+        'status': 'ok',
+        'destinations': build_destination_status(craft, bear, gdocs_status, obsidian_vault),
+    }
+
+
 def _obsidian_filename(label, dt) -> str:
     """Readable, filesystem-safe Obsidian note filename: 'YYYYMMDD HH:MM Title.md'.
     Obsidian shows the filename as the note title, so (unlike internal backup/
@@ -1553,6 +1634,10 @@ def _dispatch() -> None:
 
     if msg.get("type") == "gdocs_status":
         send_message(gdocs.status())
+        return
+
+    if msg.get("type") == "destination_status":
+        send_message(handle_destination_status(msg))
         return
 
     if msg.get("type") == "gdocs_disconnect":

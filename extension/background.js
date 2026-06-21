@@ -99,6 +99,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
       return true; // async
 
+    case 'MM2C_DESTINATION_STATUS':
+      // Ask the host which output destinations can currently receive a note
+      // (OUT-1). Reply mirrors the host: { status:'ok', destinations:{…} }. On any
+      // host error we send { status:'error' } so the popup fails open (everything
+      // stays enabled rather than getting greyed out on a transient hiccup).
+      chrome.runtime.sendNativeMessage(NATIVE_HOST, { type: 'destination_status' }, (response) => {
+        const err = chrome.runtime.lastError?.message || null;
+        sendResponse(err ? { status: 'error', error: err } : (response || { status: 'error' }));
+      });
+      return true; // async
+
     case 'MM2C_OPEN_NOTE':
       // Ask the host to re-open a saved note by id. Reply { ok, reason? } — a
       // not_found lets the popup drop the dead deep-link reference.
