@@ -2663,19 +2663,31 @@ window.MM2C_TESTS = (() => {
       const t = mk({ getCachedTranscriptAt: () => NOW - 9 * 60_000, runGeminiFlow: async () => 'FRESHNOTES' });
       assertEq('fresh capture returns the new transcript', await selectTranscript(t.deps), 'FRESHNOTES');
     }
-    // 4. fresh fails + cache present → returns cache.
+    // 4. stale cache present → returns cache WITHOUT a fresh run (meeting is ending).
     {
+      let called = false;
       const t = mk({ getCachedTranscript: () => 'CACHED', getCachedTranscriptAt: () => NOW - 9 * 60_000,
-                     runGeminiFlow: async () => { throw new Error('boom'); } });
-      assertEq('fresh-fail falls back to cache', await selectTranscript(t.deps), 'CACHED');
-    }
-    // 4b. fresh fails + cache OLD (>15 min) → returns cache + a "stale" status warning.
-    {
-      const t = mk({ getCachedTranscript: () => 'OLDCACHE', getCachedTranscriptAt: () => NOW - 20 * 60_000,
-                     runGeminiFlow: async () => { throw new Error('boom'); } });
+                     runGeminiFlow: async () => { called = true; throw new Error('boom'); } });
       const out = await selectTranscript(t.deps);
-      assert('old cache (>15m) returns cache + warns', out === 'OLDCACHE'
+      assert('stale-cache returns cache without runGeminiFlow', out === 'CACHED' && called === false);
+    }
+    // 4b. cache OLD (>15 min) → returns cache + a "stale" warning, no fresh run.
+    {
+      let called = false;
+      const t = mk({ getCachedTranscript: () => 'OLDCACHE', getCachedTranscriptAt: () => NOW - 20 * 60_000,
+                     runGeminiFlow: async () => { called = true; throw new Error('boom'); } });
+      const out = await selectTranscript(t.deps);
+      assert('old cache (>15m) returns cache + warns, no fresh run', out === 'OLDCACHE'
+        && called === false
         && t.statuses.some(([m, l]) => l === 'warn' && /20 min old/.test(m)));
+    }
+    // 4c. stale snapshot present → uses it without a fresh run (explicit no-block guard).
+    {
+      let called = false;
+      const t = mk({ getCachedTranscript: () => 'SNAP', getCachedTranscriptAt: () => NOW - 9 * 60_000,
+                     runGeminiFlow: async () => { called = true; return 'FRESH'; } });
+      const out = await selectTranscript(t.deps);
+      assert('stale snapshot present → uses it without a fresh run', out === 'SNAP' && called === false);
     }
     // 5. no cache → fresh attempt + retry loop; succeeds on the 3rd total call.
     {

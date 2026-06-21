@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Fixed
+- **Meetings no longer end with snapshots-on-disk but no saved note (lost-notes-on-leave field bug).** When you left a call and the most recent periodic snapshot wasn't "fresh" (older than half the snapshot interval), the leave-capture blocked for up to **60 seconds** on a *fresh* Gemini run to fetch final notes — but once you're leaving, Meet removes the Gemini panel and navigates to "Returning to home screen", so that run can never complete and the page unloads **mid-wait, before anything is saved**. The periodic snapshots survived on disk, but no final note was ever filed (reproduced across several real meetings). The leave-capture now **uses the existing snapshot immediately whenever one is present**, and only attempts a fresh Gemini run when there's *no* snapshot at all — so a captured snapshot is always saved, even if the page unloads a moment later. Tradeoff: a 4–8-min-old snapshot may miss the last few minutes of discussion (the existing "snapshot is N min old" warning still shows); fetching fresh notes at leave (without losing the guaranteed save) and keeping snapshots running while the tab is backgrounded are tracked as follow-ups. (Extension reload only; the host version is bumped for lockstep — re-run `install.sh` only to refresh the shown version, not required for compatibility.)
+
 ## [0.2.19] – 2026-06-21 · Obsidian live-verified, native-host resilience & UI/setup polish
 
 ### Changed
