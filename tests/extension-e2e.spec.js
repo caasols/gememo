@@ -702,6 +702,25 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('setup wizard manual dismiss is a labelled ✕ that hides the card + persists (RB-7a)', async () => {
+      // notesSaved:0 ⇒ the card stays visible, so the manual ✕ is exercised.
+      const page = await popupWith({
+        mm2c_output_app: 'craft',
+        mm2c_stats: { meetingsAttended: 2, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      });
+      const x = page.locator('#setup-wizard-dismiss');
+      await expect(page.locator('#setup-wizard')).toBeVisible();
+      // Compact ✕ with an accessible label (replaces the old "Dismiss" text link).
+      await expect(x).toHaveText('✕');
+      await expect(x).toHaveAttribute('aria-label', 'Dismiss');
+      await x.click();
+      await expect(page.locator('#setup-wizard')).toBeHidden();
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_setup_done'])).mm2c_setup_done
+      ).toBe(true);
+      await page.close();
+    });
+
     test('setup wizard auto-dismisses once all three steps are complete (RB-7a)', async () => {
       // host ping ok + output app set + a note already saved (notesSaved>0) ⇒
       // every step is done, so the card persists mm2c_setup_done and hides.

@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Changed
+- **The Welcome card's "Dismiss" link is now a compact ✕.** The first-run checklist's text "Dismiss" link is replaced by a small blue ✕ button in the card's top-right corner — lighter and more conventional for dismissing a panel. Same behavior (hides the card and remembers it), now an accessible icon button (`aria-label="Dismiss"`, focus ring) instead of a text link. (Extension reload only — no host change.)
 - **Google Calendar enrichment is now gated behind the Experimental (beta) flag.** It's an opt-in extra that adds the matching event's attendees/agenda to a note's frontmatter, but a persisted connection was running on every capture even with Experimental off — and an expired token could stall the save. Enrichment now runs only when **both** Calendar is connected **and** Experimental is enabled; with beta off it's never invoked. The Calendar widget already lived in the beta section of Settings.
 
 ### Fixed
