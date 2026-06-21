@@ -66,7 +66,9 @@ fi
 # whatever space is currently active.
 CRAFT_SPACE_ID=""
 CRAFT_CACHE_DIR="$HOME/Library/Containers/com.lukilabs.lukiapp/Data/Documents/QuickSearchAutoCompleteAPICache"
-CACHE_FILE=$(ls "$CRAFT_CACHE_DIR"/serverSideQuickSearchAutoComplete_*__en 2>/dev/null | head -1)
+# `|| true` so an unmatched glob (e.g. Craft not installed) can't abort the whole
+# install under `set -euo pipefail` — this is an optional best-effort lookup.
+CACHE_FILE=$(ls "$CRAFT_CACHE_DIR"/serverSideQuickSearchAutoComplete_*__en 2>/dev/null | head -1) || true
 if [[ -n "$CACHE_FILE" ]]; then
   CRAFT_SPACE_ID=$(python3 -c "
 import json, re, pathlib, sys
