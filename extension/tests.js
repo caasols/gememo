@@ -1855,6 +1855,51 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  // destinationAvailability / primaryOutputWarning (OUT-1) — real globals from
+  // constants.js. Fail-open is the safety contract: never block when we can't
+  // confirm a destination is unavailable.
+  function testDestinationAvailability() {
+    console.group('destinationAvailability');
+    const map = {
+      craft:       { available: false, reason: "Craft isn't installed" },
+      google_docs: { available: false, reason: 'Connect Google Docs first' },
+      bear:        { available: true,  reason: '' },
+      apple_notes: { available: true,  reason: '' },
+      obsidian:    { available: true,  reason: '' },
+    };
+    const a1 = destinationAvailability(map, 'bear');
+    assert('available → enabled, no reason', a1.enabled === true && a1.reason === '');
+    const a2 = destinationAvailability(map, 'craft');
+    assert('unavailable → disabled + reason',
+      a2.enabled === false && a2.reason === "Craft isn't installed");
+    const a3 = destinationAvailability(map, 'missing_key');
+    assert('missing key → fail-open enabled', a3.enabled === true && a3.reason === '');
+    const a4 = destinationAvailability({}, 'craft');
+    assert('empty map → fail-open enabled', a4.enabled === true && a4.reason === '');
+    const a5 = destinationAvailability(null, 'craft');
+    assert('null map → fail-open enabled', a5.enabled === true && a5.reason === '');
+    const a6 = destinationAvailability(map, 'none');
+    assert("'none' → always enabled", a6.enabled === true && a6.reason === '');
+    console.groupEnd();
+  }
+
+  function testPrimaryOutputWarning() {
+    console.group('primaryOutputWarning');
+    const map = {
+      craft:       { available: false, reason: "Craft isn't installed" },
+      google_docs: { available: true,  reason: '' },
+    };
+    const w1 = primaryOutputWarning('craft', map, outputAppName);
+    assert('unavailable selected → warning string', typeof w1 === 'string');
+    assert('warning names the app', w1.includes('Craft'));
+    assert('warning includes the reason', w1.includes("Craft isn't installed"));
+    assertEq('available selected → null', primaryOutputWarning('google_docs', map, outputAppName), null);
+    assertEq("'none' selected → null", primaryOutputWarning('none', map, outputAppName), null);
+    assertEq('missing key → fail-open null', primaryOutputWarning('bear', map, outputAppName), null);
+    assertEq('empty map → fail-open null', primaryOutputWarning('craft', {}, outputAppName), null);
+    console.groupEnd();
+  }
+
   // Intentional DI mirror of content_meet.js safeSend (A3); keep aligned.
   // Injectable deps so we can simulate a throwing sendMessage + dead context.
   function safeSend_test(msg, { _send, _contextValid, _warn }) {
@@ -2782,6 +2827,8 @@ window.MM2C_TESTS = (() => {
     testExtractBackupPath();
     testFirstSnapshotAt();
     testOutputAppName();
+    testDestinationAvailability();
+    testPrimaryOutputWarning();
     testSafeSend();
     testMyActionItems();
     testHandlerPredicates();

@@ -1241,6 +1241,32 @@ function outputAppName(appKey) {
   return ({ craft: 'Craft', apple_notes: 'Apple Notes', none: 'None', obsidian: 'Obsidian', bear: 'Bear', google_docs: 'Google Docs' })[appKey] || appKey;
 }
 
+// Pure helper — is an output destination usable right now (OUT-1)? Reads
+// statusMap[key] = { available, reason }. Fail-open by design: when we can't
+// confirm a destination is unavailable (no map, missing entry, or the special
+// 'none' sink), we report it enabled so a missing host check never blocks a save.
+function destinationAvailability(statusMap, key) {
+  if (key === 'none') return { enabled: true, reason: '' };
+  const entry = statusMap && statusMap[key];
+  if (!entry) return { enabled: true, reason: '' };
+  if (entry.available === false) {
+    return { enabled: false, reason: typeof entry.reason === 'string' ? entry.reason : '' };
+  }
+  return { enabled: true, reason: '' };
+}
+
+// Pure helper — warning text for the popup when the *selected* primary output
+// can't receive a note (OUT-1). Returns null when the selection is fine, is
+// 'none', or we can't confirm it's unavailable (fail-open). `nameFn` maps the
+// key to a human label (outputAppName).
+function primaryOutputWarning(selectedKey, statusMap, nameFn) {
+  if (selectedKey === 'none') return null;
+  const { enabled, reason } = destinationAvailability(statusMap, selectedKey);
+  if (enabled) return null;
+  const name = typeof nameFn === 'function' ? nameFn(selectedKey) : selectedKey;
+  return `⚠️ ${name} can't receive notes — ${reason}. Pick another output or fix it.`;
+}
+
 // Pure helper — turn one meeting-title candidate into a display title (ARCH-7).
 // Empty/whitespace → ''; a bare room code → "Personal meeting (code)"; otherwise
 // the trimmed candidate itself.

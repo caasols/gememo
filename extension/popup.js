@@ -451,6 +451,7 @@ function applyState(s, tabId, live = null) {
   $('output-app').value = outputApp;
   $('craft-sub-options').classList.toggle('hidden', outputApp !== 'craft');
   $('obsidian-sub-options').classList.toggle('hidden', outputApp !== 'obsidian');
+  refreshDestinationStatus(); // OUT-1: grey out unavailable outputs + warn on the selected one
   // Google Docs connection visibility is handled by renderDestinations →
   // updateGdocsConnVisibility (covers both primary + additional-destination use).
   $('obsidian-vault-path').value = s.mm2c_obsidian_vault_path || '';
@@ -767,6 +768,47 @@ function updateGdocsConnVisibility() {
   const asPrimary = $('output-app').value === 'google_docs';
   const asExtra = normalizeDestinations(readDestinationsFromDom()).some(e => e.type === 'google_docs');
   widget.classList.toggle('hidden', !(asPrimary || asExtra));
+}
+
+// OUT-1: ask the host which output destinations can currently receive a note,
+// then grey out the dead ones in #output-app and surface a warning banner when
+// the *selected* primary is unavailable. Fail-open: any host error leaves every
+// option enabled and the banner hidden so a missing host never blocks the UI.
+function refreshDestinationStatus() {
+  chrome.runtime.sendMessage({ type: 'MM2C_DESTINATION_STATUS' }, (reply) => {
+    if (chrome.runtime.lastError) return; // fail open — leave the UI untouched
+    const select = $('output-app');
+    if (!select) return;
+    const banner = $('output-unavailable');
+    const dests = (reply && reply.status !== 'error') ? reply.destinations : null;
+    // Per-option enabled/disabled state. Skip the 'none' sink and only touch
+    // options we own (data-out1) so the "Coming soon" entries stay disabled.
+    Array.from(select.options).forEach((opt) => {
+      if (!opt.value || opt.value === 'none') return;
+      if (opt.disabled && !opt.dataset.out1) return; // markup-disabled (Coming soon)
+      const { enabled, reason } = destinationAvailability(dests, opt.value);
+      if (!enabled) {
+        opt.disabled = true;
+        opt.title = reason;
+        opt.dataset.out1 = '1';
+      } else if (opt.dataset.out1) {
+        opt.disabled = false;
+        opt.title = '';
+        delete opt.dataset.out1;
+      }
+    });
+    // Banner for the currently-selected primary.
+    if (banner) {
+      const warning = primaryOutputWarning(select.value, dests, outputAppName);
+      if (warning) {
+        banner.textContent = warning;
+        banner.hidden = false;
+      } else {
+        banner.textContent = '';
+        banner.hidden = true;
+      }
+    }
+  });
 }
 
 // Render the repeater from a destinations list, deduped + primary-excluded.
@@ -1211,6 +1253,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateGdocsConnVisibility(); // Google Docs connection shows if primary or an extra
     save({ mm2c_output_app: app });
     renderSetupWizard(lastHostOk); // checking off the "choose output app" step (RB-7a)
+    refreshDestinationStatus(); // OUT-1: re-evaluate the unavailable banner for the new pick
   });
 
   $('craft-folder-id').addEventListener('input', e => {

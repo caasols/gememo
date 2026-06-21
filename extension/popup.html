@@ -1035,6 +1035,20 @@
       margin-left: 6px;
     }
 
+    /* Inline warning banner (OUT-1) — flags when the selected primary output
+       can't currently receive a note. Reuses the shared --warn tokens. */
+    .inline-warn {
+      margin-top: 8px;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--warn-text);
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 8px;
+    }
+    .inline-warn[hidden] { display: none; }
+
     /* Segmented control — tri-state appearance switcher (UXF-8) */
     .segmented {
       display: inline-flex;
@@ -1319,7 +1333,7 @@
           <option value="none">None</option>
           <option value="craft">Craft</option>
           <option value="apple_notes">Apple Notes</option>
-          <option value="obsidian">Obsidian (untested)</option>
+          <option value="obsidian">Obsidian</option>
           <option value="bear">Bear (untested)</option>
           <option value="google_docs">Google Docs</option>
           <optgroup label="Coming soon">
@@ -1328,6 +1342,8 @@
           </optgroup>
         </select>
       </div>
+      <!-- OUT-1: shown when the selected primary output can't receive a note. -->
+      <div id="output-unavailable" class="inline-warn" hidden></div>
 
       <!-- Craft sub-options — shown only when Craft is selected -->
       <div id="craft-sub-options" class="sub-options hidden">
