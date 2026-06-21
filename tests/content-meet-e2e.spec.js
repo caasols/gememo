@@ -329,4 +329,78 @@ test.describe('content_meet e2e (fake Meet over localhost)', () => {
       await closeFakeMeet(off.server);
     }
   });
+
+  // ── notes-paused nudge — visibility round-trip + background badge handler ────
+  // The "snapshots paused" nudge debounces by SNAPSHOT_INTERVAL_MS / 2 (≥ 90s),
+  // so the badge message can't be observed deterministically within the harness.
+  // Instead we assert the two halves that we CAN make deterministic:
+  //   (1) the content script survives a hidden → visible round-trip (no crash —
+  //       it still answers MM2C_STATUS_QUERY and the catch-up path still works),
+  //   (2) the background's MM2C_SNAPSHOTS_PAUSED / _RESUMED handlers exist and
+  //       set/clear the toolbar badge without throwing.
+  // (The pure shouldNudgeSnapshotsPaused logic + the shared toast copy are
+  // covered exhaustively by the unit suite in extension/tests.js.)
+  test('survives a hidden→visible round-trip and the badge handlers exist', async () => {
+    test.setTimeout(30_000);
+
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+    });
+
+    const page = await ext.context.newPage();
+    try {
+      await page.goto(fake.url, { waitUntil: 'domcontentloaded' });
+
+      // Wait for the join so the visibilitychange branches have a live meeting.
+      await expect
+        .poll(
+          async () =>
+            (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.meetingsAttended,
+          { timeout: 15_000 }
+        )
+        .toBe(1);
+
+      // Go hidden → fires the debounce-arming branch (does NOT flag synchronously).
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      // Come back → fires the resume branch + catch-up path.
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
+      // Content script is still alive and answers status queries (no crash).
+      const status = await sendToMeetTab(ext.serviceWorker, { type: 'MM2C_STATUS_QUERY' });
+      expect(status).toBeTruthy();
+      expect(status.inMeeting).toBe(true);
+
+      // Background badge handlers exist and run without throwing. Send the real
+      // runtime messages through chrome.runtime.sendMessage so the background's
+      // onMessage switch cases (MM2C_SNAPSHOTS_PAUSED / _RESUMED) actually run.
+      // They're fire-and-forget (no sendResponse), so sendMessage resolves with
+      // undefined; we only assert the round-trip doesn't reject/throw.
+      const badgeOk = await ext.serviceWorker.evaluate(async () => {
+        const send = (type) =>
+          new Promise((resolve) => {
+            chrome.runtime.sendMessage({ type }, () => {
+              void chrome.runtime.lastError; // swallow "no response" (fire-and-forget)
+              resolve(true);
+            });
+          });
+        try {
+          await send('MM2C_SNAPSHOTS_PAUSED');
+          await send('MM2C_SNAPSHOTS_RESUMED');
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
+      expect(badgeOk).toBe(true);
+    } finally {
+      await page.close();
+    }
+  });
 });

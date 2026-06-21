@@ -374,6 +374,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
       break;
 
+    case 'MM2C_SNAPSHOTS_PAUSED':
+      // Periodic snapshots are paused (Meet tab hidden mid-meeting) — show an
+      // amber ⏸ badge so the user knows their notes are going stale.
+      chrome.action.setBadgeText({ text: '⏸' });
+      chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.warn });
+      break;
+
+    case 'MM2C_SNAPSHOTS_RESUMED':
+      // Tab returned / snapshot taken / meeting ended — clear the paused badge.
+      chrome.action.setBadgeText({ text: '' });
+      break;
+
     case 'MM2C_ERROR':
       console.error('[MM2C] Error from content script:', msg.error);
       chrome.action.setBadgeText({ text: '!' });

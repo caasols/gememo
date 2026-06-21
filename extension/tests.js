@@ -1369,6 +1369,32 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
+  // shouldNudgeSnapshotsPaused + SNAPSHOTS_PAUSED_NUDGE live in constants.js
+  // (bucket A) — test the real helper/constant.
+  function testSnapshotsPausedNudge() {
+    console.group('snapshotsPausedNudge');
+
+    // All three truthy → flag the paused nudge.
+    assert('flags when hidden AND in meeting AND gemini active',
+      shouldNudgeSnapshotsPaused(true, true, true) === true);
+
+    // Any falsy arg → do not flag.
+    assert('does not flag when not hidden',
+      shouldNudgeSnapshotsPaused(false, true, true) === false);
+    assert('does not flag when not in a meeting',
+      shouldNudgeSnapshotsPaused(true, false, true) === false);
+    assert('does not flag when gemini inactive',
+      shouldNudgeSnapshotsPaused(true, true, false) === false);
+
+    // The shared toast copy.
+    assert('SNAPSHOTS_PAUSED_NUDGE is a non-empty string mentioning "paused"',
+      typeof SNAPSHOTS_PAUSED_NUDGE === 'string' &&
+      SNAPSHOTS_PAUSED_NUDGE.length > 0 &&
+      SNAPSHOTS_PAUSED_NUDGE.includes('paused'));
+
+    console.groupEnd();
+  }
+
   // Re-implementation of autoActivateGemini with injectable state and deps.
   // Intentional DI mirror (covers branches the e2e can't reach in isolation); keep
   // aligned with autoActivateGemini in content_meet.js.
@@ -2779,6 +2805,7 @@ window.MM2C_TESTS = (() => {
     testDefaultPromptContent();
     testPromptRuleMatching();
     testVisibilityChangeCatchup();
+    testSnapshotsPausedNudge();
     testCitationSecondPass();
     await testLeaveClickFreshFirst();
     testTabState();

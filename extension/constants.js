@@ -610,6 +610,13 @@ function computeSnapshotIntervalMs(rawMin) {
 function shouldRunCatchupSnapshot(elapsed, intervalMs, inMeeting, geminiActive) {
   return elapsed >= intervalMs / 2 && inMeeting && geminiActive;
 }
+// Should we flag "snapshots paused" (badge + toast) while the tab is hidden?
+// True only while genuinely in a live meeting with Gemini available.
+function shouldNudgeSnapshotsPaused(isHidden, inMeeting, geminiActive) {
+  return !!(isHidden && inMeeting && geminiActive);
+}
+// The on-return toast text (shared so it's asserted by a test, not duplicated).
+const SNAPSHOTS_PAUSED_NUDGE = '⏸ Notes were paused while you were away — capturing the latest now…';
 // Should the leave-confirmation overlay show on beforeunload? Only when the tab
 // is visible AND still on a call (Leave button present).
 function shouldShowOverlay(isHidden, hasLeaveButton) {
