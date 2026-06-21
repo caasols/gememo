@@ -2147,7 +2147,7 @@ window.MM2C_TESTS = (() => {
   function testFirstRunChecklist() {
     console.group('firstRunChecklist (RB-7a)');
     const fresh = firstRunChecklist({ hostOk: false, outputApp: 'none' });
-    assertEq('three steps', fresh.length, 3);
+    assertEq('four steps', fresh.length, 4);
     assert('host step not done when host missing', fresh[0].ok === false);
     assert('output step not done when none', fresh[1].ok === false);
 
@@ -2158,6 +2158,16 @@ window.MM2C_TESTS = (() => {
 
     const captured = firstRunChecklist({ hostOk: true, outputApp: 'craft', captured: true });
     assert('capture step done after first note saved', captured[2].ok === true);
+
+    // Google step (id 'google') is optional and pending until connected.
+    const g = captured.find(s => s.id === 'google');
+    assert('google step exists, optional, pending by default', !!g && g.optional === true && g.ok === false);
+    assert('google step ticks when connected',
+      firstRunChecklist({ googleConnected: true }).find(s => s.id === 'google').ok === true);
+    // The required steps being all-ok is enough to dismiss — the optional google
+    // step must NOT keep the card alive.
+    assert('all required done even with google pending',
+      captured.filter(s => !s.optional).every(s => s.ok) === true);
     console.groupEnd();
   }
 

@@ -541,11 +541,14 @@ function buildDiagnosticsReport(info = {}) {
 // status, chosen output app, and whether a note has ever been saved, returns
 // the ordered steps with their done state. `captured` is driven by the usage
 // stats (notesSaved > 0) so the step ticks once the first note is filed.
-function firstRunChecklist({ hostOk = false, outputApp = '', captured = false } = {}) {
+function firstRunChecklist({ hostOk = false, outputApp = '', captured = false, googleConnected = false } = {}) {
   return [
     { id: 'host',    label: 'Install the native host', ok: !!hostOk },
     { id: 'output',  label: 'Choose an output app',     ok: !!outputApp && outputApp !== 'none' },
     { id: 'capture', label: 'Capture your first meeting', ok: !!captured },
+    // Optional — connecting Google unlocks Google Docs + Calendar. `optional`
+    // so an un-connected account never blocks the card from auto-dismissing.
+    { id: 'google',  label: 'Connect Google for Docs & Calendar (optional)', ok: !!googleConnected, optional: true },
   ];
 }
 
