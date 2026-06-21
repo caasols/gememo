@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.21'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.22'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1156,21 +1156,21 @@ def build_destination_status(craft_installed: bool, bear_installed: bool,
     elif gd.get('connected'):
         gdocs = (True, '')
     elif gd.get('needs_reconnect'):
-        gdocs = (False, 'Reconnect Google Docs')
+        gdocs = (False, 'Reconnect needed')
     else:
-        gdocs = (False, 'Connect Google Docs first')
+        gdocs = (False, 'Not connected')
 
     obsidian_ok = bool(isinstance(obsidian_vault, str) and obsidian_vault)
 
     return {
         'craft':       {'available': craft_installed,
-                        'reason': '' if craft_installed else "Craft isn't installed"},
+                        'reason': '' if craft_installed else 'Not installed'},
         'bear':        {'available': bear_installed,
-                        'reason': '' if bear_installed else "Bear isn't installed"},
+                        'reason': '' if bear_installed else 'Not installed'},
         'apple_notes': {'available': True, 'reason': ''},
         'google_docs': {'available': gdocs[0], 'reason': gdocs[1]},
         'obsidian':    {'available': obsidian_ok,
-                        'reason': '' if obsidian_ok else 'Set an Obsidian vault'},
+                        'reason': '' if obsidian_ok else 'No vault set'},
     }
 
 

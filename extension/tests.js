@@ -1861,8 +1861,8 @@ window.MM2C_TESTS = (() => {
   function testDestinationAvailability() {
     console.group('destinationAvailability');
     const map = {
-      craft:       { available: false, reason: "Craft isn't installed" },
-      google_docs: { available: false, reason: 'Connect Google Docs first' },
+      craft:       { available: false, reason: 'Not installed' },
+      google_docs: { available: false, reason: 'Not connected' },
       bear:        { available: true,  reason: '' },
       apple_notes: { available: true,  reason: '' },
       obsidian:    { available: true,  reason: '' },
@@ -1871,7 +1871,7 @@ window.MM2C_TESTS = (() => {
     assert('available → enabled, no reason', a1.enabled === true && a1.reason === '');
     const a2 = destinationAvailability(map, 'craft');
     assert('unavailable → disabled + reason',
-      a2.enabled === false && a2.reason === "Craft isn't installed");
+      a2.enabled === false && a2.reason === 'Not installed');
     const a3 = destinationAvailability(map, 'missing_key');
     assert('missing key → fail-open enabled', a3.enabled === true && a3.reason === '');
     const a4 = destinationAvailability({}, 'craft');
@@ -1886,13 +1886,13 @@ window.MM2C_TESTS = (() => {
   function testPrimaryOutputWarning() {
     console.group('primaryOutputWarning');
     const map = {
-      craft:       { available: false, reason: "Craft isn't installed" },
+      craft:       { available: false, reason: 'Not installed' },
       google_docs: { available: true,  reason: '' },
     };
     const w1 = primaryOutputWarning('craft', map, outputAppName);
     assert('unavailable selected → warning string', typeof w1 === 'string');
     assert('warning names the app', w1.includes('Craft'));
-    assert('warning includes the reason', w1.includes("Craft isn't installed"));
+    assert('warning includes the reason', w1.includes('Not installed'));
     assertEq('available selected → null', primaryOutputWarning('google_docs', map, outputAppName), null);
     assertEq("'none' selected → null", primaryOutputWarning('none', map, outputAppName), null);
     assertEq('missing key → fail-open null', primaryOutputWarning('bear', map, outputAppName), null);
