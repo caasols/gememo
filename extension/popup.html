@@ -424,6 +424,19 @@
       align-self: flex-start;
     }
     .reset-link:hover { text-decoration: underline; }
+    /* Compact ✕ dismiss for the welcome card (smaller than the old "Dismiss" link). */
+    .setup-dismiss-x {
+      flex: 0 0 auto;
+      background: none;
+      border: none;
+      padding: 0 2px;
+      font-size: 13px;
+      line-height: 1;
+      color: var(--primary);
+      cursor: pointer;
+      align-self: flex-start;
+    }
+    .setup-dismiss-x:hover { opacity: 0.75; }
 
     select {
       height: 24px;
@@ -992,6 +1005,7 @@
     #add-rule-btn:focus-visible,
     .note-search:focus-visible,
     .reset-link:focus-visible,
+    .setup-dismiss-x:focus-visible,
     .logs-debug-toggle:focus-visible,
     .snapshot-header:focus-visible,
     .log-group-header:focus-visible {
@@ -1165,7 +1179,7 @@
     <div class="setup-panel hidden" id="setup-wizard">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong style="color:var(--text)">Welcome to Gememo</strong>
-        <a class="reset-link" id="setup-wizard-dismiss">Dismiss</a>
+        <button class="setup-dismiss-x" id="setup-wizard-dismiss" type="button" aria-label="Dismiss" title="Dismiss">✕</button>
       </div>
       <div id="setup-wizard-steps"></div>
     </div>
