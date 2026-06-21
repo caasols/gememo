@@ -1121,7 +1121,11 @@ def _obsidian_filename(label, dt) -> str:
     is trimmed at a word boundary (no mid-word cut), and a label with no usable
     characters falls back to just the timestamp."""
     _MAX_TITLE = 80
-    clean = re.sub(r'[/\\*?"<>|\x00-\x1f]', '', str(label or ''))
+    # Path separators (/ \) become a space so words don't run together
+    # ("Reigo/Carlos" → "Reigo Carlos", not "ReigoCarlos"); the rest of the
+    # Windows-reserved set + control chars are dropped.
+    clean = re.sub(r'[/\\]', ' ', str(label or ''))
+    clean = re.sub(r'[*?"<>|\x00-\x1f]', '', clean)
     clean = re.sub(r'\s+', ' ', clean).strip()
     if not re.search(r'\w', clean):   # only punctuation/blank → no usable title
         clean = ''
