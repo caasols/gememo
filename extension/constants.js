@@ -1119,8 +1119,8 @@ async function selectTranscript(deps) {
   } else if (snapshotFreshEnough(getCachedTranscriptAt(), snapshotIntervalMs, now())) {
     const ageSec = Math.round((now() - getCachedTranscriptAt()) / 1000);
     log(`Recent snapshot is fresh (${ageSec}s old) — using it, skipping redundant Gemini run`);
-  } else {
-    log('Leave clicked — attempting fresh Gemini capture for final notes...');
+  } else if (!getCachedTranscript()) {
+    log('No snapshot yet — attempting a fresh Gemini capture for final notes...');
     try {
       transcript = await runGeminiFlow(60_000);
       log(`Fresh Leave capture succeeded (${transcript.length} chars)`);
@@ -1131,6 +1131,9 @@ async function selectTranscript(deps) {
       // else: Gemini was never running — fall through to cache / no-notes path below
     }
   }
+  // else: a snapshot exists but isn't "fresh" — leave `transcript` null; the
+  // existing `if (!transcript && cached)` block below uses the snapshot directly,
+  // so we never block on a fresh run that can't complete once the meeting is ending.
 
   // Live reads AFTER any await above (the snapshot may have just updated the cache).
   const cachedAt = getCachedTranscriptAt();
