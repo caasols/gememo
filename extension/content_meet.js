@@ -62,6 +62,8 @@
   let dualOutput           = false;      // P9-H — also run a private reflection pass
   let privatePrompt        = '';         // P9-H — prompt for the private pass
   let privateApp           = '';         // P9-H — destination for the private note
+  let snapshotsPausedFlag  = false;      // true while the "notes paused" badge/toast nudge is active (tab hidden mid-meeting)
+  let pausedNudgeTimer     = null;       // debounce so a quick tab-switch doesn't flag the paused nudge
 
   // ── Meeting state reset ────────────────────────────────────────────────────
   // Zeros all per-meeting flags. Called from the MutationObserver lifecycle block
@@ -101,6 +103,9 @@
     captureProactivelyAttempted = false;
     snapshotCount               = 0;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
+    clearTimeout(pausedNudgeTimer);
+    if (snapshotsPausedFlag) safeSend({ type: 'MM2C_SNAPSHOTS_RESUMED' });
+    snapshotsPausedFlag = false;
     safeSend({ type: 'MM2C_SET_SNAPSHOT', snapshot: null });
     sendLog('Meeting state reset for new meeting');
   }
@@ -217,15 +222,39 @@
     snapshotIntervalMs = SNAPSHOT_INTERVAL_MS;
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) return;
-      // Tab just became visible — run a catch-up snapshot if the last one
-      // was skipped or too long ago (more than half the interval).
+      if (document.hidden) {
+        // Tab went away — snapshots can't run while hidden. After a grace
+        // period (half the interval) flag the "notes paused" nudge, but only
+        // if we're genuinely in a live meeting with Gemini available, and only
+        // if the tab is STILL hidden when the debounce fires (a quick
+        // tab-switch shouldn't nag the user).
+        if (shouldNudgeSnapshotsPaused(true, !!getLeaveButton(), isGeminiAvailable())) {
+          clearTimeout(pausedNudgeTimer);
+          pausedNudgeTimer = setTimeout(() => {
+            if (document.hidden && getLeaveButton()) {
+              snapshotsPausedFlag = true;
+              safeSend({ type: 'MM2C_SNAPSHOTS_PAUSED' });
+            }
+          }, SNAPSHOT_INTERVAL_MS / 2);
+        }
+        return;
+      }
+      // Tab just became visible — cancel any pending paused-nudge, and if a
+      // paused stretch was flagged, clear the badge and tell the user.
+      clearTimeout(pausedNudgeTimer);
+      if (snapshotsPausedFlag) {
+        safeSend({ type: 'MM2C_SNAPSHOTS_RESUMED' });
+        showStatus(SNAPSHOTS_PAUSED_NUDGE, 'info');
+      }
+      // Run a catch-up snapshot if the last one was skipped or too long ago
+      // (more than half the interval).
       const elapsed = Date.now() - lastSnapshotAt;
       if (shouldRunCatchupSnapshot(elapsed, SNAPSHOT_INTERVAL_MS, getLeaveButton(), isGeminiAvailable())) {
         sendLog('Tab active again — running catch-up snapshot');
         lastSnapshotAt = Date.now();
         takePeriodicSnapshot();
       }
+      snapshotsPausedFlag = false;
     });
   });
 
@@ -963,6 +992,8 @@
       cachedTranscriptAt = Date.now();
       snapshotCount++;
       sendLog(`Periodic snapshot saved (${transcript.length} chars)`);
+      // A snapshot just succeeded — notes are no longer stale, clear the nudge.
+      if (snapshotsPausedFlag) { snapshotsPausedFlag = false; safeSend({ type: 'MM2C_SNAPSHOTS_RESUMED' }); }
       showStatus('✓ Notes snapshot saved', 'ok'); // auto-dismisses in 5 s
       // Store a short preview so the popup can show "Last snapshot: N min ago ▸"
       safeSend({
