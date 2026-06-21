@@ -289,7 +289,7 @@ class TestBuildDestinationStatus(unittest.TestCase):
 
     def test_craft_unavailable(self):
         d = self._build(craft_installed=False)['craft']
-        self.assertEqual(d, {'available': False, 'reason': "Craft isn't installed"})
+        self.assertEqual(d, {'available': False, 'reason': 'Not installed'})
 
     def test_bear_available(self):
         d = self._build(bear_installed=True)['bear']
@@ -297,7 +297,7 @@ class TestBuildDestinationStatus(unittest.TestCase):
 
     def test_bear_unavailable(self):
         d = self._build(bear_installed=False)['bear']
-        self.assertEqual(d, {'available': False, 'reason': "Bear isn't installed"})
+        self.assertEqual(d, {'available': False, 'reason': 'Not installed'})
 
     def test_apple_notes_always_available(self):
         self.assertEqual(
@@ -314,12 +314,12 @@ class TestBuildDestinationStatus(unittest.TestCase):
 
     def test_google_docs_not_connected(self):
         d = self._build(gdocs_status={'connected': False, 'available': True})['google_docs']
-        self.assertEqual(d, {'available': False, 'reason': 'Connect Google Docs first'})
+        self.assertEqual(d, {'available': False, 'reason': 'Not connected'})
 
     def test_google_docs_needs_reconnect(self):
         d = self._build(gdocs_status={
             'connected': False, 'available': True, 'needs_reconnect': True})['google_docs']
-        self.assertEqual(d, {'available': False, 'reason': 'Reconnect Google Docs'})
+        self.assertEqual(d, {'available': False, 'reason': 'Reconnect needed'})
 
     def test_google_docs_libs_missing(self):
         d = self._build(gdocs_status={'available': False})['google_docs']
@@ -333,7 +333,7 @@ class TestBuildDestinationStatus(unittest.TestCase):
 
     def test_obsidian_unavailable(self):
         d = self._build(obsidian_vault='')['obsidian']
-        self.assertEqual(d, {'available': False, 'reason': 'Set an Obsidian vault'})
+        self.assertEqual(d, {'available': False, 'reason': 'No vault set'})
 
     def test_shape_has_exactly_five_destinations(self):
         d = self._build()

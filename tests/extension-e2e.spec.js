@@ -618,10 +618,10 @@ test.describe('extension E2E harness', () => {
           destination_status: {
             status: 'ok',
             destinations: {
-              craft:       { available: false, reason: "Craft isn't installed" },
+              craft:       { available: false, reason: 'Not installed' },
               bear:        { available: true,  reason: '' },
               apple_notes: { available: true,  reason: '' },
-              google_docs: { available: false, reason: 'Connect Google Docs first' },
+              google_docs: { available: false, reason: 'Not connected' },
               obsidian:    { available: true,  reason: '' },
             },
           },
@@ -631,16 +631,18 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-settings');
       // Unavailable options are disabled + carry their reason as the title.
       await expect(page.locator('#output-app option[value="craft"]')).toBeDisabled();
-      await expect(page.locator('#output-app option[value="craft"]')).toHaveAttribute('title', "Craft isn't installed");
+      await expect(page.locator('#output-app option[value="craft"]')).toHaveAttribute('title', 'Not installed');
+      // The reason is shown inline in the label too (not only on hover).
+      await expect(page.locator('#output-app option[value="craft"]')).toContainText('Not installed');
       await expect(page.locator('#output-app option[value="google_docs"]')).toBeDisabled();
-      await expect(page.locator('#output-app option[value="google_docs"]')).toHaveAttribute('title', 'Connect Google Docs first');
+      await expect(page.locator('#output-app option[value="google_docs"]')).toHaveAttribute('title', 'Not connected');
       // Available ones stay enabled.
       await expect(page.locator('#output-app option[value="bear"]')).not.toBeDisabled();
       await expect(page.locator('#output-app option[value="apple_notes"]')).not.toBeDisabled();
       // The selected primary (craft) is unavailable → banner visible + names Craft + its reason.
       await expect(page.locator('#output-unavailable')).toBeVisible();
       await expect(page.locator('#output-unavailable')).toContainText('Craft');
-      await expect(page.locator('#output-unavailable')).toContainText("Craft isn't installed");
+      await expect(page.locator('#output-unavailable')).toContainText('Not installed');
       await page.close();
     });
 
@@ -652,7 +654,7 @@ test.describe('extension E2E harness', () => {
           destination_status: {
             status: 'ok',
             destinations: {
-              craft:       { available: false, reason: "Craft isn't installed" },
+              craft:       { available: false, reason: 'Not installed' },
               apple_notes: { available: true,  reason: '' },
               google_docs: { available: true,  reason: '' },
               obsidian:    { available: true,  reason: '' },

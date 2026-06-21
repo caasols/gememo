@@ -788,12 +788,20 @@ function refreshDestinationStatus() {
       if (opt.disabled && !opt.dataset.out1) return; // markup-disabled (Coming soon)
       const { enabled, reason } = destinationAvailability(dests, opt.value);
       if (!enabled) {
+        // Remember the original label once, then show the reason inline (not just
+        // on hover) — rebuilt from the base each call so repeats don't stack.
+        if (opt.dataset.out1Base === undefined) opt.dataset.out1Base = opt.textContent;
         opt.disabled = true;
         opt.title = reason;
+        opt.textContent = reason ? `${opt.dataset.out1Base} — ${reason}` : opt.dataset.out1Base;
         opt.dataset.out1 = '1';
       } else if (opt.dataset.out1) {
         opt.disabled = false;
         opt.title = '';
+        if (opt.dataset.out1Base !== undefined) {
+          opt.textContent = opt.dataset.out1Base;
+          delete opt.dataset.out1Base;
+        }
         delete opt.dataset.out1;
       }
     });
