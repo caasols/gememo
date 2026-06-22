@@ -546,9 +546,10 @@ function firstRunChecklist({ hostOk = false, outputApp = '', captured = false, g
     { id: 'host',    label: 'Install the native host', ok: !!hostOk },
     { id: 'output',  label: 'Choose an output app',     ok: !!outputApp && outputApp !== 'none' },
     { id: 'capture', label: 'Capture your first meeting', ok: !!captured },
-    // Optional — connecting Google unlocks Google Docs + Calendar. `optional`
-    // so an un-connected account never blocks the card from auto-dismissing.
-    { id: 'google',  label: 'Connect Google for Docs & Calendar (optional)', ok: !!googleConnected, optional: true },
+    // Connecting Google unlocks Google Docs + Calendar. Not labelled "(optional)"
+    // — the whole card is dismissible, so every step is effectively optional.
+    // `optional: true` is kept as internal metadata (Google isn't a required step).
+    { id: 'google',  label: 'Connect Google for Docs & Calendar', ok: !!googleConnected, optional: true },
   ];
 }
 

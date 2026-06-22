@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Changed
+- **Dropped "(optional)" from the onboarding "Connect Google" step** — the whole Welcome card is dismissible, so every step is effectively optional; the label is just "Connect Google for Docs & Calendar". (Extension reload only; host version bumped for lockstep.)
+
 ### Fixed
 - **Captures now report which destinations saved and which failed, instead of a blunt "error" (BUG-11 #2/C).** When a meeting saves to some destinations but not others, the host now sends a per-destination result — the popup shows **"Saved to Craft · Obsidian failed"** with a warning, and previously-silent failures of *additional* destinations are now surfaced too. Recovery ("Send now") is offered **only when your primary output failed** — a failed secondary while the primary saved is just a warning (the note's already saved where it matters, so no re-send). The host reply now carries `status: ok|partial|error` + `saved`/`failed` lists. (Host change → re-run `install.sh`.)
 - **The Retry widget now saves to your primary output, not always Craft (BUG-11 #3, part B).** When a send failed and you hit Retry, the host always re-pushed to Craft regardless of your primary output — so with Primary=Obsidian the retried note went to the wrong app (Craft) and Obsidian still got nothing. Retry now routes the recovered note through the same dispatch a normal capture uses, honoring your primary app (Obsidian / Apple Notes / Bear / Google Docs), and the success log names the real destination. (Host change → re-run `install.sh`.)
