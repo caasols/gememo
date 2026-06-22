@@ -293,6 +293,7 @@ class TestHandleRetry(unittest.TestCase):
     def test_obsidian_primary_routes_to_obsidian_not_craft(self):
         # BUG-11 B: a retry honors the PRIMARY output app instead of always
         # pushing to Craft. backupType='obsidian' → writes to the vault, no craft.
+        # BUG-11 Fix C: route_output now RETURNS — handle_retry sends the reply.
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as vault:
             bp = Path(tmp) / "20260601-daily-standup.md"
             bp.write_text("---\ntitle: x\n---\n## Summary\nNotes", encoding="utf-8")
@@ -305,9 +306,46 @@ class TestHandleRetry(unittest.TestCase):
                                  types.SimpleNamespace(returncode=0, stdout='', stderr='')):
                 host.handle_retry({"title": "Daily", "backupPath": str(bp),
                                    "backupType": "obsidian", "obsidianVaultPath": vault})
-            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(sent[-1]["status"], "ok")   # reply sent by handle_retry
+            self.assertEqual(sent[-1]["title"], "Daily")
             self.assertEqual(ran, [])  # the Craft subprocess push must NOT run
             self.assertEqual(len(list(Path(vault).glob("*.md"))), 1)  # wrote to Obsidian
+
+    def test_apple_notes_primary_retry_threads_deeplink(self):
+        # A retry to Apple Notes carries the note-id deep-link back on the reply
+        # (route_output returns it; handle_retry threads it through).
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-x.md"
+            bp.write_text("---\nt: x\n---\n## Summary\nNotes", encoding="utf-8")
+            sent = []
+            with patch.object(host, 'CACHE_DIR', Path(tmp)), \
+                    patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                    patch.object(host, 'notify'), \
+                    patch.object(host, 'push_to_apple_notes', return_value='x-coredata://S/p1'):
+                host.handle_retry({"title": "X", "backupPath": str(bp),
+                                   "backupType": "apple_notes"})
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(sent[-1]["link"],
+                             {"app": "apple_notes", "kind": "note_id", "value": "x-coredata://S/p1"})
+
+    def test_obsidian_primary_retry_failure_errors(self):
+        # route_output returns {ok:False} (blank vault, nothing detectable) →
+        # handle_retry sends a {status:error} reply, no Craft fallthrough.
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-x.md"
+            bp.write_text("## Summary\nNotes", encoding="utf-8")
+            sent, ran = [], []
+            with patch.object(host, 'CACHE_DIR', Path(tmp)), \
+                    patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                    patch.object(host, 'notify'), \
+                    patch.object(host, '_detect_obsidian_vault', return_value=''), \
+                    patch.object(host.subprocess, 'run',
+                                 side_effect=lambda *a, **k: ran.append(a) or
+                                 types.SimpleNamespace(returncode=0, stdout='', stderr='')):
+                host.handle_retry({"title": "X", "backupPath": str(bp),
+                                   "backupType": "obsidian", "obsidianVaultPath": ""})
+            self.assertEqual(sent[-1]["status"], "error")
+            self.assertEqual(ran, [])  # no Craft fallthrough on a routed error
 
     def test_craft_primary_still_pushes_to_craft(self):
         # Default / craft primary keeps the existing push_to_craft path.

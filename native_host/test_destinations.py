@@ -153,6 +153,52 @@ class TestSendToDestinations(unittest.TestCase):
                 [{'type': 'apple_notes'}, {'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
             self.assertEqual(pan.call_count, 2)
 
+    def test_returns_result_rows_per_destination(self):
+        # BUG-11 Fix C: send_to_destinations returns one {dest, ok, error} row per
+        # processed destination, with human-readable names.
+        with patch.object(host, 'notify'), \
+                patch.object(host, 'push_to_apple_notes', return_value=None):
+            results = host.send_to_destinations(
+                [{'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
+        self.assertEqual(results, [{'dest': 'Apple Notes', 'ok': True, 'error': ''}])
+
+    def test_returns_failed_row_when_a_destination_raises(self):
+        with patch.object(host, 'notify'), \
+                patch.object(host, 'push_to_apple_notes', side_effect=RuntimeError('boom')):
+            results = host.send_to_destinations(
+                [{'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['dest'], 'Apple Notes')
+        self.assertFalse(results[0]['ok'])
+        self.assertIn('boom', results[0]['error'])
+
+    def test_failing_row_still_yields_rows_for_the_others(self):
+        # One failing row never stops the rest; every processed row gets a result.
+        with patch.object(host, 'notify'), \
+                patch.object(host, 'push_to_apple_notes',
+                             side_effect=[RuntimeError('boom'), None]):
+            results = host.send_to_destinations(
+                [{'type': 'apple_notes'}, {'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
+        self.assertEqual(len(results), 2)
+        self.assertFalse(results[0]['ok'])
+        self.assertTrue(results[1]['ok'])
+
+    def test_unknown_and_non_dict_produce_no_rows(self):
+        with patch.object(host, 'push_to_apple_notes'), patch.object(host, 'notify'):
+            results = host.send_to_destinations(
+                ['nope', {'type': 'slack'}, {'type': 'apple_notes'}], CRAFT_MD, TITLE, DT, LABEL)
+        self.assertEqual([r['dest'] for r in results], ['Apple Notes'])
+
+    def test_google_docs_not_connected_is_a_failed_row(self):
+        with patch.object(host.gdocs, 'create_doc',
+                          return_value={'ok': False, 'error': 'not_connected'}), \
+                patch.object(host, 'notify'):
+            results = host.send_to_destinations(
+                [{'type': 'google_docs'}], CRAFT_MD, TITLE, DT, LABEL)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['dest'], 'Google Docs')
+        self.assertFalse(results[0]['ok'])
+
     def test_obsidian_extra_includes_cal_fields(self):
         with tempfile.TemporaryDirectory() as tmp:
             host.send_to_destinations(
