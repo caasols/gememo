@@ -290,6 +290,33 @@ class TestHandleRetry(unittest.TestCase):
             self.assertEqual(sent[-1]["status"], "ok")
             self.assertEqual(sent[-1]["title"], "Daily Standup")
 
+    def test_obsidian_primary_routes_to_obsidian_not_craft(self):
+        # BUG-11 B: a retry honors the PRIMARY output app instead of always
+        # pushing to Craft. backupType='obsidian' → writes to the vault, no craft.
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as vault:
+            bp = Path(tmp) / "20260601-daily-standup.md"
+            bp.write_text("---\ntitle: x\n---\n## Summary\nNotes", encoding="utf-8")
+            sent, ran = [], []
+            with patch.object(host, 'CACHE_DIR', Path(tmp)), \
+                    patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                    patch.object(host, 'notify'), \
+                    patch.object(host.subprocess, 'run',
+                                 side_effect=lambda *a, **k: ran.append(a) or
+                                 types.SimpleNamespace(returncode=0, stdout='', stderr='')):
+                host.handle_retry({"title": "Daily", "backupPath": str(bp),
+                                   "backupType": "obsidian", "obsidianVaultPath": vault})
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(ran, [])  # the Craft subprocess push must NOT run
+            self.assertEqual(len(list(Path(vault).glob("*.md"))), 1)  # wrote to Obsidian
+
+    def test_craft_primary_still_pushes_to_craft(self):
+        # Default / craft primary keeps the existing push_to_craft path.
+        with tempfile.TemporaryDirectory() as tmp:
+            bp = Path(tmp) / "20260601-x.md"
+            bp.write_text("n", encoding="utf-8")
+            sent = self._run({"title": "X", "backupPath": str(bp), "backupType": "craft"}, returncode=0)
+            self.assertEqual(sent[-1]["status"], "ok")
+
     def test_empty_title_uses_filename_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             bp = Path(tmp) / "20260601-weekly-review.md"

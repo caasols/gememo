@@ -250,10 +250,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case 'MM2C_RETRY': {
       const { title, backupPath, tabId } = msg;
+      chrome.storage.local.get(['mm2c_output_app', 'mm2c_obsidian_vault_path', 'mm2c_craft_folder_id'], (cfg) => {
+      const outApp = cfg.mm2c_output_app || 'craft';
       chrome.runtime.sendNativeMessage(NATIVE_HOST, {
         type:       'retry',
         title:      title      || '',
         backupPath: backupPath || '',
+        // BUG-11 B: route the retry to the user's PRIMARY output, not always Craft.
+        backupType:        outApp,
+        obsidianVaultPath: cfg.mm2c_obsidian_vault_path || '',
+        craftFolderId:     cfg.mm2c_craft_folder_id || '',
       }, (response) => {
         if (chrome.runtime.lastError) {
           const err = chrome.runtime.lastError.message;
@@ -285,7 +291,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           const statusLabel = `Retry succeeded: ${response.title}`;
           if (tabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', tabId)]: statusLabel });
           else        chrome.storage.local.set({ mm2c_last_status: statusLabel });
-          appendLog('ok', title, `Retry succeeded — sent to Craft (from ${response.source || 'file'})`);
+          appendLog('ok', title, `Retry succeeded — sent to ${outputAppName(outApp)} (from ${response.source || 'file'})`);
           chrome.action.setBadgeText({ text: 'OK' });
           chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
           setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
@@ -294,6 +300,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         sendResponse({ ok: response?.status === 'ok' });
       });
+      }); // close chrome.storage.local.get for the retry config
       return true; // async response
     }
 
