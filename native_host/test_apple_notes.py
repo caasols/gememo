@@ -282,125 +282,127 @@ class TestOpenAppleNote(unittest.TestCase):
 
 
 class TestRouteOutput(unittest.TestCase):
-    """Unit tests for route_output() — no I/O, all deps injected."""
+    """Unit tests for route_output() — no I/O, all deps injected.
+
+    BUG-11 Fix C: route_output now RETURNS a per-destination result dict
+    ({"ok": bool, "dest": <human name>, ...}) instead of sending a reply.
+    The caller (handle_capture/handle_retry) aggregates + sends.
+    """
 
     def _deps(self):
-        pushed, notified, sent = [], [], []
+        pushed, notified = [], []
         return (
-            pushed, notified, sent,
+            pushed, notified,
             lambda t, h: pushed.append((t, h)),
             lambda t, m: notified.append((t, m)),
-            lambda r: sent.append(r),
         )
 
-    def test_apple_notes_calls_push_and_returns_true(self):
-        pushed, notified, sent, push_fn, note_fn, send_fn = self._deps()
+    def test_apple_notes_calls_push_and_returns_ok_dict(self):
+        pushed, notified, push_fn, note_fn = self._deps()
         result = route_output(
             'apple_notes', '## Summary\nTest content', 'My Meeting', None,
-            apple_push_fn=push_fn, notify_fn=note_fn, send_fn=send_fn,
+            apple_push_fn=push_fn, notify_fn=note_fn,
         )
-        self.assertTrue(result)
         self.assertEqual(len(pushed), 1)
         self.assertEqual(pushed[0][0], 'My Meeting')
         self.assertIn('<h2>Summary</h2>', pushed[0][1])
-        self.assertEqual(sent[0]['status'], 'ok')
-        self.assertEqual(sent[0]['title'], 'My Meeting')
-        self.assertNotIn('link', sent[0], 'no link when push returns no id')
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['dest'], 'Apple Notes')
+        self.assertEqual(result['title'], 'My Meeting')
+        self.assertNotIn('link', result, 'no link when push returns no id')
 
     def test_apple_notes_includes_deeplink_when_push_returns_id(self):
-        sent = []
         note_id = 'x-coredata://S/ICNote/p7'
-        route_output(
+        result = route_output(
             'apple_notes', '## Summary\nTest', 'My Meeting', None,
             apple_push_fn=lambda t, h: note_id,
             notify_fn=lambda t, m: None,
-            send_fn=lambda r: sent.append(r),
         )
-        self.assertEqual(sent[0]['link'],
+        self.assertEqual(result['link'],
                          {'app': 'apple_notes', 'kind': 'note_id', 'value': note_id})
 
-    def test_none_sends_ok_without_push_and_returns_true(self):
-        pushed, notified, sent, push_fn, note_fn, send_fn = self._deps()
+    def test_none_returns_ok_dict_without_push(self):
+        pushed, notified, push_fn, note_fn = self._deps()
         result = route_output(
             'none', '## Summary\nTest', 'Meeting', None,
-            apple_push_fn=push_fn, notify_fn=note_fn, send_fn=send_fn,
+            apple_push_fn=push_fn, notify_fn=note_fn,
         )
-        self.assertTrue(result)
         self.assertEqual(len(pushed), 0, 'apple push must not be called for none')
-        self.assertEqual(sent[0]['status'], 'ok')
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['dest'], 'None')
 
-    def test_craft_returns_false_without_sending(self):
-        pushed, notified, sent, push_fn, note_fn, send_fn = self._deps()
+    def test_craft_returns_none(self):
+        pushed, notified, push_fn, note_fn = self._deps()
         result = route_output(
             'craft', '## Summary\nTest', 'Meeting', None,
-            apple_push_fn=push_fn, notify_fn=note_fn, send_fn=send_fn,
+            apple_push_fn=push_fn, notify_fn=note_fn,
         )
-        self.assertFalse(result)
-        self.assertEqual(len(sent), 0, 'nothing should be sent for craft fallthrough')
+        self.assertIsNone(result, 'craft falls through to the caller')
         self.assertEqual(len(pushed), 0)
 
-    def test_apple_notes_includes_file_path_in_response(self):
-        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+    def test_apple_notes_includes_file_path_in_result(self):
+        _, _, push_fn, note_fn = self._deps()
         from pathlib import Path
         fp = Path('/tmp/test-backup.md')
-        route_output(
+        result = route_output(
             'apple_notes', '## Summary\nContent', 'Meeting', fp,
-            apple_push_fn=push_fn, notify_fn=note_fn, send_fn=send_fn,
+            apple_push_fn=push_fn, notify_fn=note_fn,
         )
-        self.assertEqual(sent[0].get('file'), str(fp))
+        self.assertEqual(result.get('file'), str(fp))
 
-    def test_none_includes_file_path_in_response(self):
-        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+    def test_none_includes_file_path_in_result(self):
+        _, _, push_fn, note_fn = self._deps()
         from pathlib import Path
         fp = Path('/tmp/test-backup.md')
-        route_output(
+        result = route_output(
             'none', '## Summary\nContent', 'Meeting', fp,
-            apple_push_fn=push_fn, notify_fn=note_fn, send_fn=send_fn,
+            apple_push_fn=push_fn, notify_fn=note_fn,
         )
-        self.assertEqual(sent[0].get('file'), str(fp))
+        self.assertEqual(result.get('file'), str(fp))
 
-    def test_apple_notes_push_error_sends_error_response(self):
-        _, _, sent, _, note_fn, send_fn = self._deps()
+    def test_apple_notes_push_error_returns_error_dict(self):
+        _, _, _, note_fn = self._deps()
         def failing_push(title, html):
             raise RuntimeError('osascript failed')
-        route_output(
+        result = route_output(
             'apple_notes', '## Summary\nContent', 'Meeting', None,
-            apple_push_fn=failing_push, notify_fn=note_fn, send_fn=send_fn,
+            apple_push_fn=failing_push, notify_fn=note_fn,
         )
-        self.assertEqual(sent[0]['status'], 'error')
-        self.assertIn('osascript failed', sent[0]['error'])
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['dest'], 'Apple Notes')
+        self.assertIn('osascript failed', result['error'])
 
-    def test_obsidian_writes_file_and_returns_true(self):
-        """obsidian branch writes file to vault path and sends ok."""
+    def test_obsidian_writes_file_and_returns_ok(self):
+        """obsidian branch writes file to vault path and returns ok."""
         import tempfile
-        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+        _, _, push_fn, note_fn = self._deps()
         with tempfile.TemporaryDirectory() as vault:
             result = route_output(
                 'obsidian', '## Summary\nTest content', '20260531 20:57 Meeting', None,
                 obsidian_vault_path=vault,
-                notify_fn=note_fn, send_fn=send_fn,
+                notify_fn=note_fn,
             )
-            self.assertTrue(result)
             md_files = list(Path(vault).glob('*.md'))
             self.assertEqual(len(md_files), 1, 'Expected exactly one .md file in vault')
             content = md_files[0].read_text(encoding='utf-8')
             self.assertTrue(content.startswith('---\n'), 'Should have YAML frontmatter')
             self.assertIn('## Summary', content)
-            self.assertEqual(sent[0]['status'], 'ok')
+            self.assertTrue(result['ok'])
+            self.assertEqual(result['dest'], 'Obsidian')
 
-    def test_obsidian_write_failure_sends_error(self):
+    def test_obsidian_write_failure_returns_error(self):
         """An unwritable vault path is caught and reported, not raised."""
         import tempfile
-        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+        _, _, push_fn, note_fn = self._deps()
         with tempfile.NamedTemporaryFile() as f:
             # A path *under* a regular file can't be created → mkdir raises → caught.
             result = route_output(
                 'obsidian', '## Summary\nx', '20260101 09:00 Meeting', None,
                 obsidian_vault_path=f.name + '/cannot',
-                notify_fn=note_fn, send_fn=send_fn,
+                notify_fn=note_fn,
             )
-        self.assertTrue(result)
-        self.assertEqual(sent[0]['status'], 'error')
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['dest'], 'Obsidian')
 
     def test_obsidian_blank_vault_autodetects(self):
         """obsidian primary with a blank vault auto-detects from Obsidian's own
@@ -410,31 +412,30 @@ class TestRouteOutput(unittest.TestCase):
         recovery re-pushed Craft (duplicate)."""
         import datetime as _dt
         import tempfile
-        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+        _, _, push_fn, note_fn = self._deps()
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(mh, '_detect_obsidian_vault', return_value=tmp):
             result = route_output(
                 'obsidian', '## Summary\nTest', 'Meeting', None,
                 obsidian_vault_path='', dt=_dt.datetime(2026, 6, 1, 9, 12), label='Meeting',
-                notify_fn=note_fn, send_fn=send_fn,
+                notify_fn=note_fn,
             )
-            self.assertTrue(result)
-            self.assertEqual(sent[0]['status'], 'ok')
+            self.assertTrue(result['ok'])
             self.assertEqual(len(list(Path(tmp).glob('*.md'))), 1)
 
-    def test_obsidian_no_vault_anywhere_sends_error(self):
+    def test_obsidian_no_vault_anywhere_returns_error(self):
         """obsidian branch errors only when the vault is blank AND nothing is
         auto-detectable from Obsidian's config."""
-        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+        _, _, push_fn, note_fn = self._deps()
         with patch.object(mh, '_detect_obsidian_vault', return_value=''):
             result = route_output(
                 'obsidian', '## Summary\nTest', 'Meeting', None,
                 obsidian_vault_path='',
-                notify_fn=note_fn, send_fn=send_fn,
+                notify_fn=note_fn,
             )
-        self.assertTrue(result)
-        self.assertEqual(sent[0]['status'], 'error')
-        self.assertIn('vault path not set', sent[0]['error'])
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['dest'], 'Obsidian')
+        self.assertIn('vault path not set', result['error'])
 
 
 @unittest.skipUnless(

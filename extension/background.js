@@ -564,18 +564,35 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         return;
       }
 
-      if (response?.status === 'ok') {
+      const status = response?.status;
+      // BUG-11 Fix C: the host now replies with per-destination saved/failed and a
+      // status of 'ok' | 'partial' | 'error'. A 'partial' counts as a successful
+      // capture ONLY when the PRIMARY succeeded (primaryOk) — recovery re-sends the
+      // primary, so a secondary-only failure must NOT trigger the recovery path.
+      const primaryOk = status === 'partial' ? response?.primaryOk === true : status === 'ok';
+
+      if (status === 'ok' || (status === 'partial' && primaryOk)) {
         const dest = outputAppName(backupType);
         const filePart  = fileBackupEnabled && response.file ? ` + ${response.file}` : '';
         const retryNote = response.retried ? ' (via snapshot retry)' : '';
-        const label     = response.title
-          ? `Saved to ${dest}: ${response.title}${filePart}${retryNote}`
-          : `Saved to ${dest}.${filePart}${retryNote}`;
-        chrome.action.setBadgeText({ text: 'OK' });
-        chrome.action.setBadgeBackgroundColor({ color: TOKENS.color.success });
+        const saved  = Array.isArray(response.saved)  ? response.saved  : [];
+        const failed = Array.isArray(response.failed) ? response.failed : [];
+        let label;
+        if (status === 'partial') {
+          // Primary saved, a secondary failed — warn but treat as saved.
+          const savedPart = saved.length ? `Saved to ${saved.join(' · ')}` : `Saved to ${dest}`;
+          label = `${savedPart} · ${failed.join(', ')} failed${filePart}${retryNote}`;
+        } else {
+          label = response.title
+            ? `Saved to ${dest}: ${response.title}${filePart}${retryNote}`
+            : `Saved to ${dest}.${filePart}${retryNote}`;
+        }
+        chrome.action.setBadgeText({ text: status === 'partial' ? '!' : 'OK' });
+        chrome.action.setBadgeBackgroundColor({
+          color: status === 'partial' ? TOKENS.color.warn : TOKENS.color.success });
         // Store the note so the popup can surface its action items (P6-B).
         chrome.storage.local.set({ mm2c_last_note: transcript || '' });
-        // Update lifetime usage stats (UX-8).
+        // Update lifetime usage stats (UX-8) — the primary saved, so this counts.
         chrome.storage.local.get(['mm2c_stats'], ({ mm2c_stats }) => {
           chrome.storage.local.set({
             mm2c_stats: updateStats(mm2c_stats, { durationMin, words: countWords(transcript) }),
@@ -584,8 +601,10 @@ function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolder
         if (tabId) chrome.storage.local.set({ [tabKey('mm2c_last_status', tabId)]: label });
         else        chrome.storage.local.set({ mm2c_last_status: label });
         // Deep-link reference (e.g. Apple Notes note id) so History can re-open it.
-        appendLog('ok', meetingTitle, label, 'user', response.link || null);
+        appendLog(status === 'partial' ? 'warn' : 'ok', meetingTitle, label, 'user', response.link || null);
         setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10_000);
+        // ok:true → the content script clears the in-flight note (no recovery card),
+        // because the PRIMARY succeeded.
         if (callback) callback({ ok: true });
       } else {
         const detail = response?.error || 'unknown';

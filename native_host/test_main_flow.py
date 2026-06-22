@@ -477,6 +477,64 @@ class TestCaptureHooks(unittest.TestCase):
             self.assertEqual(sent[-1]["status"], "ok")
             self.assertEqual(calls, [rows])
 
+    # 8b — BUG-11 Fix C: per-destination aggregation into one partial/error reply.
+    def test_all_ok_status_ok_saved_has_every_destination(self):
+        # Craft primary OK + an Apple Notes secondary OK → status ok, both saved.
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(host, 'push_to_apple_notes', return_value=None):
+                sent = self._run(self._capture_msg(
+                    tmp, destinations=[{"type": "apple_notes"}]), _proc(0))
+            r = sent[-1]
+            self.assertEqual(r["status"], "ok")
+            self.assertTrue(r["primaryOk"])
+            self.assertEqual(set(r["saved"]), {"Craft", "Apple Notes"})
+            self.assertEqual(r["failed"], [])
+            self.assertNotIn("error", r)
+
+    def test_primary_fails_additional_ok_is_partial_primary_false(self):
+        # Obsidian primary fails (blank vault, nothing detectable) + Apple Notes
+        # secondary OK → status partial, primaryOk False, Obsidian in failed.
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(host, '_detect_obsidian_vault', return_value=''), \
+                    patch.object(host, 'push_to_apple_notes', return_value=None):
+                sent = self._run(self._capture_msg(
+                    tmp, backupType="obsidian", obsidianVaultPath="",
+                    destinations=[{"type": "apple_notes"}]), _proc(0))
+            r = sent[-1]
+            self.assertEqual(r["status"], "partial")
+            self.assertFalse(r["primaryOk"])
+            self.assertIn("Obsidian", r["failed"])
+            self.assertIn("Apple Notes", r["saved"])
+            self.assertIn("Obsidian", r["error"])
+
+    def test_primary_ok_additional_fails_is_partial_primary_true(self):
+        # Craft primary OK + an Apple Notes secondary that raises → status partial,
+        # primaryOk True, Apple Notes in failed.
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(host, 'push_to_apple_notes', side_effect=RuntimeError('boom')):
+                sent = self._run(self._capture_msg(
+                    tmp, destinations=[{"type": "apple_notes"}]), _proc(0))
+            r = sent[-1]
+            self.assertEqual(r["status"], "partial")
+            self.assertTrue(r["primaryOk"])
+            self.assertIn("Craft", r["saved"])
+            self.assertIn("Apple Notes", r["failed"])
+            self.assertIn("Apple Notes", r["error"])
+
+    def test_all_fail_status_error(self):
+        # Obsidian primary fails + Apple Notes secondary fails → status error.
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(host, '_detect_obsidian_vault', return_value=''), \
+                    patch.object(host, 'push_to_apple_notes', side_effect=RuntimeError('boom')):
+                sent = self._run(self._capture_msg(
+                    tmp, backupType="obsidian", obsidianVaultPath="",
+                    destinations=[{"type": "apple_notes"}]), _proc(0))
+            r = sent[-1]
+            self.assertEqual(r["status"], "error")
+            self.assertFalse(r["primaryOk"])
+            self.assertEqual(r["saved"], [])
+            self.assertEqual(set(r["failed"]), {"Obsidian", "Apple Notes"})
+
     # 9 — calendar enrichment → cal_fields reach the frontmatter (covers 309)
     def test_calendar_enrichment_reaches_frontmatter(self):
         with tempfile.TemporaryDirectory() as tmp:

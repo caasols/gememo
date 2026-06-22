@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.27'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.28'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -900,10 +900,21 @@ def handle_retry(msg: dict) -> None:
         try:
             body = _strip_frontmatter(use_file.read_text(encoding='utf-8'))
             file_dt = datetime.fromtimestamp(use_file.stat().st_mtime)
-            if route_output(output_app, body, title, use_file,
-                            obsidian_vault_path=msg.get("obsidianVaultPath", ""),
-                            dt=file_dt, label=title):
-                return  # route_output sent the {status: ok|error} reply
+            # BUG-11 Fix C: route_output now RETURNS a per-destination result dict
+            # instead of sending — handle_retry sends the {status} reply itself.
+            result = route_output(output_app, body, title, use_file,
+                                  obsidian_vault_path=msg.get("obsidianVaultPath", ""),
+                                  dt=file_dt, label=title)
+            if result is not None:
+                if result.get("ok"):
+                    reply: dict = {"status": "ok", "title": title, "source": source}
+                    if result.get("link"):
+                        reply["link"] = result["link"]
+                    send_message(reply)
+                else:
+                    send_message({"status": "error",
+                                  "error": result.get("error", "failed")})
+                return
         except Exception as exc:
             send_message({"status": "error", "error": str(exc)})
             return
@@ -984,6 +995,18 @@ def _default_open_url(url: str) -> None:
     subprocess.run(["open", url], timeout=10)
 
 
+# Human-readable destination names for the per-destination result dicts
+# (BUG-11 Fix C). Used by both route_output (primary) and send_to_destinations.
+_DEST_NAMES = {
+    'craft': 'Craft',
+    'obsidian': 'Obsidian',
+    'apple_notes': 'Apple Notes',
+    'bear': 'Bear',
+    'google_docs': 'Google Docs',
+    'none': 'None',
+}
+
+
 def route_output(
     back_type: str,
     craft_md: str,
@@ -995,20 +1018,25 @@ def route_output(
     label: str = '',
     apple_push_fn=None,
     notify_fn=None,
-    send_fn=None,
     open_url_fn=None,
     gdocs_create_fn=None,
     cal_fields=None,
-) -> bool:
-    """Handle non-Craft output destinations. Returns True if handled, False to fall through.
+):
+    """Handle the PRIMARY non-Craft output destination.
 
-    Injectable deps (apple_push_fn, notify_fn, send_fn) default to the real
-    implementations when None — kept as None-default rather than module-level
-    references so the function is importable before the real functions are defined.
+    BUG-11 Fix C: returns a per-destination RESULT dict instead of sending the
+    reply (the caller aggregates saved/failed across destinations and sends one
+    message):
+      success → {"ok": True, "dest": <human>, "title": title[, "file", "link"]}
+      failure → {"ok": False, "dest": <human>, "error": <msg>}
+      'craft' / unrecognised → None (caller handles the Craft push).
+
+    The per-destination "→ <App>" notifications still fire on success. Injectable
+    deps default to the real implementations when None — kept None-default rather
+    than module-level so the function is importable before they're defined.
     """
     _push  = apple_push_fn if apple_push_fn is not None else push_to_apple_notes
     _note  = notify_fn     if notify_fn     is not None else notify
-    _send  = send_fn       if send_fn       is not None else send_message
     _open  = open_url_fn   if open_url_fn   is not None else _default_open_url
     _gdocs = gdocs_create_fn if gdocs_create_fn is not None else gdocs.create_doc
 
@@ -1020,51 +1048,47 @@ def route_output(
         # the recovery re-pushed Craft, creating duplicates.
         vault_path = obsidian_vault_path or _detect_obsidian_vault()
         if not vault_path:
-            _send({"status": "error",
-                   "error": "Obsidian vault path not set — configure it in Settings"})
-            return True
+            return {"ok": False, "dest": _DEST_NAMES['obsidian'],
+                    "error": "Obsidian vault path not set — configure it in Settings"}
         try:
             from datetime import datetime as _dt
             effective_dt    = dt if dt is not None else _dt.now()
             effective_label = label or title
             _write_obsidian_note(vault_path, effective_label, effective_dt, craft_md, cal_fields=cal_fields)
             _note("Meeting Notes → Obsidian", title)
-            resp: dict = {"status": "ok", "title": title}
+            resp: dict = {"ok": True, "dest": _DEST_NAMES['obsidian'], "title": title}
             if file_path:
                 resp["file"] = str(file_path)
-            _send(resp)
+            return resp
         except Exception as exc:
-            _send({"status": "error", "error": str(exc)})
-        return True
+            return {"ok": False, "dest": _DEST_NAMES['obsidian'], "error": str(exc)}
 
     if back_type == 'apple_notes':
         try:
             html = body_to_html(craft_md)
             note_id = _push(title, html)
             _note("Meeting Notes → Apple Notes", title)
-            resp: dict = {"status": "ok", "title": title}
+            resp = {"ok": True, "dest": _DEST_NAMES['apple_notes'], "title": title}
             if file_path:
                 resp["file"] = str(file_path)
             if note_id:
                 # Deep-link reference so History can re-open the note later.
                 resp["link"] = {"app": "apple_notes", "kind": "note_id", "value": note_id}
-            _send(resp)
+            return resp
         except Exception as exc:
-            _send({"status": "error", "error": str(exc)})
-        return True
+            return {"ok": False, "dest": _DEST_NAMES['apple_notes'], "error": str(exc)}
 
     if back_type == 'bear':
         # Bear note via x-callback-url (5.8). Untested against a live Bear app.
         try:
             _open(build_bear_url(title, craft_md))
             _note("Meeting Notes → Bear", title)
-            resp_bear: dict = {"status": "ok", "title": title}
+            resp_bear: dict = {"ok": True, "dest": _DEST_NAMES['bear'], "title": title}
             if file_path:
                 resp_bear["file"] = str(file_path)
-            _send(resp_bear)
+            return resp_bear
         except Exception as exc:
-            _send({"status": "error", "error": str(exc)})
-        return True
+            return {"ok": False, "dest": _DEST_NAMES['bear'], "error": str(exc)}
 
     if back_type == 'google_docs':
         # Google Docs as the primary output (5.7). Separate OAuth grant; create_doc
@@ -1072,29 +1096,26 @@ def route_output(
         result = _gdocs(title, craft_md) or {}
         if result.get('ok'):
             _note("Meeting Notes → Google Docs", title)
-            resp_gd: dict = {"status": "ok", "title": title}
+            resp_gd: dict = {"ok": True, "dest": _DEST_NAMES['google_docs'], "title": title}
             if file_path:
                 resp_gd["file"] = str(file_path)
             if result.get('url'):
                 # Deep-link reference so History can re-open the Doc later.
                 resp_gd["link"] = {"app": "gdocs", "kind": "url", "value": result["url"]}
-            _send(resp_gd)
-        else:
-            err = result.get('error') or 'unknown error'
-            human = ("Google Docs isn't connected — connect it in Settings → Primary output"
-                     if err == 'not_connected'
-                     else f"Google Docs error: {err}")
-            _send({"status": "error", "error": human})
-        return True
+            return resp_gd
+        err = result.get('error') or 'unknown error'
+        human = ("Google Docs isn't connected — connect it in Settings → Primary output"
+                 if err == 'not_connected'
+                 else f"Google Docs error: {err}")
+        return {"ok": False, "dest": _DEST_NAMES['google_docs'], "error": human}
 
     if back_type == 'none':
-        resp_none: dict = {"status": "ok", "title": title}
+        resp_none: dict = {"ok": True, "dest": _DEST_NAMES['none']}
         if file_path:
             resp_none["file"] = str(file_path)
-        _send(resp_none)
-        return True
+        return resp_none
 
-    return False  # 'craft' or unrecognised → caller handles
+    return None  # 'craft' or unrecognised → caller handles
 
 
 def _file_slug(label: str) -> str:
@@ -1253,16 +1274,26 @@ def _write_obsidian_note(vault_path, label, dt, body, cal_fields=None):
 
 def send_to_destinations(destinations, craft_md, title, dt, label,
                          obsidian_vault_path: str = '', craft_folder_id: str = '',
-                         cal_fields=None) -> None:
+                         cal_fields=None):
     """Fan out the note to each extra destination row (the unified repeater),
     best-effort. Per-row config falls back to the passed-in global default when
     blank, so a blank row behaves like the legacy 'also send to' checkbox.
-    Never raises — a failing row never affects the primary capture or other rows."""
+    Never raises — a failing row never affects the primary capture or other rows.
+
+    BUG-11 Fix C: returns one result row per PROCESSED destination so the caller
+    can surface every secondary failure:
+      [{"dest": <human name>, "ok": bool, "error": <msg>}]
+    Non-dict / unknown-type entries are skipped (no row), as before. An obsidian
+    row that resolves to no vault is skipped (no row) — there is nothing to retry."""
+    results: list = []
     for entry in (destinations or []):
+        if not isinstance(entry, dict):
+            continue
+        dest = entry.get('type')
+        if dest not in _DEST_NAMES:
+            continue  # unknown type — best-effort skip, no result row
+        human = _DEST_NAMES[dest]
         try:
-            if not isinstance(entry, dict):
-                continue
-            dest = entry.get('type')
             if dest == 'apple_notes':
                 push_to_apple_notes(title, body_to_html(craft_md))
                 notify("Meeting Notes → Apple Notes", title)
@@ -1275,7 +1306,7 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
                               or obsidian_vault_path or _detect_obsidian_vault())
                 if not vault_path:
                     _heartbeat("obsidian_skip no_vault")
-                    continue
+                    continue  # nothing to write/retry → no result row
                 _write_obsidian_note(vault_path, label, dt, craft_md, cal_fields=cal_fields)
                 notify("Meeting Notes → Obsidian", title)
             elif dest == 'craft':
@@ -1287,14 +1318,30 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
                 folder_id = str(entry.get('folderId') or '').strip() or craft_folder_id
                 if folder_id:
                     cmd += ["--folder-id", folder_id]
-                subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                if proc.returncode != 0:
+                    err = _PUSH_EXIT_MESSAGES.get(
+                        proc.returncode,
+                        proc.stderr.strip() or f"push_to_craft exited {proc.returncode}")
+                    results.append({"dest": human, "ok": False, "error": err})
+                    continue
             elif dest == 'google_docs':
                 res = gdocs.create_doc(title, craft_md)
                 if isinstance(res, dict) and res.get('ok'):
                     notify("Meeting Notes → Google Docs", title)
-                # not connected / error → silently skipped (best-effort, like other rows)
-        except Exception:
-            pass  # best-effort per-row output — never affect the primary capture
+                else:
+                    err = (res or {}).get('error') if isinstance(res, dict) else None
+                    human_err = ("Google Docs isn't connected — connect it in Settings"
+                                 if err == 'not_connected'
+                                 else f"Google Docs error: {err or 'unknown error'}")
+                    results.append({"dest": human, "ok": False, "error": human_err})
+                    continue
+            results.append({"dest": human, "ok": True, "error": ""})
+        except Exception as exc:
+            # best-effort per-row output — never affect the primary capture, but
+            # record the failure so the caller can surface it.
+            results.append({"dest": human, "ok": False, "error": str(exc)})
+    return results
 
 
 # Wall-clock budget for Google Calendar enrichment. The google API client has no
@@ -1457,23 +1504,90 @@ def handle_capture(msg) -> None:
     back_type = msg.get("backupType", "craft")
 
     # Unified extra destinations — fan out a copy of the note to each row, with
-    # per-row config falling back to the global default when blank. Best-effort.
-    send_to_destinations(
+    # per-row config falling back to the global default when blank. Best-effort;
+    # returns one {dest, ok, error} row per processed destination (BUG-11 Fix C).
+    add_results = send_to_destinations(
         msg.get("destinations"), craft_md, title, dt, label,
         obsidian_vault_path=msg.get("obsidianVaultPath", ""),
         craft_folder_id=msg.get("craftFolderId", "").strip(),
         cal_fields=cal_fields,
-    )
+    ) or []
 
     _heartbeat("extras_done")
 
-    if route_output(back_type, craft_md, title, file_path,
-                    obsidian_vault_path=msg.get("obsidianVaultPath", ""),
-                    dt=dt, label=label, cal_fields=cal_fields):
-        return
+    # Primary output dispatch. route_output returns a {ok, dest, ...} result for
+    # the non-Craft apps, or None for Craft / unrecognised — which we handle here
+    # via the push_to_craft path (E2 snapshot retry preserved).
+    primary = route_output(back_type, craft_md, title, file_path,
+                           obsidian_vault_path=msg.get("obsidianVaultPath", ""),
+                           dt=dt, label=label, cal_fields=cal_fields)
 
-    # back_type == 'craft' (or anything unrecognised) → fall through to Craft push
+    if primary is None:
+        # back_type == 'craft' (or anything unrecognised) → Craft push.
+        primary = _capture_push_to_craft(
+            msg, craft_md, title, label, file_path, date_prefix,
+            file_backup_enabled=file_backup_enabled,
+            file_backup_path=file_backup_path, file_ext=file_ext,
+        )
 
+    # Aggregate the primary + every additional destination into one reply (BUG-11
+    # Fix C). saved/failed = the human names; status is ok/partial/error.
+    primary_ok = bool(primary.get("ok"))
+    saved, failed, errors = [], [], []
+    if primary_ok:
+        saved.append(primary["dest"])
+    else:
+        failed.append(primary["dest"])
+        if primary.get("error"):
+            errors.append(f"{primary['dest']}: {primary['error']}")
+    for row in add_results:
+        if row.get("ok"):
+            saved.append(row["dest"])
+        else:
+            failed.append(row["dest"])
+            errors.append(f"{row['dest']}: {row.get('error', 'failed')}")
+
+    if not failed:
+        status = "ok"
+    elif not saved:
+        status = "error"
+    else:
+        status = "partial"
+
+    reply: dict = {"status": status, "saved": saved, "failed": failed,
+                   "primaryOk": primary_ok, "title": title}
+    if primary.get("file"):
+        reply["file"] = primary["file"]
+    if primary.get("link"):
+        reply["link"] = primary["link"]
+    if primary.get("retried"):
+        reply["retried"] = True
+    if status != "ok":
+        reply["error"] = "; ".join(errors)
+    # Retry widget needs a file backup to recover from. Prefer the primary's own
+    # snapshot/backup hint (set by the Craft push), else the file backup path.
+    backup_hint = primary.get("backupPath") or (str(file_path) if file_path else "")
+    if backup_hint and not primary_ok:
+        reply["backupPath"] = backup_hint
+
+    # Desktop notification when the whole capture failed (RB-7e) — the in-page
+    # toast is gone by now (the Meet tab closed), so this is the user's only signal.
+    if status == "error":
+        notify("Meeting Notes — capture failed", reply.get("error", "capture failed"))
+
+    send_message(reply)
+    _heartbeat(f"replied status={status}")
+    # No finally: note files live in CACHE_DIR — cleaned up by push_to_craft.py
+    # on the next run (files older than 2 h are deleted automatically).
+
+
+def _capture_push_to_craft(msg, craft_md, title, label, file_path, date_prefix, *,
+                           file_backup_enabled, file_backup_path, file_ext) -> dict:
+    """Push the primary note to Craft (the Craft / unrecognised fall-through) and
+    return a per-destination RESULT dict — never sends. On a failed first push it
+    retries once with the most recent snapshot file (E2). Result shape:
+      success → {"ok": True, "dest": "Craft", "title"[, "file", "retried"]}
+      failure → {"ok": False, "dest": "Craft", "error"[, "backupPath"]}"""
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         safe_title = re.sub(r'[^\w\s\-]', '', title)[:80].strip() or date_prefix
@@ -1495,52 +1609,41 @@ def handle_capture(msg) -> None:
 
         if result.returncode == 0:
             notify("Meeting Notes → Craft", title)
-            response: dict = {"status": "ok", "title": title}
+            res: dict = {"ok": True, "dest": _DEST_NAMES['craft'], "title": title}
             if file_path:
-                response["file"] = str(file_path)
-            send_message(response)
-            _heartbeat("replied status=ok")
-        else:
-            # Primary push failed — retry once with most recent snapshot file (E2)
-            snap_slug = _file_slug(label)
-            snap_file = find_latest_snapshot(file_backup_path, snap_slug, file_ext) \
-                        if file_backup_enabled else None
+                res["file"] = str(file_path)
+            return res
 
-            if snap_file:
-                retry = subprocess.run(
-                    [sys.executable, str(PUSH_PY), "--title", title,
-                     "--content-file", str(snap_file), "--background"],
-                    capture_output=True, text=True, timeout=45,
-                )
-                if retry.returncode == 0:
-                    notify("Meeting Notes → Craft", title)
-                    resp: dict = {"status": "ok", "title": title, "retried": True}
-                    if file_path:
-                        resp["file"] = str(file_path)
-                    send_message(resp)
-                    _heartbeat("replied status=ok retried")
-                    return
+        # Primary push failed — retry once with most recent snapshot file (E2)
+        snap_slug = _file_slug(label)
+        snap_file = find_latest_snapshot(file_backup_path, snap_slug, file_ext) \
+                    if file_backup_enabled else None
 
-            # Both attempts failed (or no snapshot available) — include backup path
-            backup_hint = str(snap_file or file_path or "")
-            error = _PUSH_EXIT_MESSAGES.get(
-                result.returncode,
-                result.stderr.strip() or f"push_to_craft exited {result.returncode}",
+        if snap_file:
+            retry = subprocess.run(
+                [sys.executable, str(PUSH_PY), "--title", title,
+                 "--content-file", str(snap_file), "--background"],
+                capture_output=True, text=True, timeout=45,
             )
-            response_d: dict = {"status": "error", "error": error}
-            if backup_hint:
-                response_d["backupPath"] = backup_hint
-            # Desktop notification on failure (RB-7e) — the in-page toast is gone
-            # by now (the Meet tab closed), so this is the user's only signal.
-            notify("Meeting Notes — capture failed", error)
-            send_message(response_d)
-            _heartbeat("replied status=error")
+            if retry.returncode == 0:
+                notify("Meeting Notes → Craft", title)
+                res = {"ok": True, "dest": _DEST_NAMES['craft'], "title": title, "retried": True}
+                if file_path:
+                    res["file"] = str(file_path)
+                return res
+
+        # Both attempts failed (or no snapshot available) — include backup path
+        backup_hint = str(snap_file or file_path or "")
+        error = _PUSH_EXIT_MESSAGES.get(
+            result.returncode,
+            result.stderr.strip() or f"push_to_craft exited {result.returncode}",
+        )
+        res = {"ok": False, "dest": _DEST_NAMES['craft'], "error": error}
+        if backup_hint:
+            res["backupPath"] = backup_hint
+        return res
     except Exception as exc:
-        notify("Meeting Notes — capture failed", str(exc))
-        send_message({"status": "error", "error": str(exc)})
-        _heartbeat("replied status=exception")
-    # No finally: note_path lives in CACHE_DIR — cleaned up by push_to_craft.py
-    # on the next run (files older than 2 h are deleted automatically).
+        return {"ok": False, "dest": _DEST_NAMES['craft'], "error": str(exc)}
 
 
 def main() -> None:

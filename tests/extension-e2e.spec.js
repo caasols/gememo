@@ -445,6 +445,58 @@ test.describe('extension E2E harness', () => {
       }).toEqual({ entryTitle: 'Fail Me', entryPath: '/tmp/x.md', entryWords: 3, entryDuration: null, statusIsError: true });
     });
 
+    test('MM2C_RESPONSE partial + primaryOk:true → no recovery, in-flight cleared, partial banner (BUG-11 Fix C)', async () => {
+      // The PRIMARY (Craft) saved but a secondary (Apple Notes) failed. Recovery
+      // re-sends the primary, so a secondary-only failure must NOT create a
+      // failed-list retry entry and must report ok:true (the content script then
+      // clears the in-flight note). The banner warns about the partial save.
+      await stubNativeMessage(ext.serviceWorker, {
+        __default: { status: 'partial', primaryOk: true, title: 'Q3 Sync',
+                     saved: ['Craft'], failed: ['Apple Notes'],
+                     error: 'Apple Notes: osascript failed' },
+      });
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'craft', mm2c_failed_list: [], mm2c_logs: [] });
+      const resp = await sendFromPage(popup, {
+        type: 'MM2C_RESPONSE', text: 'one two three', meetingTitle: 'Q3 Sync',
+      });
+      // primaryOk → the handler reports success so the in-flight note is cleared.
+      expect(resp.ok).toBe(true);
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const statusKey = Object.keys(s).find(k => k.startsWith('mm2c_last_status'));
+        const status = statusKey ? String(s[statusKey]) : '';
+        return {
+          // No retry entry — recovery is only for primary failures.
+          failedListLen: (s.mm2c_failed_list || []).length,
+          // Partial banner mentions both the save and the failed destination.
+          bannerSaved: /Saved to Craft/.test(status),
+          bannerFailed: /Apple Notes failed/.test(status),
+        };
+      }).toEqual({ failedListLen: 0, bannerSaved: true, bannerFailed: true });
+    });
+
+    test('MM2C_RESPONSE partial + primaryOk:false → recovery shown, ok:false (BUG-11 Fix C)', async () => {
+      // The PRIMARY (Obsidian) failed; a secondary saved. Recovery re-sends the
+      // primary, so this MUST create a failed-list retry entry and report ok:false
+      // (the content script keeps the in-flight note + shows the recovery card).
+      await stubNativeMessage(ext.serviceWorker, {
+        __default: { status: 'partial', primaryOk: false, title: 'Q3 Sync',
+                     saved: ['Apple Notes'], failed: ['Obsidian'],
+                     error: 'Obsidian: vault path not set', backupPath: '/tmp/q3.md' },
+      });
+      await seedStorage(ext.serviceWorker, { mm2c_output_app: 'obsidian', mm2c_failed_list: [], mm2c_logs: [] });
+      const resp = await sendFromPage(popup, {
+        type: 'MM2C_RESPONSE', text: 'one two three', meetingTitle: 'Q3 Sync',
+      });
+      expect(resp.ok).toBe(false);
+      expect(resp.backupPath).toBe('/tmp/q3.md');
+      await expect.poll(async () => {
+        const s = await getStorage(ext.serviceWorker, null);
+        const entry = (s.mm2c_failed_list || []).find(f => f.backupPath === '/tmp/q3.md');
+        return entry?.backupPath || null;
+      }).toBe('/tmp/q3.md');  // recovery entry present (primary failed)
+    });
+
     test('MM2C_RESPONSE skips a duplicate send within the dedup window (shouldSkipDuplicate)', async () => {
       // Tab-keyed fingerprint dedup: two identical sends from the same sender (same
       // tab + same title) within DEDUP_WINDOW_MS must forward exactly once.
