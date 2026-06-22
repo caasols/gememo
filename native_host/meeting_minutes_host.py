@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.26'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.27'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -890,6 +890,23 @@ def handle_retry(msg: dict) -> None:
 
     # Derive a readable title from the backup filename when the meeting had none.
     title = retry_title_fallback(title, use_file)
+
+    # BUG-11 B: honor the user's PRIMARY output app instead of always pushing to
+    # Craft. Non-Craft apps go through the same route_output dispatch a normal
+    # capture uses (it sends its own reply); Craft / none / unknown fall through
+    # to the push_to_craft path below.
+    output_app = (msg.get("backupType") or "craft").strip()
+    if output_app in ('obsidian', 'apple_notes', 'bear', 'google_docs'):
+        try:
+            body = _strip_frontmatter(use_file.read_text(encoding='utf-8'))
+            file_dt = datetime.fromtimestamp(use_file.stat().st_mtime)
+            if route_output(output_app, body, title, use_file,
+                            obsidian_vault_path=msg.get("obsidianVaultPath", ""),
+                            dt=file_dt, label=title):
+                return  # route_output sent the {status: ok|error} reply
+        except Exception as exc:
+            send_message({"status": "error", "error": str(exc)})
+            return
 
     try:
         folder_id = msg.get("craftFolderId", "").strip()
