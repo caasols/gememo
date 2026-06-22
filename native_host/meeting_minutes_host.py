@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.24'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.25'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -996,7 +996,13 @@ def route_output(
     _gdocs = gdocs_create_fn if gdocs_create_fn is not None else gdocs.create_doc
 
     if back_type == 'obsidian':
-        if not obsidian_vault_path:
+        # Blank vault → fall back to the one auto-detected from Obsidian's own
+        # config, for parity with the additional-destinations path (#98). Without
+        # this, Obsidian-as-PRIMARY errored on a blank vault while Obsidian-as-
+        # secondary auto-detected — so Primary=Obsidian/Secondary=Craft failed and
+        # the recovery re-pushed Craft, creating duplicates.
+        vault_path = obsidian_vault_path or _detect_obsidian_vault()
+        if not vault_path:
             _send({"status": "error",
                    "error": "Obsidian vault path not set — configure it in Settings"})
             return True
@@ -1004,7 +1010,7 @@ def route_output(
             from datetime import datetime as _dt
             effective_dt    = dt if dt is not None else _dt.now()
             effective_label = label or title
-            _write_obsidian_note(obsidian_vault_path, effective_label, effective_dt, craft_md, cal_fields=cal_fields)
+            _write_obsidian_note(vault_path, effective_label, effective_dt, craft_md, cal_fields=cal_fields)
             _note("Meeting Notes → Obsidian", title)
             resp: dict = {"status": "ok", "title": title}
             if file_path:

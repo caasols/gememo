@@ -402,14 +402,36 @@ class TestRouteOutput(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(sent[0]['status'], 'error')
 
-    def test_obsidian_no_vault_path_sends_error(self):
-        """obsidian branch with empty vault path sends error and returns True."""
+    def test_obsidian_blank_vault_autodetects(self):
+        """obsidian primary with a blank vault auto-detects from Obsidian's own
+        config — parity with the additional-destinations path (#98). Was a bug:
+        Obsidian-as-primary errored on a blank vault while Obsidian-as-secondary
+        auto-detected, so a Primary=Obsidian/Secondary=Craft setup failed + the
+        recovery re-pushed Craft (duplicate)."""
+        import datetime as _dt
+        import tempfile
         _, _, sent, push_fn, note_fn, send_fn = self._deps()
-        result = route_output(
-            'obsidian', '## Summary\nTest', 'Meeting', None,
-            obsidian_vault_path='',
-            notify_fn=note_fn, send_fn=send_fn,
-        )
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(mh, '_detect_obsidian_vault', return_value=tmp):
+            result = route_output(
+                'obsidian', '## Summary\nTest', 'Meeting', None,
+                obsidian_vault_path='', dt=_dt.datetime(2026, 6, 1, 9, 12), label='Meeting',
+                notify_fn=note_fn, send_fn=send_fn,
+            )
+            self.assertTrue(result)
+            self.assertEqual(sent[0]['status'], 'ok')
+            self.assertEqual(len(list(Path(tmp).glob('*.md'))), 1)
+
+    def test_obsidian_no_vault_anywhere_sends_error(self):
+        """obsidian branch errors only when the vault is blank AND nothing is
+        auto-detectable from Obsidian's config."""
+        _, _, sent, push_fn, note_fn, send_fn = self._deps()
+        with patch.object(mh, '_detect_obsidian_vault', return_value=''):
+            result = route_output(
+                'obsidian', '## Summary\nTest', 'Meeting', None,
+                obsidian_vault_path='',
+                notify_fn=note_fn, send_fn=send_fn,
+            )
         self.assertTrue(result)
         self.assertEqual(sent[0]['status'], 'error')
         self.assertIn('vault path not set', sent[0]['error'])

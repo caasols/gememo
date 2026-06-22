@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Fixed
+- **Obsidian as your *primary* output no longer fails when the vault field is blank.** The blank-vault auto-detect (from Obsidian's own `obsidian.json`) had only been wired into the *additional-destinations* path — so Obsidian-as-**secondary** auto-detected your vault, but Obsidian-as-**primary** errored "Obsidian vault path not set", saved nothing to Obsidian, and (because the primary failed) the in-app recovery re-ran the whole capture and **re-pushed your additional destinations — duplicating notes in e.g. Craft**. The primary path (`route_output`) now falls back to the auto-detected vault too, matching the additional path. (Deeper follow-ups tracked as BUG-11: a failed *primary* shouldn't report total failure when additional destinations succeeded, and recovery shouldn't re-send to already-succeeded destinations.) (Host change → re-run `install.sh`.)
+
 ### Changed
 - **Bear no longer shows "(untested)" in the output picker** — just "Bear". (Extension reload only; host version bumped for lockstep.)
 - **The Welcome card now stays up while a step is still pending, and only a manual ✕ hides it for good.** Finishing the required steps no longer dismisses the card forever — a still-pending step (like the optional Connect-Google) keeps it visible, so it re-surfaces for people who onboarded before that step existed. The card hides once **every** step is done, or when you click the ✕ (now tracked separately as `mm2c_setup_dismissed`). (Extension reload only; host version bumped for lockstep.)
