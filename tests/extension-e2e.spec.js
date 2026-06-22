@@ -391,6 +391,23 @@ test.describe('extension E2E harness', () => {
       }).toEqual({ cal: true, cleanup: true, ts: new Date(at).toISOString(), recover: true });
     });
 
+    test('MM2C_RECOVER re-sends only the primary — never the additional destinations (BUG-11 #3)', async () => {
+      // Recovery fires only when the PRIMARY failed; the additional destinations
+      // (best-effort) may already have succeeded, so re-pushing them duplicates
+      // (e.g. a 2nd Craft doc). The recover message must carry destinations: [].
+      await seedStorage(ext.serviceWorker, {
+        mm2c_output_app: 'obsidian',
+        mm2c_destinations: [{ type: 'craft' }, { type: 'apple_notes' }],
+        mm2c_inflight: { title: 'Recovered', text: 'recover-no-dup', durationMin: 10, at: Date.parse('2026-06-01T09:12:00Z') },
+      });
+      const resp = await sendFromPage(popup, { type: 'MM2C_RECOVER' });
+      expect(resp.ok).toBe(true);
+      await expect.poll(async () => {
+        const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'recover-no-dup');
+        return fwd ? fwd.msg.destinations : null;
+      }).toEqual([]);
+    });
+
     test('MM2C_RESPONSE host-error appends to mm2c_failed_list + friendly banner (retry entry point)', async () => {
       // The host replies with a non-ok status AND a backupPath — this is the only
       // path that creates a failed-list retry entry (forwardToNativeHost error branch).

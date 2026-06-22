@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Fixed
+- **Recovery ("Send now") no longer duplicates your additional destinations (BUG-11 #3, part A).** The in-flight recovery card fires only when the *primary* output failed — but it used to re-run the *whole* capture, re-pushing every additional destination too, so an already-succeeded Craft note got a duplicate. Recovery now re-sends **only the primary** (`destinations: []`); best-effort additional destinations are left untouched. (Extension reload only; host version bumped for lockstep.)
 - **Obsidian as your *primary* output no longer fails when the vault field is blank.** The blank-vault auto-detect (from Obsidian's own `obsidian.json`) had only been wired into the *additional-destinations* path — so Obsidian-as-**secondary** auto-detected your vault, but Obsidian-as-**primary** errored "Obsidian vault path not set", saved nothing to Obsidian, and (because the primary failed) the in-app recovery re-ran the whole capture and **re-pushed your additional destinations — duplicating notes in e.g. Craft**. The primary path (`route_output`) now falls back to the auto-detected vault too, matching the additional path. (Deeper follow-ups tracked as BUG-11: a failed *primary* shouldn't report total failure when additional destinations succeeded, and recovery shouldn't re-send to already-succeeded destinations.) (Host change → re-run `install.sh`.)
 
 ### Changed

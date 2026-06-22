@@ -308,6 +308,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (!note?.text) { sendResponse({ ok: false, error: 'nothing to recover' }); return; }
         forwardToNativeHost(note.text, {
           ...buildForwardConfig(data),
+          // BUG-11 #3: recovery fires only when the PRIMARY failed; the additional
+          // destinations (best-effort) may already have succeeded, so re-pushing
+          // them would duplicate (e.g. a 2nd Craft doc). Re-send the primary only.
+          destinations: [],
           backupType:   data.mm2c_output_app || 'none',
           meetingTitle: note.title || '',
           attendees: [], durationMin: note.durationMin ?? null, meetingCode: '', meetingType: '', titleTemplate: '', recording: false,
