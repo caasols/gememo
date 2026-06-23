@@ -10,6 +10,20 @@ importScripts('design_tokens.js', 'constants.js');
 
 const NATIVE_HOST = 'io.gememo.host';
 
+// First-run defaults — on a *fresh* install, seed sensible, safe defaults: a local
+// file backup on (~/Documents/gememo-meeting-notes) and the three auto-cleanups on
+// at 7 days. Gated to reason 'install' (an existing user updating is reason
+// 'update' → untouched), and firstRunDefaults only fills keys that are still
+// unset, so we never override a choice or retroactively enable auto-delete on an
+// existing user's backups. The user can change any of these afterwards.
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason !== 'install') return;
+  chrome.storage.local.get(Object.keys(FIRST_RUN_DEFAULTS), (have) => {
+    const seed = firstRunDefaults(have);
+    if (Object.keys(seed).length) chrome.storage.local.set(seed);
+  });
+});
+
 // Remote selector hotfix (RB-1b) — opt-in. When the user has set a hotfix URL,
 // fetch selectors.json on service-worker startup, sanitise it against the known
 // registry keys, and cache the overrides for content_meet to overlay. A failed

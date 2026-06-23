@@ -1,4 +1,4 @@
-const DEFAULT_FILE_PATH = '~/Downloads/meeting-notes';
+const DEFAULT_FILE_PATH = '~/Documents/gememo-meeting-notes';
 
 // Tab ID of the Meet tab currently displayed in the popup.
 // null = no Meet tab active; set by queryMeetingState().
@@ -483,11 +483,11 @@ function applyState(s, tabId, live = null) {
   $('my-aliases').value = myAliases;
   $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
   $('cleanup-snap-enabled').checked = s.mm2c_cleanup_snap_enabled === true;
-  $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 30;
+  $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 7;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
-  $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 30;
+  $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 7;
   $('logs-cleanup-enabled').checked = s.mm2c_logs_cleanup_enabled === true;
-  $('logs-cleanup-days').value = s.mm2c_logs_cleanup_days || 30;
+  $('logs-cleanup-days').value = s.mm2c_logs_cleanup_days || 7;
   // Unified destinations: fold legacy "Also send to" apps in, dedupe to one per
   // app, drop the primary, persist the cleaned list (self-heal), then render.
   const _primary = s.mm2c_output_app || 'none';
@@ -1114,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // If the user hasn't saved a custom path yet, resolve ~ to the real home dir
       chrome.storage.local.get(['mm2c_file_backup_path'], (data) => {
         if (!data.mm2c_file_backup_path) {
-          const fullDefault = `${response.home}/Downloads/meeting-notes`;
+          const fullDefault = `${response.home}/Documents/gememo-meeting-notes`;
           $('file-path').value = fullDefault;
         }
       });

@@ -277,13 +277,38 @@ function buildForwardConfig(data) {
     calendarEnabled: data.mm2c_calendar_enabled === true && data.mm2c_beta_enabled === true,
     fileBackupEnabled: data.mm2c_file_backup_enabled === true,
     fileBackupType: data.mm2c_file_backup_type || 'markdown',
-    fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
+    fileBackupPath: data.mm2c_file_backup_path || '~/Documents/gememo-meeting-notes',
     backupCleanup: {
-      snapshots: { enabled: data.mm2c_cleanup_snap_enabled === true, days: data.mm2c_cleanup_snap_days || 30 },
-      finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 30 },
+      snapshots: { enabled: data.mm2c_cleanup_snap_enabled === true, days: data.mm2c_cleanup_snap_days || 7 },
+      finalNotes: { enabled: data.mm2c_cleanup_final_enabled === true, days: data.mm2c_cleanup_final_days || 7 },
     },
     destinations: dedupeDestinations(mergeAlsoSendIntoDestinations(data.mm2c_destinations, data.mm2c_also_send), data.mm2c_output_app),
   };
+}
+
+// First-run defaults — the settings a *genuinely fresh* install should start
+// with: a local file backup on (saved to ~/Documents/gememo-meeting-notes) plus
+// the three auto-cleanups on at 7 days. Seeded from background.js on
+// chrome.runtime.onInstalled (reason 'install').
+const FIRST_RUN_DEFAULTS = {
+  mm2c_file_backup_enabled: true,
+  mm2c_file_backup_type:    'markdown',
+  mm2c_file_backup_path:    '~/Documents/gememo-meeting-notes',
+  mm2c_cleanup_snap_enabled:  true, mm2c_cleanup_snap_days:  7,
+  mm2c_cleanup_final_enabled: true, mm2c_cleanup_final_days: 7,
+  mm2c_logs_cleanup_enabled:  true, mm2c_logs_cleanup_days:  7,
+};
+
+// Pure helper — given the currently-stored values, return ONLY the first-run
+// defaults whose key is still unset. This can never override an existing user's
+// choice (so auto-delete is never retroactively enabled on their backups) and is
+// a no-op once any of these has been set. Returns {} when nothing needs seeding.
+function firstRunDefaults(existing = {}) {
+  const seed = {};
+  for (const k in FIRST_RUN_DEFAULTS) {
+    if (existing[k] === undefined) seed[k] = FIRST_RUN_DEFAULTS[k];
+  }
+  return seed;
 }
 
 // Pure helper — the destination apps a given repeater row may choose: all types,

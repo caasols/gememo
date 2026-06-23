@@ -1130,12 +1130,13 @@ test.describe('extension E2E harness', () => {
       const page = await popupWith({});
       await page.click('#tab-settings');
       await page.locator('label.toggle-wrap', { has: page.locator('#logs-cleanup-enabled') }).click();
-      await page.fill('#logs-cleanup-days', '7');
+      // 14 ≠ the default (7) so the change event actually fires and persists.
+      await page.fill('#logs-cleanup-days', '14');
       await page.locator('#logs-cleanup-days').blur();
       await expect.poll(async () => {
         const s = await getStorage(ext.serviceWorker, ['mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days']);
         return { on: s.mm2c_logs_cleanup_enabled, days: s.mm2c_logs_cleanup_days };
-      }).toEqual({ on: true, days: 7 });
+      }).toEqual({ on: true, days: 14 });
       await page.close();
     });
 
