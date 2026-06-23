@@ -1740,6 +1740,17 @@ document.addEventListener('DOMContentLoaded', () => {
     statusAction: 'gdocs_status', connectAction: 'gdocs_connect', disconnectAction: 'gdocs_disconnect',
   });
 
+  // Combined Google connect/disconnect in Settings → Privacy (one consent covers
+  // BOTH Docs + Calendar — the same grant the onboarding "Connect" button uses).
+  // Disconnecting clears the onboarding tick (mm2c_google_connected), disables
+  // Calendar enrichment, and re-greys Google Docs via the OUT-1 destination probe.
+  wireOAuthService({
+    statusId: 'google-acct-status', connectBtnId: 'google-acct-btn',
+    statusAction: 'google_status', connectAction: 'google_connect', disconnectAction: 'google_disconnect',
+    onConnect: () => { save({ mm2c_google_connected: true }); refreshDestinationStatus(); },
+    onDisconnect: () => { save({ mm2c_google_connected: false, mm2c_calendar_enabled: false }); refreshDestinationStatus(); },
+  });
+
   // Pre-meeting brief (P9-G, beta) — ask the background to brief the active Meet
   // tab; render the host's bullets, or a friendly message per error branch.
   function renderPreBrief(resp) {
