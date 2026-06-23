@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Changed
+- **Output menus now hide apps that aren't installed, instead of greying them.** If a local note app (Craft, Bear, …) isn't on your Mac, it no longer clutters the primary or additional-destination menus — only apps Gememo can actually detect are shown. Connectable integrations like **Google Docs stay visible but greyed** with a "Not connected" hint (so a one-click integration stays discoverable), and your **currently-selected** output is always shown (greyed if it became unavailable) so you can change it. (Extension reload only; host version bumped for lockstep.)
+
 ### Fixed
 - **Additional destinations now match the primary — Bear is selectable, and unavailable apps are greyed (BUG-13).** Two bugs in the *additional destinations* rows: **(1) Bear was missing entirely** — you could set Bear as your primary output but not as an extra destination. It was absent from the row dropdown, the `normalizeDestinations` validator (which silently dropped it), *and* the host fan-out (where a Bear row would have reported success without sending). Bear now works as an additional destination end-to-end. **(2) The rows applied no availability check** — an un-connected Google Docs (or any not-installed app) stayed selectable there even though the primary correctly greyed it. The rows now get the same OUT-1 greying + inline reason. (Host is symlinked → reload the extension.)
 
