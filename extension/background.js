@@ -87,8 +87,6 @@ const DEDUP_WINDOW_MS = 40 * 60 * 1000; // 40-minute same-meeting window
 // forward payload (see buildForwardConfig). Defined once so they can't drift.
 const FORWARD_KEYS = [
   'mm2c_output_app', 'mm2c_craft_folder_id', 'mm2c_craft_space_id', 'mm2c_obsidian_vault_path',
-  'mm2c_webhook_url', 'mm2c_slack_webhook_url', 'mm2c_redact_pii', 'mm2c_redact_keywords',
-  'mm2c_emit_ics', 'mm2c_wikilinks',
   'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
@@ -523,10 +521,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, redactPii, redactKeywords, emitIcs, wikilinks, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, recover, timestamp, tabId }, callback = null) {
+function forwardToNativeHost(transcript, { backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, recover, timestamp, tabId }, callback = null) {
   chrome.runtime.sendNativeMessage(
     NATIVE_HOST,
-    { transcript, timestamp: timestamp || new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, webhookUrl, slackWebhookUrl, redactPii, redactKeywords, emitIcs, wikilinks, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, recover },
+    { transcript, timestamp: timestamp || new Date().toISOString(), backupType, meetingTitle, craftFolderId, craftSpaceId, obsidianVaultPath, attendees, durationMin, meetingCode, meetingType, titleTemplate, recording, fileBackupEnabled, fileBackupType, fileBackupPath, backupCleanup, destinations, recover },
     (response) => {
       if (chrome.runtime.lastError) {
         const err = chrome.runtime.lastError.message;

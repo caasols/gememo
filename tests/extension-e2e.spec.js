@@ -1070,19 +1070,6 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('toggling Redact PII persists to storage', async () => {
-      // Privacy is beta-gated now — enable Experimental so the widget shows.
-      const page = await popupWith({ mm2c_redact_pii: false, mm2c_beta_enabled: true });
-      await page.click('#tab-settings');
-      // The checkbox is a visually-hidden custom toggle (opacity:0); click its
-      // wrapping label to drive the real change handler.
-      await page.locator('label.toggle-wrap', { has: page.locator('#redact-pii') }).click();
-      await expect.poll(async () =>
-        (await getStorage(ext.serviceWorker, ['mm2c_redact_pii'])).mm2c_redact_pii
-      ).toBe(true);
-      await page.close();
-    });
-
     test('Beta tab appears when experimental is on and gathers the beta widgets (UXF-14)', async () => {
       const page = await popupWith({ mm2c_beta_enabled: true });
       await expect(page.locator('#tab-beta')).toBeVisible();
@@ -1094,20 +1081,15 @@ test.describe('extension E2E harness', () => {
     test('advanced features are hidden when Experimental is OFF (beta gating)', async () => {
       const page = await popupWith({ mm2c_beta_enabled: false });
       await page.click('#tab-settings');
-      // Settings-tab gated widgets: Webhook, the Privacy-settings redaction
-      // sub-block, wikilinks.
-      await expect(page.locator('#webhook-url')).not.toBeVisible();
-      await expect(page.locator('#redact-keywords')).not.toBeVisible();
-      await expect(page.getByText('Wikilinks for graph apps')).not.toBeVisible();
-      await expect(page.locator('#note-language')).not.toBeVisible();
-      await expect(page.locator('#preview-before-send')).not.toBeVisible();
+      // Beta-gated widget (selector hotfix) lives behind the hidden Beta tab.
+      await expect(page.locator('#tab-beta')).not.toBeVisible();
+      await expect(page.locator('#selector-hotfix-url')).not.toBeVisible();
       // Core Settings stay visible. Additional destinations promoted out of beta —
       // visible regardless of the Experimental toggle.
       await expect(page.locator('#output-app')).toBeVisible();
       await expect(page.locator('#add-destination')).toBeVisible();
       await expect(page.getByText('Privacy settings')).toBeVisible();      // card title (production)
       await expect(page.getByText('Local backups')).toBeVisible();         // retention sub-section stays
-      await expect(page.getByText('Redaction & blocklist')).not.toBeVisible(); // beta sub-block gated off
       await expect(page.locator('#clear-logs')).toBeVisible();             // Clear moved here (production)
       // Diagnostics: Developer logs + Download promoted out of beta — visible regardless of Experimental.
       // (#show-debug-logs is a styled toggle: assert its visible label, not the opacity-0 input.)
@@ -1121,12 +1103,9 @@ test.describe('extension E2E harness', () => {
 
     test('advanced features appear when Experimental is ON (beta gating)', async () => {
       const page = await popupWith({ mm2c_beta_enabled: true });
-      await page.click('#tab-settings');
-      await expect(page.locator('#webhook-url')).toBeVisible();
-      await expect(page.locator('#redact-keywords')).toBeVisible();
-      await expect(page.getByText('Wikilinks for graph apps')).toBeVisible();
-      await expect(page.locator('#note-language')).toBeVisible();
-      await expect(page.getByText('Review notes before saving')).toBeVisible();
+      await expect(page.locator('#tab-beta')).toBeVisible();
+      await page.click('#tab-beta');
+      await expect(page.locator('#selector-hotfix-url')).toBeVisible();
       await page.close();
     });
 
@@ -1194,21 +1173,6 @@ test.describe('extension E2E harness', () => {
         (await getStorage(ext.serviceWorker, ['mm2c_logs'])).mm2c_logs.map(e => e.title)
       ).toEqual(['Recent']);
       await page.close();
-    });
-
-    test('.ics for Next Steps is gated behind Experimental (within file backup)', async () => {
-      // The .ics row lives inside the file-backup sub-options, so it's only shown
-      // when file backup is enabled — then it appears only with Experimental on.
-      const ics = (p) => p.getByText('.ics for Next Steps');
-      const off = await popupWith({ mm2c_file_backup_enabled: true, mm2c_beta_enabled: false });
-      await off.click('#tab-settings');
-      await expect(off.locator('#file-type')).toBeVisible();   // file-backup body open
-      await expect(ics(off)).not.toBeVisible();                 // …but .ics gated off
-      await off.close();
-      const on = await popupWith({ mm2c_file_backup_enabled: true, mm2c_beta_enabled: true });
-      await on.click('#tab-settings');
-      await expect(ics(on)).toBeVisible();
-      await on.close();
     });
 
     test('Beta tab renders seeded additional-destination rows (UXF-11)', async () => {

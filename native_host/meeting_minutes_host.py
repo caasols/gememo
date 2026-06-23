@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 import gauth  # combined one-flow Google connect (Calendar + Docs in one consent)
 
-HOST_VERSION = '0.3.10'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.3.11'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -94,23 +94,6 @@ def _heartbeat_rotate() -> None:
         pass
 
 
-_PII_EMAIL = re.compile(r'\b[\w.+-]+@[\w-]+\.[\w.-]+\b')
-# Credit-card-like: 13–19 digits in groups of 1+ separated by spaces/dashes.
-_PII_CARD = re.compile(r'\b(?:\d[ -]?){13,19}\b')
-# Phones, high-precision to avoid eating dates/IDs: international (+…),
-# dashed/dotted groups, or a 10+ digit run.
-_PII_PHONE = (
-    re.compile(r'\+\d[\d\s().-]{7,}\d'),
-    re.compile(r'\b\d{3}[-.]\d{3}[-.]\d{4}\b'),
-    re.compile(r'\b\d{10,}\b'),
-)
-
-
-def _ics_escape(s: str) -> str:
-    return (s.replace('\\', '\\\\').replace(';', '\\;')
-             .replace(',', '\\,').replace('\n', '\\n'))
-
-
 _DEFAULT_BACKUP_PATH = "~/Documents/gememo-meeting-notes"
 
 
@@ -143,53 +126,6 @@ def _homerel_path(abs_path, home=None):
         return str(Path("~") / Path(abs_path).relative_to(home))
     except (ValueError, TypeError):
         return abs_path
-
-
-def build_ics(steps, dt, meeting_title: str = '') -> str:
-    """Build a VCALENDAR with one all-day VEVENT per Next Step line (RB-3b).
-
-    Steps are freeform follow-ups; each becomes an all-day reminder on the
-    meeting date (deterministic — no fuzzy date parsing). CRLF line endings per
-    RFC 5545. Returns '' when there are no usable steps.
-    """
-    clean = [s.strip().lstrip('-•* ').strip() for s in (steps or []) if s and s.strip()]
-    clean = [s for s in clean if s]
-    if not clean:
-        return ''
-    date  = dt.strftime('%Y%m%d')
-    stamp = dt.strftime('%Y%m%dT%H%M%S')
-    out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Gememo//Meeting Notes//EN']
-    for i, step in enumerate(clean):
-        out += [
-            'BEGIN:VEVENT',
-            f'UID:{stamp}-{i}@gememo',
-            f'DTSTAMP:{stamp}',
-            f'DTSTART;VALUE=DATE:{date}',
-            f'SUMMARY:{_ics_escape(step)}',
-        ]
-        if meeting_title:
-            out.append(f'DESCRIPTION:{_ics_escape("From: " + meeting_title)}')
-        out.append('END:VEVENT')
-    out.append('END:VCALENDAR')
-    return '\r\n'.join(out) + '\r\n'
-
-
-def redact_pii(text, keywords=None):
-    """Strip emails, phone numbers, card-like numbers, and user keywords from a
-    note before it is written/sent (RB-5b). Best-effort, order matters: emails
-    and cards first so the broad phone patterns can't mangle them.
-    """
-    if not text:
-        return text
-    text = _PII_EMAIL.sub('[redacted-email]', text)
-    text = _PII_CARD.sub('[redacted-number]', text)
-    for pat in _PII_PHONE:
-        text = pat.sub('[redacted-phone]', text)
-    for kw in (keywords or []):
-        kw = (kw or '').strip()
-        if kw:
-            text = re.sub(re.escape(kw), '[redacted]', text, flags=re.IGNORECASE)
-    return text
 
 
 def parse_transcript(text: str) -> tuple[str, str]:
@@ -296,23 +232,6 @@ def extract_tags(body: str):
     cleaned = body[:m.start()] + body[m.end():]
     cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
     return tags, cleaned
-
-
-def apply_wikilinks(body: str, attendees: list | None) -> str:
-    """Wrap each attendee's name in [[ ]] throughout the note body (RB-4e), so
-    every meeting note becomes a node in the user's Obsidian/Craft graph.
-
-    Names are wrapped longest-first so 'Bob Martinez' is linked before 'Bob';
-    a negative lookbehind for '[' keeps already-wrapped names from being
-    double-linked. Off by default — only sent when the user enables wikilinks.
-    """
-    names = sorted(
-        {(n or '').strip() for n in (attendees or []) if (n or '').strip()},
-        key=len, reverse=True,
-    )
-    for name in names:
-        body = re.sub(rf'(?<!\[)\b{re.escape(name)}\b(?!\]\])', f'[[{name}]]', body)
-    return body
 
 
 def build_provenance_footer(dt: datetime) -> str:
@@ -667,18 +586,19 @@ def choose_retry_file(
     return None, ''
 
 
-_WEBHOOK_SECTIONS = ['Attendees', 'Summary', 'Key Points', 'Decisions Made',
-                     'Action Items', 'Next Steps', 'Open Questions']
+_NOTE_SECTIONS = ['Attendees', 'Summary', 'Key Points', 'Decisions Made',
+                  'Action Items', 'Next Steps', 'Open Questions']
 
 
 def parse_note_sections(body: str) -> dict:
-    """Split a note body into {snake_case_heading: text} for the webhook payload.
+    """Split a note body into {snake_case_heading: text}.
 
-    Tolerates `##`, `**`, and plain headings. Unknown lines before any heading
-    are ignored; missing sections are simply absent from the dict.
+    Used by the recurring-meeting context builder (P9-C) to pull the prior
+    Summary / Action Items. Tolerates `##`, `**`, and plain headings. Unknown
+    lines before any heading are ignored; missing sections are simply absent.
     """
     heading_re = re.compile(
-        r'^#{0,3}\s*\*{0,2}\s*(' + '|'.join(re.escape(s) for s in _WEBHOOK_SECTIONS) + r')\s*\*{0,2}\s*:?\s*$',
+        r'^#{0,3}\s*\*{0,2}\s*(' + '|'.join(re.escape(s) for s in _NOTE_SECTIONS) + r')\s*\*{0,2}\s*:?\s*$',
         re.IGNORECASE,
     )
     sections: dict = {}
@@ -699,51 +619,6 @@ def parse_note_sections(body: str) -> dict:
             buf.append(line)
     flush()
     return sections
-
-
-def build_webhook_payload(title: str, date_str: str, attendees, duration_min, sections: dict) -> dict:
-    """Build the JSON payload POSTed to a generic webhook (P9-D)."""
-    return {
-        'title': title,
-        'date': date_str,
-        'attendees': attendees or [],
-        'duration_min': duration_min,
-        'summary': sections.get('summary', ''),
-        'key_points': sections.get('key_points', ''),
-        'decisions': sections.get('decisions_made', ''),
-        'action_items': sections.get('action_items', ''),
-        'next_steps': sections.get('next_steps', ''),
-        'open_questions': sections.get('open_questions', ''),
-    }
-
-
-def build_slack_payload(title: str, sections: dict) -> dict:
-    """Build a Slack incoming-webhook message from the note (P9-B): bold title,
-    the Summary, and a count of action items."""
-    summary = (sections.get('summary') or '').strip()
-    ai = (sections.get('action_items') or '').strip()
-    ai_count = len([ln for ln in ai.split('\n') if ln.strip()]) if ai else 0
-    text = f"*{title}*"
-    if summary:
-        text += f"\n{summary}"
-    text += f"\n\n*Action items:* {ai_count}"
-    return {"text": text}
-
-
-def post_webhook(url: str, payload: dict, timeout: float = 8.0) -> tuple[bool, str]:
-    """POST payload as JSON to url. Best-effort; returns (ok, error_message)."""
-    import json as _json
-    import urllib.request
-    try:
-        data = _json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(url, data=data, method='POST',
-                                     headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if 200 <= resp.status < 300:
-                return True, ''
-            return False, f'webhook returned HTTP {resp.status}'
-    except Exception as exc:
-        return False, str(exc)
 
 
 def _note_title_from(text: str, path: Path) -> str:
@@ -1337,11 +1212,6 @@ def handle_capture(msg) -> None:
     _, craft_md = parse_transcript(transcript)
     _heartbeat("parsed")
 
-    # PII redaction (RB-5b) — applied to the note body before ANY write or send.
-    if msg.get("redactPii"):
-        kws = [k for k in (msg.get("redactKeywords") or "").split(",") if k.strip()]
-        craft_md = redact_pii(craft_md, kws)
-
     # Auto-tagging (RB-4c) — pull the trailing 'Tags:' line out of the body and
     # promote it to YAML frontmatter; the line never reaches the rendered note.
     topic_tags, craft_md = extract_tags(craft_md)
@@ -1360,13 +1230,7 @@ def handle_capture(msg) -> None:
     date_prefix = dt.strftime("%Y%m%d")
 
     # Provenance footer (UXC-22) — appended to every persisted/sent note so the
-    # file carries its origin. note_body stays footer-free so the structured
-    # webhook payload's section parsing isn't polluted by the footer line.
-    note_body = craft_md
-    # Wikilinks (RB-4e) — wrap attendee names in [[ ]] for graph apps, on the
-    # persisted/sent note only (note_body stays plain for structured payloads).
-    if msg.get("wikilinks"):
-        craft_md = apply_wikilinks(craft_md, msg.get("attendees"))
+    # file carries its origin.
     craft_md = craft_md + build_provenance_footer(dt)
 
     # Title: always YYYYMMDD HH:MM + meeting name (or "Meeting" fallback)
@@ -1417,41 +1281,11 @@ def handle_capture(msg) -> None:
                 cal_fields=cal_fields,
             ) if file_ext == ".md" else ""
             file_path.write_text(fm + craft_md, encoding="utf-8")
-            # .ics for the Next Steps section (RB-3b), written next to the note.
-            if msg.get("emitIcs"):
-                steps = [ln for ln in parse_note_sections(note_body).get('next_steps', '').split('\n') if ln.strip()]
-                ics = build_ics(steps, dt, label)
-                if ics:
-                    file_path.with_suffix('.ics').write_text(ics, encoding="utf-8")
         except Exception as e:
             _heartbeat(f"backup_write_failed {type(e).__name__}: {e}")
             file_path = None
 
     _heartbeat("backup_written")
-
-    # Generic webhook (P9-D) — POST the structured note before the output routing
-    # sends its response (the host process is terminated once the response is read).
-    # Best-effort: webhook failures never affect the capture result. Timeouts are
-    # kept short (ARCH-3) so a slow/unreachable hook adds at most a few seconds to
-    # the "Saved" response rather than blocking the user on the post-meeting page.
-    _HOOK_TIMEOUT = 2.5
-    webhook_url = (msg.get("webhookUrl") or "").strip()
-    slack_url   = (msg.get("slackWebhookUrl") or "").strip()
-    if webhook_url or slack_url:
-        sections = parse_note_sections(note_body)  # footer-free (UXC-22)
-        if webhook_url:
-            post_webhook(
-                webhook_url,
-                build_webhook_payload(
-                    title, dt.strftime('%Y-%m-%d'),
-                    msg.get("attendees") or [], msg.get("durationMin"), sections,
-                ),
-                timeout=_HOOK_TIMEOUT,
-            )
-        if slack_url:
-            post_webhook(slack_url, build_slack_payload(title, sections), timeout=_HOOK_TIMEOUT)
-
-    _heartbeat("webhooks_done")
 
     back_type = msg.get("backupType", "craft")
 

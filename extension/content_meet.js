@@ -48,7 +48,6 @@
   let currentMeetingType  = '';    // 'calendar' | 'ad-hoc', inferred from the title at join (P9-A3b)
   let meetingRecording    = false; // sticky: true if a recording indicator was ever seen (P9-A3c)
   let priorContext        = '';    // prior-session context for recurring meetings, fetched at join (P9-C)
-  let meetingBlocked      = false;  // true when the title matches the capture blocklist (RB-5a)
   let panelAutoOpened  = false;    // Gemini panel opened in this meeting; cleared by resetMeetingState()
   let geminiActivating = false;    // true while autoActivateGemini() async call is in-flight
   let meetingJoinedAt      = 0;          // Date.now() when Leave button first appeared; used by snapshot age log
@@ -58,7 +57,6 @@
   let meetingSnapshotTimer = null;       // setTimeout handle for meeting-anchored snapshot schedule
   let currentOutputApp     = 'craft';    // mirrors mm2c_output_app; updated from storage
   let currentTitleTemplate = '';         // per-rule note-title template, resolved at join (RB-4d)
-  let previewBeforeSend    = false;      // opt-in review-before-send gate (RB-4b)
   let snapshotsPausedFlag  = false;      // true while the "notes paused" badge/toast nudge is active (tab hidden mid-meeting)
   let pausedNudgeTimer     = null;       // debounce so a quick tab-switch doesn't flag the paused nudge
 
@@ -96,7 +94,6 @@
     currentTitleTemplate        = '';
     meetingRecording            = false;
     priorContext                = '';
-    meetingBlocked              = false;
     captureProactivelyAttempted = false;
     snapshotCount               = 0;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
@@ -129,10 +126,9 @@
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides', 'mm2c_preview_before_send']).then((data) => {
+  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides']).then((data) => {
     enabled = data.mm2c_enabled !== false;
     currentOutputApp = data.mm2c_output_app || 'craft';
-    previewBeforeSend = data.mm2c_preview_before_send === true;
     // Apply any remote selector hotfix overrides (RB-1b) over the bundled registry.
     if (typeof SELECTORS !== 'undefined') {
       effectiveSelectors = mergeSelectorOverrides(SELECTORS, data.mm2c_selector_overrides);
@@ -264,9 +260,6 @@
     }
     if ('mm2c_output_app' in changes) {
       currentOutputApp = changes.mm2c_output_app.newValue || 'craft';
-    }
-    if ('mm2c_preview_before_send' in changes) {
-      previewBeforeSend = changes.mm2c_preview_before_send.newValue === true;
     }
   });
 
@@ -701,8 +694,8 @@
   }
 
   async function _runGeminiFlowInner(timeoutMs = 120000) {
-    const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules } = isContextValid()
-      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules'])
+    const { mm2c_prompt, mm2c_prompt_rules } = isContextValid()
+      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_prompt_rules'])
       : {};
     const promptBase = mm2c_prompt?.trim() || DEFAULT_PROMPT;
 
@@ -718,7 +711,6 @@
     const prompt = assemblePrompt({
       title:       currentMeetingTitle,
       priorContext,                                  // recurring-meeting context (P9-C)
-      language:    mm2c_note_language,
       attendees:   getAttendeeNames(),
       example:     EXAMPLE_NOTES,
       base:        matchedRule?.prompt?.trim() || promptBase,
@@ -967,7 +959,6 @@
   // deactivates right before the user clicks Leave.
 
   async function takePeriodicSnapshot() {
-    if (meetingBlocked) return; // RB-5a — sensitive meeting, never capture
     if (!enabled || intercepting || capturedProactively || geminiFlowPromise || !isContextValid()) return;
     if (!getLeaveButton() || !isGeminiAvailable()) return;
 
@@ -1088,7 +1079,6 @@
   // which can fire multiple times on a single Gemini-deactivation event.
 
   async function captureProactively(meetingTitle) {
-    if (meetingBlocked) return; // RB-5a — sensitive meeting, never capture
     if (intercepting || capturedProactively || captureProactivelyAttempted || !isContextValid()) return;
     captureProactivelyAttempted = true;
 
@@ -1205,7 +1195,6 @@
 
   async function onLeaveClick(e) {
     if (!enabled) return;
-    if (meetingBlocked) { sendLog('Leave clicked — meeting on blocklist, not captured', 'user'); return; }
     if (intercepting) {
       // Either the leave flow already ran (and called btn.click() in finally),
       // or proactive capture is in progress / succeeded. Either way let through.
@@ -1232,7 +1221,7 @@
       // fresh-capture / cached-fallback / retry). Extracted + unit-tested in
       // constants.js; live getters so the cache read sees a snapshot that
       // finished during the await.
-      let transcript = await selectTranscript({
+      const transcript = await selectTranscript({
         getSnapshotPromise: () => geminiFlowPromise,
         getCachedTranscript: () => cachedTranscript,
         getCachedTranscriptAt: () => cachedTranscriptAt,
@@ -1243,16 +1232,6 @@
         now: Date.now,
         GeminiNotActiveError, InjectionTimeoutError,
       });
-
-      // Optional review-before-send gate (RB-4b).
-      if (shouldPreviewBeforeSend(previewBeforeSend, transcript)) {
-        const choice = await showPreviewOverlay(transcript);
-        if (choice === 'discard') {
-          sendLog('Note discarded from review', 'user');
-          showStatus('Note discarded', 'warn');
-          transcript = null; // skip the send below
-        }
-      }
 
       // Send to Craft only if a transcript was acquired by any path above.
       if (transcript) {
@@ -1394,12 +1373,10 @@
       currentMeetingCode  = extractMeetingCode(window.location.pathname);
       currentMeetingType  = inferMeetingType(currentMeetingTitle);
       refreshRecordingState();
-      // Capture blocklist (RB-5a) + per-rule title template (RB-4d) — resolved
-      // once at join against the cached meeting title.
+      // Per-rule title template (RB-4d) — resolved once at join against the
+      // cached meeting title.
       if (currentMeetingTitle && isContextValid()) {
-        chrome.storage.local.get(['mm2c_blocklist', 'mm2c_prompt_rules']).then(({ mm2c_blocklist, mm2c_prompt_rules }) => {
-          meetingBlocked = titleBlocked(currentMeetingTitle, mm2c_blocklist || '');
-          if (meetingBlocked) sendLog('Meeting excluded by blocklist — capture disabled for this meeting', 'user');
+        chrome.storage.local.get(['mm2c_prompt_rules']).then(({ mm2c_prompt_rules }) => {
           const rules = Array.isArray(mm2c_prompt_rules) ? mm2c_prompt_rules : [];
           currentTitleTemplate = findPromptRule(rules, currentMeetingTitle)?.titleTemplate?.trim() || '';
         }).catch(() => {});
@@ -1466,31 +1443,6 @@
     //   • <button aria-label*="Gemini"> — star icon shown after Gemini is started
     //   • DIV[role="button"] "Take notes with Gemini" — shown before first activation
     return !!getGeminiTriggerElement();
-  }
-
-  // Review-before-send overlay (RB-4b). Resolves 'send' or 'discard'. Auto-sends
-  // after 15 s so a distracted user is never blocked from leaving. (Regenerate
-  // needs a fresh live Gemini pass and is deferred — 🔴.)
-  function showPreviewOverlay(transcript) {
-    return new Promise((resolve) => {
-      const ov = document.createElement('div');
-      ov.id = 'mm2c-close-overlay';
-      ov.innerHTML = `
-        <div class="mm2c-overlay-card">
-          <div class="mm2c-overlay-title">Review before saving</div>
-          <div class="mm2c-preview">${transcript.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>
-          <div class="mm2c-overlay-actions">
-            <button id="mm2c-preview-discard" class="mm2c-overlay-btn">Discard</button>
-            <button id="mm2c-preview-send" class="mm2c-overlay-btn mm2c-overlay-btn--primary">Save and leave</button>
-          </div>
-        </div>`;
-      document.body.appendChild(ov);
-      let done = false;
-      const finish = (choice) => { if (done) return; done = true; clearTimeout(t); ov.remove(); resolve(choice); };
-      ov.querySelector('#mm2c-preview-send').addEventListener('click', () => finish('send'));
-      ov.querySelector('#mm2c-preview-discard').addEventListener('click', () => finish('discard'));
-      const t = setTimeout(() => finish('send'), 15000); // default to sending
-    });
   }
 
   let closeOverlay = null;

@@ -217,12 +217,6 @@ function buildForwardConfig(data) {
     craftFolderId: data.mm2c_craft_folder_id || '',
     craftSpaceId: data.mm2c_craft_space_id || '',
     obsidianVaultPath: data.mm2c_obsidian_vault_path || '',
-    webhookUrl: data.mm2c_webhook_url || '',
-    slackWebhookUrl: data.mm2c_slack_webhook_url || '',
-    redactPii: data.mm2c_redact_pii === true,
-    redactKeywords: data.mm2c_redact_keywords || '',
-    emitIcs: data.mm2c_emit_ics === true,
-    wikilinks: data.mm2c_wikilinks === true,
     fileBackupEnabled: data.mm2c_file_backup_enabled === true,
     fileBackupType: data.mm2c_file_backup_type || 'markdown',
     fileBackupPath: data.mm2c_file_backup_path || '~/Documents/gememo-meeting-notes',
@@ -400,27 +394,6 @@ function findPromptRule(rules, meetingTitle, now = new Date(), ctx = {}) {
   return null;
 }
 
-// Pure helper — is this meeting title on the capture blocklist (RB-5a)?
-// patterns may be an array or a comma/newline-separated string of regexes.
-function titleBlocked(title, patterns) {
-  const t = String(title || '');
-  if (!t) return false;
-  const pats = (Array.isArray(patterns) ? patterns : String(patterns || '').split(/[\n,]/))
-    .map(p => p.trim()).filter(Boolean);
-  return pats.some(p => {
-    try { return new RegExp(p, 'i').test(t); } catch { return false; }
-  });
-}
-
-// Pure helper — validate a user-entered webhook URL (ARCH-6). Returns '' when
-// the URL is blank (= disabled) or a valid http(s):// URL, else an error string.
-function webhookUrlError(url) {
-  const u = String(url || '').trim();
-  if (!u) return '';
-  if (!/^https?:\/\/\S+$/i.test(u)) return 'Enter a full http:// or https:// URL';
-  return '';
-}
-
 // Pure helper — validate a Craft inbox folder / doc ID (A4). Blank = use the
 // default (Unsorted); otherwise it must be a bare deeplink docId — never a full
 // URL and never containing whitespace. Returns '' when valid, else an error.
@@ -496,11 +469,6 @@ function meetingTitlePrefix(title) {
     ? `Meeting title: ${title}. Use this context to interpret references to projects, teams, or products in the transcript.\n\n`
     : '';
 }
-function noteLanguagePrefix(lang) {
-  return lang
-    ? `Write all notes in ${lang}. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n`
-    : '';
-}
 function attendeesPrefix(names) {
   const list = Array.isArray(names) ? names.filter(Boolean) : [];
   return list.length
@@ -509,9 +477,9 @@ function attendeesPrefix(names) {
 }
 
 // Pure helper — assemble the full Gemini prompt from its parts in the canonical
-// order: title → prior-session context → language → attendees →
+// order: title → prior-session context → attendees →
 // few-shot example → (depth-prefixed) base prompt.
-function assemblePrompt({ title = '', priorContext = '', language = '',
+function assemblePrompt({ title = '', priorContext = '',
                           attendees = [], example = '', base = '', depth = '' } = {}) {
   const depthPfx = depthInstruction(depth);
   const effectiveBase = depthPfx ? `${depthPfx}\n\n${base}` : base;
@@ -521,7 +489,6 @@ function assemblePrompt({ title = '', priorContext = '', language = '',
   const priorPfx = priorContext ? `${priorContext}\n\n` : '';
   return meetingTitlePrefix(title)
     + priorPfx
-    + noteLanguagePrefix(language)
     + attendeesPrefix(attendees)
     + examplePfx
     + effectiveBase;
@@ -594,12 +561,6 @@ function friendlyError(raw) {
   if (/transcript is empty|appears empty|Response extracted|Submit button not found/i.test(s))
     return 'No notes were captured — Gemini may not have produced a summary.';
   return 'Something went wrong saving your notes. Check the Logs tab for details.';
-}
-
-// Pure helper — should the capture be shown for review before sending (RB-4b)?
-// Only when the user opted in AND there's a non-trivial transcript to review.
-function shouldPreviewBeforeSend(enabled, transcript) {
-  return !!enabled && typeof transcript === 'string' && transcript.trim().length > 20;
 }
 
 // Pure helper — body copy for the leave-confirmation overlay (UXC-1). Names the

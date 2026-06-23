@@ -50,7 +50,6 @@
   --mm2c-btn-hover-bg: #e8f0fe;
   --mm2c-btn-active-bg: #d2e3fc;
   --mm2c-focus-ring: #9ca3af;
-  --mm2c-preview-bg: #f9fafb;
 }
 .mm2c-overlay-card {
   background: var(--mm2c-surface);
@@ -108,23 +107,6 @@
 .mm2c-overlay-btn--primary:hover { background: var(--mm2c-primary-hover); border-color: transparent; }
 .mm2c-overlay-btn--primary:active { background: var(--mm2c-primary-active); }
 
-/* Review-before-send preview (RB-4b) — a scrollable transcript in the card. */
-.mm2c-preview {
-  text-align: left;
-  max-height: 240px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--mm2c-text);
-  background: var(--mm2c-preview-bg);
-  border: 1px solid var(--mm2c-border);
-  border-radius: 6px;
-  padding: 10px;
-  margin-bottom: 16px;
-}
-
 /* Dark theme follows the OS — flip the palette once; every rule above tracks it. */
 @media (prefers-color-scheme: dark) {
   #mm2c-close-overlay {
@@ -138,6 +120,5 @@
     --mm2c-on-primary: #202124;
     --mm2c-btn-border: #5f6368;
     --mm2c-btn-hover-bg: #2d3a4d;
-    --mm2c-preview-bg: #292a2d;
   }
 }
