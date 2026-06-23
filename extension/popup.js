@@ -46,7 +46,7 @@ const GLOBAL_KEYS = [
   'mm2c_preview_before_send',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
-  'mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days',
+  'mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days', 'mm2c_show_debug_logs',
   'mm2c_destinations',
 ];
 
@@ -518,6 +518,10 @@ function applyState(s, tabId, live = null) {
   $('cleanup-final-days').value = s.mm2c_cleanup_final_days || 7;
   $('logs-cleanup-enabled').checked = s.mm2c_logs_cleanup_enabled === true;
   $('logs-cleanup-days').value = s.mm2c_logs_cleanup_days || 7;
+  // Developer-logs view filter — persisted (promoted to Settings → Diagnostics).
+  // Restored BEFORE renderLogs() below so the persisted filter applies on first paint.
+  showDebugLogs = s.mm2c_show_debug_logs === true;
+  $('show-debug-logs').checked = showDebugLogs;
   // Unified destinations: fold legacy "Also send to" apps in, dedupe to one per
   // app, drop the primary, persist the cleaned list (self-heal), then render.
   const _primary = s.mm2c_output_app || 'none';
@@ -1801,6 +1805,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Two-tier logging toggle — show/hide diagnostic (debug) entries (UX-6)
   $('show-debug-logs').addEventListener('change', (e) => {
     showDebugLogs = e.target.checked;
+    save({ mm2c_show_debug_logs: showDebugLogs });
     chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => renderLogs(mm2c_logs));
   });
 

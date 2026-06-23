@@ -20,6 +20,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ### Changed
 - **Promoted "Developer logs" + "Download activity log" out of Experimental into Settings → Diagnostics.** Both are genuinely useful diagnostic tools (they're how issues get root-caused), so they're no longer beta-gated — always available, grouped under the existing **Diagnostics** section beside *Run diagnostics*, and removed from the History tab. The Beta tab is now down to just the Selector hotfix. (Extension reload only; host version bumped for lockstep.)
+- **The Developer logs toggle now persists across popup opens.** It was a session-only view filter that reset to off every time you reopened the popup; now that it lives in Settings it behaves like a setting — your choice sticks (stored as `mm2c_show_debug_logs`, restored on open before the History list first renders). It stays a pure *display* filter — it changes only what's shown in History, never what's captured or saved. (Extension reload only.)
 - **The History tab now leads with a "History" section title**, matching Rules / Settings / About — it was the only tab missing the header. (Extension reload only; host version bumped for lockstep.)
 
 ### Fixed
