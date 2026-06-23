@@ -509,40 +509,6 @@
     .field-error:empty { display:none; }
     /* Control-height scale (UXC-8): icon/compact S=22 · button M=24–30 · CTA
        L=36 · text-input baseline=24. Snap orphan controls to it. */
-    .note-search {
-      width: 100%;
-      box-sizing: border-box;
-      margin-bottom: 8px;
-      height: 24px;            /* input baseline — aligns with sibling inputs/selects */
-      padding: 0 8px;
-      font-size: 12px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--surface);
-      color: var(--text);
-    }
-    #search-results:not(:empty) { margin-bottom: 8px; }
-    .search-filters { display: flex; gap: var(--space-3); margin-bottom: 8px; flex-wrap: wrap; }
-    .search-filters input { font-size: 11px; padding: 3px 5px; }
-    .search-filters input[type="text"] { flex: 1; min-width: 80px; }
-    .search-result {
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 8px;
-      margin-bottom: 6px;
-      background: var(--surface-subtle);
-    }
-    .search-result-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 12px;
-    }
-    .search-title { font-weight: 600; }
-    .search-date  { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
-    .search-snippet { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-    .search-empty { font-size: 11px; color: var(--text-muted); padding: 4px 2px; }
-
     .logs-count {
       font-size: 11px;
       color: var(--text-muted);
@@ -1003,7 +969,6 @@
     .btn-rule-action:focus-visible,
     .btn-capture-now:focus-visible,
     #add-rule-btn:focus-visible,
-    .note-search:focus-visible,
     .reset-link:focus-visible,
     .setup-dismiss-x:focus-visible,
     .logs-debug-toggle:focus-visible,
@@ -1588,17 +1553,6 @@
 
   <!-- ── Logs panel ─────────────────────────────────────────────── -->
   <div class="panel hidden" id="logs-panel" role="tabpanel" aria-labelledby="tab-logs">
-
-    <!-- Search past meetings — beta-gated -->
-    <div class="beta">
-      <input type="text" id="note-search" class="note-search" placeholder="Search past meetings…">
-      <div class="search-filters">
-        <input type="date" id="search-since" title="From date">
-        <input type="date" id="search-until" title="To date">
-        <input type="text" id="search-attendee" placeholder="attendee" title="Filter by attendee">
-      </div>
-      <div id="search-results"></div>
-    </div>
 
     <!-- History card — wraps the count/toolbar + the log list so the tab matches
          the card layout used by Today/Rules/Settings/About. -->

@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 import gauth  # combined one-flow Google connect (Calendar + Docs in one consent)
 
-HOST_VERSION = '0.3.5'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.3.6'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -768,17 +768,6 @@ def _note_date_from(text: str, path: Path) -> str:
     return ''
 
 
-def _snippet_around(text: str, q_lower: str, width: int = 80) -> str:
-    """A single-line snippet of context around the first match of q_lower."""
-    idx = text.lower().find(q_lower)
-    if idx < 0:
-        return ''
-    start = max(0, idx - width // 2)
-    end   = min(len(text), idx + len(q_lower) + width // 2)
-    snippet = ' '.join(text[start:end].split())
-    return ('…' if start > 0 else '') + snippet + ('…' if end < len(text) else '')
-
-
 def note_slug(label: str) -> str:
     """Normalise a meeting label to a comparable slug (P9-C series matching)."""
     return re.sub(r'[^\w]+', '-', (label or '').lower()).strip('-')[:50]
@@ -829,54 +818,6 @@ def build_prior_context(note_text: str, date_str: str) -> str:
     parts.append("Build on this where relevant, but do not repeat it verbatim — "
                  "focus on what is new or changed in the current meeting.")
     return '\n'.join(parts)
-
-
-def search_notes(query: str, backup_dir, limit: int = 20,
-                 since: str = None, until: str = None, attendee: str = None) -> list:
-    """Full-text search over final-note .md files in backup_dir (P9-E, RB-6b).
-
-    Case-insensitive substring match, newest-first. Snapshot files (`*-snap.md`)
-    are excluded so each meeting appears once. Optional filters: `since`/`until`
-    (inclusive YYYY-MM-DD bounds on the note date) and `attendee` (name must
-    appear in the note). Each result is {file, title, date, snippet}. Returns []
-    for an empty query or missing dir.
-    """
-    if not query or not query.strip():
-        return []
-    base = Path(backup_dir).expanduser()
-    if not base.exists():
-        return []
-    q = query.strip().lower()
-    att = (attendee or '').strip().lower()
-    files = sorted(
-        (p for p in base.glob('*.md') if p.is_file() and not p.name.endswith('-snap.md')),
-        key=lambda p: p.stat().st_mtime, reverse=True,
-    )
-    results = []
-    for f in files:
-        try:
-            text = f.read_text(encoding='utf-8', errors='ignore')
-        except OSError:
-            continue
-        low = text.lower()
-        if q not in low:
-            continue
-        if att and att not in low:
-            continue
-        date = _note_date_from(text, f)
-        if since and date and date < since:
-            continue
-        if until and date and date > until:
-            continue
-        results.append({
-            'file': str(f),
-            'title': _note_title_from(text, f),
-            'date': date,
-            'snippet': _snippet_around(text, q),
-        })
-        if len(results) >= limit:
-            break
-    return results
 
 
 def retry_title_fallback(title: str, file_path: Path) -> str:
@@ -1711,17 +1652,6 @@ def _dispatch() -> None:
     if msg.get("type") == "snapshot":
         handle_snapshot(msg)
         send_message({"status": "ok"})
-        return
-
-    if msg.get("type") == "search":
-        results = search_notes(
-            msg.get("query", ""),
-            str(_resolve_backup_path(msg.get("fileBackupPath"))),
-            since=msg.get("since") or None,
-            until=msg.get("until") or None,
-            attendee=msg.get("attendee") or None,
-        )
-        send_message({"status": "ok", "results": results})
         return
 
     if msg.get("type") == "prior_context":

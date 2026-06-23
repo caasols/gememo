@@ -190,20 +190,6 @@ test.describe('extension E2E harness', () => {
       expect(sent.some(s => s.msg.type === 'google_status')).toBe(true);
     });
 
-    test('MM2C_SEARCH relays query + filters to the host', async () => {
-      await stubNativeMessage(ext.serviceWorker, {
-        search: { status: 'ok', results: [{ title: 'Q3 Sync', date: '2026-06-05', snippet: '…' }] },
-        __default: { status: 'ok' },
-      });
-      const resp = await sendFromPage(popup, { type: 'MM2C_SEARCH', query: 'q3', since: '2026-06-01' });
-      expect(resp.ok).toBe(true);
-      expect(resp.results[0].title).toBe('Q3 Sync');
-      const sent = await getSent(ext.serviceWorker);
-      const call = sent.find(s => s.msg.type === 'search');
-      expect(call.msg.query).toBe('q3');
-      expect(call.msg.since).toBe('2026-06-01');
-    });
-
     test('MM2C_SET_CAPTURE_STATE records capturing state + REC tab tracking', async () => {
       await sendFromPage(popup, { type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' });
       await expect.poll(async () => {
@@ -1129,9 +1115,8 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).not.toBeVisible();
       await expect(page.locator('#default-rule')).toBeVisible();
-      // Logs-tab: search, Developer logs, and the Download footer are all gated off.
+      // Logs-tab: Developer logs and the Download footer are gated off.
       await page.click('#tab-logs');
-      await expect(page.locator('#note-search')).not.toBeVisible();
       await expect(page.locator('#show-debug-logs')).not.toBeVisible();
       await expect(page.locator('#download-logs')).not.toBeVisible();
       await page.close();
@@ -1150,7 +1135,6 @@ test.describe('extension E2E harness', () => {
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).toBeVisible();
       await page.click('#tab-logs');
-      await expect(page.locator('#note-search')).toBeVisible();
       await expect(page.locator('#show-debug-logs')).toBeVisible();
       await expect(page.locator('#download-logs')).toBeVisible();
       await page.close();
