@@ -798,6 +798,8 @@ test.describe('extension E2E harness', () => {
       });
       await page.click('#tab-logs');
       await expect(page.locator('#log-list')).toContainText('Q3 Sync');
+      // The tab leads with a "History" section title like the other tabs (Rules/Settings).
+      await expect(page.locator('#logs-panel .widget-title')).toHaveText('History');
       await page.close();
     });
 

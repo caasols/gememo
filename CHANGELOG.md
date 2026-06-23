@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Changed
+- **The History tab now leads with a "History" section title**, matching Rules / Settings / About — it was the only tab missing the header. (Extension reload only; host version bumped for lockstep.)
+
 ### Fixed
 - **Additional destinations no longer let you pick a not-connected/not-installed app — now consistent with the primary.** The row dropdowns greyed unavailable apps only *after* an async host round-trip, so a freshly-rebuilt row (on add/change) briefly let you select e.g. Google Docs while disconnected — unlike the primary dropdown, which stays greyed. The availability map is now cached and applied **synchronously** on every render, closing that window. (Extension reload only; host version bumped for lockstep.)
 
