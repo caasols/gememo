@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Added
+- **Disconnect Google in Settings → Privacy.** A new *Google account* row shows your connection (*"Connected as …"*) with a **Disconnect** button that drops the stored tokens from this Mac, **greys out Google Docs** again (OUT-1), and **turns off Calendar enrichment**. You can also Connect from here — the same one-flow consent the onboarding button uses. (Extension reload only; host version bumped for lockstep.)
 - **One-click "Connect Google" in onboarding — Docs + Calendar in a single consent.** The Welcome card's *Connect Google* step now has a **Connect** button: one OAuth consent grants **both** `calendar.readonly` + `documents`, lighting up the Google Docs output *and* Calendar enrichment together. New host module `gauth.py` runs the combined flow detached (outlives Chrome's native-messaging window) and writes both token files; the popup polls until connected, then ticks the step — and it auto-ticks if the host is already connected. The card's ✕ still dismisses, so Google stays optional. Requires a one-time Google Cloud OAuth client at `~/.config/gememo/credentials.json` (see `CALENDAR_SETUP.md`). The existing per-app Calendar/Docs connects are untouched. (Host is symlinked, so reload the extension; new installs get it via `install.sh`.)
 
 ### Changed

@@ -1506,6 +1506,32 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Settings → Privacy: Google account Disconnect relays google_disconnect + clears connect/calendar flags', async () => {
+      const page = await popupWith({
+        mm2c_google_connected: true, mm2c_calendar_enabled: true,
+      }, {
+        google_status: { connected: true, available: true, email: 'me@x' },
+        google_disconnect: { ok: true },
+        gcal_status: { connected: false, available: false },
+        gdocs_status: { connected: false, available: false },
+        destination_status: { status: 'ok', destinations: { google_docs: { available: false, reason: 'Not connected' } } },
+        ping: { status: 'ok' }, __default: { status: 'ok' },
+      });
+      await page.click('#tab-settings');
+      await expect.poll(async () => page.locator('#google-acct-status').textContent())
+        .toContain('Connected as me@x');
+      await expect(page.locator('#google-acct-btn')).toHaveText('Disconnect');
+      await page.click('#google-acct-btn');
+      // Relays google_disconnect to the host…
+      await expect.poll(async () =>
+        (await getSent(ext.serviceWorker)).some(s => s.msg && s.msg.type === 'google_disconnect')).toBe(true);
+      // …and clears the onboarding tick + disables Calendar enrichment.
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_google_connected', 'mm2c_calendar_enabled'])))
+        .toEqual({ mm2c_google_connected: false, mm2c_calendar_enabled: false });
+      await page.close();
+    });
+
     test('popup self-heals duplicate/primary destinations on load', async () => {
       const page = await popupWith({
         mm2c_output_app: 'craft',
