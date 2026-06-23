@@ -1205,6 +1205,9 @@ window.MM2C_TESTS = (() => {
     assertEq('normalizeDestinations: google_docs kept as a no-config row',
       JSON.stringify(normalizeDestinations([{ type: 'google_docs', junk: 1 }])),
       JSON.stringify([{ type: 'google_docs' }]));
+    assertEq('normalizeDestinations: bear kept as a no-config row (additional-destination parity)',
+      JSON.stringify(normalizeDestinations([{ type: 'bear', junk: 1 }])),
+      JSON.stringify([{ type: 'bear' }]));
     assertEq('normalizeDestinations: order preserved',
       JSON.stringify(normalizeDestinations([
         { type: 'craft', folderId: 'f1' },

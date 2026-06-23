@@ -702,6 +702,7 @@ const _DEST_TYPES = [
   { value: 'obsidian',    label: 'Obsidian' },
   { value: 'apple_notes', label: 'Apple Notes' },
   { value: 'craft',       label: 'Craft' },
+  { value: 'bear',        label: 'Bear' },
   { value: 'google_docs', label: 'Google Docs' },
 ];
 const _DEST_TYPE_VALUES = _DEST_TYPES.map(t => t.value);
@@ -824,6 +825,35 @@ function updateGdocsConnVisibility() {
 // then grey out the dead ones in #output-app and surface a warning banner when
 // the *selected* primary is unavailable. Fail-open: any host error leaves every
 // option enabled and the banner hidden so a missing host never blocks the UI.
+// Grey out (disable + inline reason) the options of one <select> that point at
+// an unavailable destination, and restore them when they become available. Used
+// for BOTH the primary #output-app and every additional-destination row so they
+// agree on what's installed/connected (OUT-1).
+function applyDestAvailabilityToSelect(select, dests) {
+  Array.from(select.options).forEach((opt) => {
+    if (!opt.value || opt.value === 'none') return;
+    if (opt.disabled && !opt.dataset.out1) return; // markup-disabled (Coming soon)
+    const { enabled, reason } = destinationAvailability(dests, opt.value);
+    if (!enabled) {
+      // Remember the original label once, then show the reason inline (not just
+      // on hover) — rebuilt from the base each call so repeats don't stack.
+      if (opt.dataset.out1Base === undefined) opt.dataset.out1Base = opt.textContent;
+      opt.disabled = true;
+      opt.title = reason;
+      opt.textContent = reason ? `${opt.dataset.out1Base} — ${reason}` : opt.dataset.out1Base;
+      opt.dataset.out1 = '1';
+    } else if (opt.dataset.out1) {
+      opt.disabled = false;
+      opt.title = '';
+      if (opt.dataset.out1Base !== undefined) {
+        opt.textContent = opt.dataset.out1Base;
+        delete opt.dataset.out1Base;
+      }
+      delete opt.dataset.out1;
+    }
+  });
+}
+
 function refreshDestinationStatus() {
   chrome.runtime.sendMessage({ type: 'MM2C_DESTINATION_STATUS' }, (reply) => {
     if (chrome.runtime.lastError) return; // fail open — leave the UI untouched
@@ -831,30 +861,11 @@ function refreshDestinationStatus() {
     if (!select) return;
     const banner = $('output-unavailable');
     const dests = (reply && reply.status !== 'error') ? reply.destinations : null;
-    // Per-option enabled/disabled state. Skip the 'none' sink and only touch
-    // options we own (data-out1) so the "Coming soon" entries stay disabled.
-    Array.from(select.options).forEach((opt) => {
-      if (!opt.value || opt.value === 'none') return;
-      if (opt.disabled && !opt.dataset.out1) return; // markup-disabled (Coming soon)
-      const { enabled, reason } = destinationAvailability(dests, opt.value);
-      if (!enabled) {
-        // Remember the original label once, then show the reason inline (not just
-        // on hover) — rebuilt from the base each call so repeats don't stack.
-        if (opt.dataset.out1Base === undefined) opt.dataset.out1Base = opt.textContent;
-        opt.disabled = true;
-        opt.title = reason;
-        opt.textContent = reason ? `${opt.dataset.out1Base} — ${reason}` : opt.dataset.out1Base;
-        opt.dataset.out1 = '1';
-      } else if (opt.dataset.out1) {
-        opt.disabled = false;
-        opt.title = '';
-        if (opt.dataset.out1Base !== undefined) {
-          opt.textContent = opt.dataset.out1Base;
-          delete opt.dataset.out1Base;
-        }
-        delete opt.dataset.out1;
-      }
-    });
+    applyDestAvailabilityToSelect(select, dests);
+    // Same availability treatment for the additional-destination rows so they
+    // can't offer an un-installed/un-connected app the primary already greys.
+    document.querySelectorAll('select.dest-type').forEach((sel) =>
+      applyDestAvailabilityToSelect(sel, dests));
     // Banner for the currently-selected primary.
     if (banner) {
       const warning = primaryOutputWarning(select.value, dests, outputAppName);
@@ -880,6 +891,7 @@ function renderDestinations(destinations, primaryApp = _destPrimary) {
   for (const entry of deduped) list.appendChild(buildDestinationRow(entry, { primaryApp, usedTypes }));
   updateAddDestinationState();
   updateGdocsConnVisibility();
+  refreshDestinationStatus(); // OUT-1: grey unavailable apps in the just-built rows too
 }
 
 // ── Logs ───────────────────────────────────────────────────────────────────
