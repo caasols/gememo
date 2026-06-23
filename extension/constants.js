@@ -509,9 +509,9 @@ function attendeesPrefix(names) {
 }
 
 // Pure helper — assemble the full Gemini prompt from its parts in the canonical
-// order: title → prior-session context → glossary → language → attendees →
+// order: title → prior-session context → language → attendees →
 // few-shot example → (depth-prefixed) base prompt.
-function assemblePrompt({ title = '', priorContext = '', glossary = '', language = '',
+function assemblePrompt({ title = '', priorContext = '', language = '',
                           attendees = [], example = '', base = '', depth = '' } = {}) {
   const depthPfx = depthInstruction(depth);
   const effectiveBase = depthPfx ? `${depthPfx}\n\n${base}` : base;
@@ -521,7 +521,6 @@ function assemblePrompt({ title = '', priorContext = '', glossary = '', language
   const priorPfx = priorContext ? `${priorContext}\n\n` : '';
   return meetingTitlePrefix(title)
     + priorPfx
-    + glossaryPrefix(glossary)
     + noteLanguagePrefix(language)
     + attendeesPrefix(attendees)
     + examplePfx
@@ -617,14 +616,6 @@ function closeOverlayBody(appName) {
 // strings existed, one with a subject-verb agreement error ("Gemini notes was
 // not active").
 const GEMINI_INACTIVE_MESSAGE = "No notes this time — Gemini didn't make a summary for this meeting.";
-
-// Pure helper — custom vocabulary/glossary → a prompt prefix (RB-4a). Terms are
-// comma- or newline-separated; the model is told to keep them verbatim.
-function glossaryPrefix(glossary) {
-  const terms = String(glossary || '').split(/[\n,]/).map(t => t.trim()).filter(Boolean);
-  if (!terms.length) return '';
-  return `Spell the following names and terms exactly as written, never translating, abbreviating, or altering them: ${terms.join(', ')}.\n\n`;
-}
 
 // Pure helper — per-rule summary depth → an instruction prefix (P5-L).
 function depthInstruction(depth) {

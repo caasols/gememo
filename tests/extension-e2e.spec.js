@@ -1113,9 +1113,8 @@ test.describe('extension E2E harness', () => {
       // (#show-debug-logs is a styled toggle: assert its visible label, not the opacity-0 input.)
       await expect(page.locator('label.toggle-wrap', { has: page.locator('#show-debug-logs') })).toBeVisible();
       await expect(page.locator('#download-logs')).toBeVisible();
-      // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
+      // Rules-tab: the unified rules list (Default row) stays.
       await page.click('#tab-rules');
-      await expect(page.locator('#glossary')).not.toBeVisible();
       await expect(page.locator('#default-rule')).toBeVisible();
       await page.close();
     });
@@ -1128,8 +1127,6 @@ test.describe('extension E2E harness', () => {
       await expect(page.getByText('Wikilinks for graph apps')).toBeVisible();
       await expect(page.locator('#note-language')).toBeVisible();
       await expect(page.getByText('Review notes before saving')).toBeVisible();
-      await page.click('#tab-rules');
-      await expect(page.locator('#glossary')).toBeVisible();
       await page.close();
     });
 

@@ -701,8 +701,8 @@
   }
 
   async function _runGeminiFlowInner(timeoutMs = 120000) {
-    const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules, mm2c_glossary } = isContextValid()
-      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules', 'mm2c_glossary'])
+    const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules } = isContextValid()
+      ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules'])
       : {};
     const promptBase = mm2c_prompt?.trim() || DEFAULT_PROMPT;
 
@@ -718,7 +718,6 @@
     const prompt = assemblePrompt({
       title:       currentMeetingTitle,
       priorContext,                                  // recurring-meeting context (P9-C)
-      glossary:    mm2c_glossary,                     // custom vocabulary (RB-4a)
       language:    mm2c_note_language,
       attendees:   getAttendeeNames(),
       example:     EXAMPLE_NOTES,
