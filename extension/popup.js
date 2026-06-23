@@ -723,6 +723,11 @@ const _DEST_TYPE_VALUES = _DEST_TYPES.map(t => t.value);
 
 // Primary output app — excluded from extra destinations. Set by renderDestinations.
 let _destPrimary = 'none';
+// Last destination-availability map from the host (OUT-1). Cached so a re-render
+// can grey unavailable apps SYNCHRONOUSLY — otherwise a freshly-rebuilt row has a
+// window where an un-connected app (e.g. Google Docs) is selectable, unlike the
+// primary dropdown (a static element greyed once). undefined = not fetched yet.
+let _lastDestStatus;
 
 // Build one repeater row. opts.usedTypes = every row's type (so the dropdown can
 // exclude apps taken by OTHER rows); opts.primaryApp = the primary output app.
@@ -885,6 +890,7 @@ function refreshDestinationStatus() {
     if (!select) return;
     const banner = $('output-unavailable');
     const dests = (reply && reply.status !== 'error') ? reply.destinations : null;
+    _lastDestStatus = dests; // cache for synchronous greying on the next render
     applyDestAvailabilityToSelect(select, dests);
     // Same availability treatment for the additional-destination rows so they
     // can't offer an un-installed/un-connected app the primary already greys.
@@ -915,7 +921,13 @@ function renderDestinations(destinations, primaryApp = _destPrimary) {
   for (const entry of deduped) list.appendChild(buildDestinationRow(entry, { primaryApp, usedTypes }));
   updateAddDestinationState();
   updateGdocsConnVisibility();
-  refreshDestinationStatus(); // OUT-1: grey unavailable apps in the just-built rows too
+  // Grey unavailable apps in the just-built rows SYNCHRONOUSLY from the cached
+  // status (no window where Google Docs is selectable while not connected), then
+  // refresh from the host to update the cache + catch any change.
+  if (_lastDestStatus !== undefined) {
+    list.querySelectorAll('select.dest-type').forEach((sel) => applyDestAvailabilityToSelect(sel, _lastDestStatus));
+  }
+  refreshDestinationStatus(); // OUT-1: refresh from the host + re-apply
 }
 
 // ── Logs ───────────────────────────────────────────────────────────────────

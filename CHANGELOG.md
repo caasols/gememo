@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Fixed
+- **Additional destinations no longer let you pick a not-connected/not-installed app — now consistent with the primary.** The row dropdowns greyed unavailable apps only *after* an async host round-trip, so a freshly-rebuilt row (on add/change) briefly let you select e.g. Google Docs while disconnected — unlike the primary dropdown, which stays greyed. The availability map is now cached and applied **synchronously** on every render, closing that window. (Extension reload only; host version bumped for lockstep.)
+
 ### Added
 - **Bundled Google OAuth client via the installer — connect any account with no GCP setup.** `install.sh` now fetches the shared OAuth client (`credentials.json`) from a GitHub **release asset** into `~/.config/gememo/`, so a fresh install can **Connect → authorize → done** without creating a Google Cloud project or placing a file. The secret stays **out of the source repo** — distributed through the release, not committed (same posture as MeetingBar), and rotatable by swapping the asset. A user-placed `~/.config/gememo/credentials.json` still wins (bring-your-own client). *Note:* the consent screen is in **Testing** (≤100 test-user accounts) until Google verifies the sensitive Calendar/Docs scopes for a public launch. (Re-run `install.sh`.)
 
