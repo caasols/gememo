@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Fixed
+- **A "/" in a meeting title no longer crashes the capture — and a backup failure can never lose your note (BUG-12).** A title like *"Carlos / Pablo"* put a literal `/` into the backup filename, which the OS read as a folder → the write threw `[Errno 2]` and, because it wasn't guarded, aborted the **entire** capture: the primary output (Obsidian/Craft) got nothing and recovery re-crashed. Two fixes: **(1)** the backup filename now strips `/` and `\` (like the snapshot path already did); **(2)** the file backup is now wrapped so any write failure — bad/stale path, full disk, permissions, odd title — logs a warning and the capture **continues to your primary destination**. A backup is a safety net, never a gate. Also fixed a stale `~/Downloads/meeting-notes` fallback in the extension's snapshot/search/recover paths (now `~/Documents/gememo-meeting-notes`). (Host + extension change → re-run `install.sh`.)
+
 ### Changed
 - **Fresh installs now start with sensible defaults: file backup on + 7-day auto-cleanup.** A brand-new install seeds a local Markdown backup saved to **`~/Documents/gememo-meeting-notes`**, and turns on all three auto-cleanups — old **snapshots**, old **notes**, and old **activity-log entries** — at **7 days**. Everything shows enabled in Settings and you can change or disable any of it. **Existing installs are untouched:** defaults are seeded only on a first install and never override a choice you've already made, so auto-delete is never retroactively enabled on your backups. (Extension reload only; host version bumped for lockstep.)
 - **Dropped "(optional)" from the onboarding "Connect Google" step** — the whole Welcome card is dismissible, so every step is effectively optional; the label is just "Connect Google for Docs & Calendar". (Extension reload only; host version bumped for lockstep.)

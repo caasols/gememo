@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.30'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.31'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1450,30 +1450,42 @@ def handle_capture(msg) -> None:
 
     # Optional file backup
     file_ext  = ".txt" if file_backup_type == "txt" else ".md"
-    slug      = title[9:].lower().replace(" ", "-")[:50] if len(title) > 8 else title[:60]
+    # Strip path separators from the title-derived slug so a meeting title like
+    # "Carlos / Pablo" can't smuggle a '/' into the filename and create a phantom
+    # subdirectory (BUG-12). Snapshots already route through _file_slug; this is
+    # the final-backup equivalent.
+    slug      = re.sub(r'[/\\]', '', title[9:]).lower().replace(" ", "-")[:50] \
+                if len(title) > 8 else re.sub(r'[/\\]', '', title)[:60]
     file_path = None
     if file_backup_enabled:
-        file_backup_path.mkdir(parents=True, exist_ok=True)
-        file_path = file_backup_path / f"{title[:8]}-{slug}{file_ext}"
-        note_attendees = msg.get("attendees") or []
-        note_duration  = msg.get("durationMin")
-        fm = build_yaml_frontmatter(
-            label, dt,
-            attendees=note_attendees,
-            duration_min=int(note_duration) if note_duration is not None else None,
-            meeting_code=msg.get("meetingCode") or None,
-            meeting_type=msg.get("meetingType") or None,
-            recording=bool(msg.get("recording")),
-            topic_tags=topic_tags,
-            cal_fields=cal_fields,
-        ) if file_ext == ".md" else ""
-        file_path.write_text(fm + craft_md, encoding="utf-8")
-        # .ics for the Next Steps section (RB-3b), written next to the note.
-        if msg.get("emitIcs"):
-            steps = [ln for ln in parse_note_sections(note_body).get('next_steps', '').split('\n') if ln.strip()]
-            ics = build_ics(steps, dt, label)
-            if ics:
-                file_path.with_suffix('.ics').write_text(ics, encoding="utf-8")
+        # The file backup is a SAFETY NET, never a gate — a failed write (bad path,
+        # full disk, permissions, odd filename) must not abort the capture or block
+        # the primary output (BUG-12). Log and carry on with file_path=None.
+        try:
+            file_backup_path.mkdir(parents=True, exist_ok=True)
+            file_path = file_backup_path / f"{title[:8]}-{slug}{file_ext}"
+            note_attendees = msg.get("attendees") or []
+            note_duration  = msg.get("durationMin")
+            fm = build_yaml_frontmatter(
+                label, dt,
+                attendees=note_attendees,
+                duration_min=int(note_duration) if note_duration is not None else None,
+                meeting_code=msg.get("meetingCode") or None,
+                meeting_type=msg.get("meetingType") or None,
+                recording=bool(msg.get("recording")),
+                topic_tags=topic_tags,
+                cal_fields=cal_fields,
+            ) if file_ext == ".md" else ""
+            file_path.write_text(fm + craft_md, encoding="utf-8")
+            # .ics for the Next Steps section (RB-3b), written next to the note.
+            if msg.get("emitIcs"):
+                steps = [ln for ln in parse_note_sections(note_body).get('next_steps', '').split('\n') if ln.strip()]
+                ics = build_ics(steps, dt, label)
+                if ics:
+                    file_path.with_suffix('.ics').write_text(ics, encoding="utf-8")
+        except Exception as e:
+            _heartbeat(f"backup_write_failed {type(e).__name__}: {e}")
+            file_path = None
 
     _heartbeat("backup_written")
 

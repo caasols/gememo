@@ -178,7 +178,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         chrome.runtime.sendNativeMessage(NATIVE_HOST, {
           type: 'prior_context',
           meetingTitle: msg.meetingTitle || '',
-          fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
+          fileBackupPath: data.mm2c_file_backup_path || '~/Documents/gememo-meeting-notes',
         }, (response) => {
           const err = chrome.runtime.lastError?.message || null;
           sendResponse(err ? { ok: false, context: '' } : { ok: true, context: response?.context || '' });
@@ -194,7 +194,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           since: msg.since || '',
           until: msg.until || '',
           attendee: msg.attendee || '',
-          fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
+          fileBackupPath: data.mm2c_file_backup_path || '~/Documents/gememo-meeting-notes',
         }, (response) => {
           const err = chrome.runtime.lastError?.message || null;
           sendResponse(err ? { ok: false, error: err } : { ok: true, results: response?.results || [] });
@@ -382,7 +382,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           meetingTitle:   msg.meetingTitle     || '',
           timestamp:      msg.timestamp        || new Date().toISOString(),
           fileBackupType: data.mm2c_file_backup_type || 'markdown',
-          fileBackupPath: data.mm2c_file_backup_path || '~/Downloads/meeting-notes',
+          fileBackupPath: data.mm2c_file_backup_path || '~/Documents/gememo-meeting-notes',
         }, (response) => {
           if (chrome.runtime.lastError) {
             console.warn('[MM2C] Snapshot backup failed:', chrome.runtime.lastError.message);
