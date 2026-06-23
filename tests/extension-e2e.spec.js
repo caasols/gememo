@@ -1179,6 +1179,13 @@ test.describe('extension E2E harness', () => {
       await page2.close();
     });
 
+    test('Developer logs toggle defaults OFF on a fresh install', async () => {
+      const page = await popupWith({}); // empty storage = fresh install (no seeded key)
+      await page.click('#tab-settings');
+      await expect(page.locator('#show-debug-logs')).not.toBeChecked();
+      await page.close();
+    });
+
     test('History auto-cleanup: entries older than N days are pruned on open', async () => {
       const DAY = 86400000;
       const now = Date.now();
