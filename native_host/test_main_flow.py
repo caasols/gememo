@@ -470,6 +470,44 @@ class TestGdocsDispatch(unittest.TestCase):
         self.assertIn("boom", sent[-1]["error"])
 
 
+class TestGoogleDispatch(unittest.TestCase):
+    """main() routing for the combined one-flow google_* messages (gauth)."""
+
+    def _dispatch(self, msg):
+        sent = []
+        with patch.object(host, 'read_message', return_value=msg), \
+                patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
+                patch.object(host, 'notify'):
+            host.main()
+        return sent
+
+    def test_google_status_sent_verbatim(self):
+        canned = {"connected": True, "available": True, "email": "me@x.com"}
+        with patch.object(host.gauth, 'status', return_value=canned):
+            sent = self._dispatch({"type": "google_status"})
+        self.assertEqual(sent[-1], canned)
+
+    def test_google_disconnect_sent(self):
+        with patch.object(host.gauth, 'disconnect', return_value={"ok": True}) as dc:
+            sent = self._dispatch({"type": "google_disconnect"})
+        dc.assert_called_once()
+        self.assertEqual(sent[-1], {"ok": True})
+
+    def test_google_connect_spawns_detached(self):
+        with patch.object(host.subprocess, 'Popen') as popen:
+            sent = self._dispatch({"type": "google_connect"})
+        popen.assert_called_once()
+        self.assertTrue(str(popen.call_args[0][0][-1]).endswith("gauth.py"))
+        self.assertEqual(popen.call_args[1].get("start_new_session"), True)
+        self.assertEqual(sent[-1], {"status": "ok", "started": True})
+
+    def test_google_connect_popen_failure_errors(self):
+        with patch.object(host.subprocess, 'Popen', side_effect=OSError("nope")):
+            sent = self._dispatch({"type": "google_connect"})
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("nope", sent[-1]["error"])
+
+
 class TestCaptureHooks(unittest.TestCase):
     """Capture-path wiring inside main(): googleDocsOutput / destinations /
     calendar enrichment / wikilinks / backupCleanup / timestamp fallback.

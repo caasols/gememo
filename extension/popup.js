@@ -67,11 +67,52 @@ function renderSetupWizard(hostOk) {
       `<div style="display:flex;gap:7px;align-items:center;margin-top:6px">
          <span style="color:${s.ok ? 'var(--success)' : 'var(--text-muted)'}">${s.ok ? '✓' : '○'}</span>
          <span style="color:var(--text)">${escapeHtml(s.label)}</span>
+         ${s.id === 'google' && !s.ok
+           ? `<button type="button" id="setup-google-connect" class="btn"
+                style="margin-left:auto;padding:2px 10px;font-size:12px">Connect</button>`
+           : ''}
        </div>`).join('');
+    // The onboarding "Connect" button for the still-pending Google step: kick off
+    // the combined one-flow connect, then poll status until it flips (reuses the
+    // Beta-tab gcal connect+poll approach).
+    const gbtn = $('setup-google-connect');
+    if (gbtn) {
+      gbtn.addEventListener('click', () => {
+        gbtn.disabled = true;
+        gbtn.textContent = 'Connecting…';
+        chrome.runtime.sendMessage({ type: 'MM2C_GOOGLE', action: 'google_connect' }, () => {
+          // The flow runs detached; poll status (~2s, cap ~2 min) until connected.
+          let tries = 0;
+          const timer = setInterval(() => {
+            tries++;
+            chrome.runtime.sendMessage({ type: 'MM2C_GOOGLE', action: 'google_status' }, (r) => {
+              if (!chrome.runtime.lastError && r && r.connected) {
+                clearInterval(timer);
+                chrome.storage.local.set({ mm2c_google_connected: true }, () => renderSetupWizard(lastHostOk));
+              }
+            });
+            if (tries > 60) { clearInterval(timer); renderSetupWizard(lastHostOk); }
+          }, 2000);
+        });
+      });
+    }
     // Hide once EVERY step (including the optional Connect-Google one) is done —
     // nothing left to show. Otherwise keep the card up so pending steps stay visible.
     if (steps.every(s => s.ok)) { panel.classList.add('hidden'); return; }
     panel.classList.remove('hidden');
+  });
+}
+
+// Status sync: ask the host whether the combined Google grant is live. If so,
+// tick the onboarding step (so a host connected outside the popup reflects here).
+// We never forcibly UN-tick — a user who dismissed/declined isn't pestered.
+function syncGoogleConnected(cb) {
+  chrome.runtime.sendMessage({ type: 'MM2C_GOOGLE', action: 'google_status' }, (r) => {
+    if (!chrome.runtime.lastError && r && r.connected) {
+      chrome.storage.local.set({ mm2c_google_connected: true }, () => cb && cb());
+      return;
+    }
+    if (cb) cb();
   });
 }
 
@@ -625,7 +666,13 @@ function renderStatus() {
 
 function setHostStatus(ok, error, hostVersion, versionMismatch) {
   lastHostOk = ok === true;
-  renderSetupWizard(lastHostOk); // refresh the first-run checklist (RB-7a)
+  // Sync the combined-Google connection from the host (ticks the step when an
+  // already-connected host reports it), THEN refresh the checklist (RB-7a).
+  if (lastHostOk) {
+    syncGoogleConnected(() => renderSetupWizard(lastHostOk));
+  } else {
+    renderSetupWizard(lastHostOk);
+  }
   _status.hostOk = ok === true;
   _status.hostVersion = hostVersion || '';
   _status.versionMismatch = !!(ok && versionMismatch);

@@ -178,6 +178,18 @@ test.describe('extension E2E harness', () => {
       expect(sent.some(s => s.msg.type === 'gcal_status')).toBe(true);
     });
 
+    test('MM2C_GOOGLE relays the combined connect action to the host', async () => {
+      await stubNativeMessage(ext.serviceWorker, {
+        google_status: { connected: true, available: true, email: 'me@x.com' },
+        __default: { status: 'ok' },
+      });
+      const resp = await sendFromPage(popup, { type: 'MM2C_GOOGLE', action: 'google_status' });
+      expect(resp.connected).toBe(true);
+      expect(resp.email).toBe('me@x.com');
+      const sent = await getSent(ext.serviceWorker);
+      expect(sent.some(s => s.msg.type === 'google_status')).toBe(true);
+    });
+
     test('MM2C_SEARCH relays query + filters to the host', async () => {
       await stubNativeMessage(ext.serviceWorker, {
         search: { status: 'ok', results: [{ title: 'Q3 Sync', date: '2026-06-05', snippet: '…' }] },
@@ -873,6 +885,85 @@ test.describe('extension E2E harness', () => {
       });
       await expect(page.locator('#setup-wizard')).toBeVisible();
       await expect(page.locator('#setup-wizard-steps')).toContainText('Connect Google');
+      await page.close();
+    });
+
+    test('setup wizard shows a Connect button on the pending Google step (one-flow)', async () => {
+      const page = await popupWith(
+        {
+          mm2c_output_app: 'craft',
+          mm2c_stats: { meetingsAttended: 2, notesSaved: 1, wordsCaptured: 50, totalMeetingMinutes: 20 },
+        },
+        {
+          ping: { status: 'ok' },
+          google_status: { connected: false, available: true },
+          __default: { status: 'ok' },
+        }
+      );
+      await expect(page.locator('#setup-wizard')).toBeVisible();
+      await expect(page.locator('#setup-google-connect')).toBeVisible();
+      await expect(page.locator('#setup-google-connect')).toHaveText('Connect');
+      await page.close();
+    });
+
+    test('clicking Connect sends google_connect then polls google_status → ticks the step', async () => {
+      const page = await popupWith(
+        {
+          mm2c_output_app: 'craft',
+          mm2c_stats: { meetingsAttended: 2, notesSaved: 1, wordsCaptured: 50, totalMeetingMinutes: 20 },
+        },
+        {
+          ping: { status: 'ok' },
+          google_status: { connected: false, available: true },
+          __default: { status: 'ok' },
+        }
+      );
+      await expect(page.locator('#setup-google-connect')).toBeVisible();
+      await page.click('#setup-google-connect');
+      // google_connect was relayed to the host.
+      await expect.poll(async () =>
+        (await getSent(ext.serviceWorker)).some(s => s.msg.type === 'google_connect')
+      ).toBe(true);
+      // The detached flow "completes": flip the host status to connected (without
+      // clearing the recorded calls) so the popup's poll observes it next tick.
+      await ext.serviceWorker.evaluate(() => {
+        const prior = chrome.runtime.sendNativeMessage;
+        chrome.runtime.sendNativeMessage = (host, msg, cb) => {
+          globalThis.__nativeSent.push({ host, msg });
+          const resp = msg.type === 'google_status'
+            ? { connected: true, available: true, email: 'me@x.com' }
+            : { status: 'ok' };
+          if (cb) setTimeout(() => cb(resp), 0);
+        };
+        void prior;
+      });
+      // The poll flips storage → the step ticks.
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_google_connected'])).mm2c_google_connected,
+        { timeout: 15000 }
+      ).toBe(true);
+      await page.close();
+    });
+
+    test('load-time status sync ticks the Google step when the host reports connected', async () => {
+      // Host already connected (e.g. connected outside the popup) but storage not
+      // yet set → the load-time sync should set mm2c_google_connected and hide the
+      // card (all steps now done).
+      const page = await popupWith(
+        {
+          mm2c_output_app: 'craft',
+          mm2c_stats: { meetingsAttended: 2, notesSaved: 1, wordsCaptured: 50, totalMeetingMinutes: 20 },
+        },
+        {
+          ping: { status: 'ok' },
+          google_status: { connected: true, available: true, email: 'me@x.com' },
+          __default: { status: 'ok' },
+        }
+      );
+      await expect.poll(async () =>
+        (await getStorage(ext.serviceWorker, ['mm2c_google_connected'])).mm2c_google_connected
+      ).toBe(true);
+      await expect(page.locator('#setup-wizard')).toBeHidden();
       await page.close();
     });
 

@@ -113,6 +113,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
       return true; // async
 
+    case 'MM2C_GOOGLE':
+      // Relay a google_connect / google_status / google_disconnect message to the
+      // host — the combined one-flow Calendar+Docs connect. Mirrors MM2C_GCAL.
+      chrome.runtime.sendNativeMessage(NATIVE_HOST, { type: msg.action }, (response) => {
+        const err = chrome.runtime.lastError?.message || null;
+        sendResponse(err ? { ok: false, error: err } : (response || {}));
+      });
+      return true; // async
+
     case 'MM2C_DESTINATION_STATUS':
       // Ask the host which output destinations can currently receive a note
       // (OUT-1). Reply mirrors the host: { status:'ok', destinations:{…} }. On any
