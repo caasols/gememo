@@ -126,13 +126,9 @@
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides']).then((data) => {
+  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app']).then((data) => {
     enabled = data.mm2c_enabled !== false;
     currentOutputApp = data.mm2c_output_app || 'craft';
-    // Apply any remote selector hotfix overrides (RB-1b) over the bundled registry.
-    if (typeof SELECTORS !== 'undefined') {
-      effectiveSelectors = mergeSelectorOverrides(SELECTORS, data.mm2c_selector_overrides);
-    }
     // Reset capture state for a fresh meeting. (The popup reads the tab-keyed
     // mm2c_last_status_<tabId>, written by background.js — there is no global
     // status key to clear here.)
@@ -300,10 +296,9 @@
     });
   }
 
-  // Effective selector registry (RB-1a) = bundled SELECTORS overlaid with any
-  // remote hotfix overrides (RB-1b), loaded from storage at startup. Defaults to
-  // the bundled set so the linchpin selectors work before overrides load.
-  let effectiveSelectors = (typeof SELECTORS !== 'undefined') ? SELECTORS : {};
+  // Effective selector registry (RB-1a) = the bundled SELECTORS set, loaded from
+  // constants.js. Capture queries always run against the bundled selectors.
+  const effectiveSelectors = (typeof SELECTORS !== 'undefined') ? SELECTORS : {};
   function firstSel(name, fallback) {
     const list = effectiveSelectors[name];
     return (Array.isArray(list) && list[0]) ? list[0] : fallback;

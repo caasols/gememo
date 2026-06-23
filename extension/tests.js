@@ -2033,31 +2033,6 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  function testSelectorHotfix() {
-    console.group('selector hotfix merge/sanitize (RB-1b)');
-    // sanitize keeps known keys, accepts string or array, drops junk.
-    const clean = sanitizeSelectorOverrides({
-      leaveButton: 'button.new-leave',
-      submit: ['a', 'b'],
-      bogusKey: ['x'],
-      geminiInput: 123,
-    });
-    assert('string override → single-element array', JSON.stringify(clean.leaveButton) === JSON.stringify(['button.new-leave']));
-    assert('array override kept', JSON.stringify(clean.submit) === JSON.stringify(['a', 'b']));
-    assert('unknown key dropped', !('bogusKey' in clean));
-    assert('non-string/array value dropped', !('geminiInput' in clean));
-    assertEq('garbage input → empty object', JSON.stringify(sanitizeSelectorOverrides(null)), '{}');
-
-    // merge overlays only provided keys; others untouched; inputs not mutated.
-    const base = { leaveButton: ['old'], submit: ['s'] };
-    const merged = mergeSelectorOverrides(base, { leaveButton: ['new'] });
-    assert('override replaces the key', JSON.stringify(merged.leaveButton) === JSON.stringify(['new']));
-    assert('other keys untouched', JSON.stringify(merged.submit) === JSON.stringify(['s']));
-    assert('base not mutated', JSON.stringify(base.leaveButton) === JSON.stringify(['old']));
-    assert('empty overrides → base copy', JSON.stringify(mergeSelectorOverrides(base, {})) === JSON.stringify(base));
-    console.groupEnd();
-  }
-
   function testNormalizeTheme() {
     console.group('normalizeTheme (UXF-8)');
     assertEq('light passes through', normalizeTheme('light'), 'light');
@@ -2744,7 +2719,6 @@ window.MM2C_TESTS = (() => {
     testPromptPrefixHelpers();
     testInflightRecoverable();
     testSelectorRegistry();
-    testSelectorHotfix();
     testNormalizeTheme();
     testBucketLogGroupsByDay();
     testLogGroupKey();

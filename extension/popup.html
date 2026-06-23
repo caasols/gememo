@@ -969,24 +969,6 @@
       outline-offset: 2px;
     }
 
-    /* Beta-features gating (UXF-1) — .beta elements are hidden unless the user
-       opts in via the Experimental toggle (body.beta-enabled). When shown they
-       keep their natural display, so this works on rows, widgets, and buttons. */
-    body:not(.beta-enabled) .beta { display: none !important; }
-    .beta-pill {
-      display: inline-block;
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      color: var(--warn-text);
-      background: var(--warn-bg);
-      border: 1px solid var(--warn-border);
-      border-radius: 6px;
-      padding: 0 4px;
-      margin-left: 6px;
-    }
-
     /* Inline warning banner (OUT-1) — flags when the selected primary output
        can't currently receive a note. Reuses the shared --warn tokens. */
     .inline-warn {
@@ -1094,14 +1076,13 @@
     </label>
   </div>
 
-  <!-- Tab bar — 6 tabs (Beta is hidden unless experimental features are on) -->
+  <!-- Tab bar — 5 tabs -->
   <div class="tab-bar" role="tablist" aria-label="Sections">
     <button class="tab active" id="tab-main" role="tab" aria-selected="true" aria-controls="main-panel">Today</button>
     <button class="tab" id="tab-logs" role="tab" aria-selected="false" aria-controls="logs-panel">History</button>
     <button class="tab" id="tab-rules" role="tab" aria-selected="false" aria-controls="rules-panel">Rules</button>
     <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="settings-panel">Settings</button>
     <button class="tab" id="tab-about" role="tab" aria-selected="false" aria-controls="about-panel">About</button>
-    <button class="tab beta" id="tab-beta" role="tab" aria-selected="false" aria-controls="beta-panel">Beta</button>
   </div>
 
   <!-- ── Main panel ─────────────────────────────────────────────── -->
@@ -1389,19 +1370,6 @@
       <p class="hint">Developer logs reveal the verbose debug entries in the History tab; Download exports the activity log to a file — both handy when reporting an issue.</p>
     </div>
 
-    <!-- Experimental features toggle (UXF-1) — always the LAST widget in Settings. -->
-    <div class="widget">
-      <div class="widget-title">Experimental</div>
-      <div class="row">
-        <span class="label">Show experimental features</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="beta-enabled">
-          <span class="toggle-track"></span>
-        </label>
-      </div>
-      <p class="hint">Reveal in-progress features marked Beta. They may change or disappear.</p>
-    </div>
-
   </div><!-- /settings-panel -->
 
   <!-- ── Logs panel ─────────────────────────────────────────────── -->
@@ -1471,25 +1439,6 @@
     </div>
 
   </div><!-- /about-panel -->
-
-  <!-- ── Beta panel (UXF-14) ────────────────────────────────────────
-       Gathers the experimental feature widgets in one place. The tab and
-       this panel are hidden unless "Show experimental features" is on. -->
-  <div class="panel hidden" id="beta-panel" role="tabpanel" aria-labelledby="tab-beta">
-
-    <p class="hint">These features are experimental and may change or disappear in a future release.</p>
-
-    <!-- Selector hotfix (RB-1b) — beta -->
-    <div class="widget">
-      <div class="widget-title">Selector hotfix</div>
-      <div class="row">
-        <span class="label">Selector hotfix URL</span>
-        <input type="text" id="selector-hotfix-url" class="ltr" placeholder="https://…/selectors.json">
-      </div>
-      <p class="hint">Advanced: fetch a selectors.json override at startup so a Meet DOM change can be patched without a release. Leave blank to use the bundled selectors.</p>
-    </div>
-
-  </div><!-- /beta-panel -->
 
   <!-- Spacer so scrollable content is not hidden behind the fixed footer -->
   <div id="capture-footer-spacer" class="hidden"></div>

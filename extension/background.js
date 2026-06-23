@@ -24,26 +24,6 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   });
 });
 
-// Remote selector hotfix (RB-1b) — opt-in. When the user has set a hotfix URL,
-// fetch selectors.json on service-worker startup, sanitise it against the known
-// registry keys, and cache the overrides for content_meet to overlay. A failed
-// or malformed fetch is ignored, leaving the bundled selectors in force.
-function refreshSelectorHotfix() {
-  chrome.storage.local.get(['mm2c_selector_hotfix_url'], ({ mm2c_selector_hotfix_url }) => {
-    const url = (mm2c_selector_hotfix_url || '').trim();
-    if (!url) return;
-    fetch(url, { cache: 'no-store' })
-      .then(r => r.json())
-      .then(json => {
-        const overrides = sanitizeSelectorOverrides(json);
-        chrome.storage.local.set({ mm2c_selector_overrides: overrides });
-      })
-      .catch(e => console.warn('[MM2C] selector hotfix fetch failed:', e?.message || e));
-  });
-}
-refreshSelectorHotfix();
-
-
 // ── Logging ────────────────────────────────────────────────────────────────
 // Stores up to 50 log entries in chrome.storage.local under mm2c_logs.
 // Each entry: { ts, status: 'ok'|'warn'|'err', title, message }
@@ -90,7 +70,7 @@ const FORWARD_KEYS = [
   'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
-  'mm2c_destinations', 'mm2c_also_send', 'mm2c_beta_enabled',
+  'mm2c_destinations', 'mm2c_also_send',
 ];
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -278,10 +258,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }); // close chrome.storage.local.get for the retry config
       return true; // async response
     }
-
-    case 'MM2C_REFRESH_HOTFIX':
-      refreshSelectorHotfix();
-      break;
 
     case 'MM2C_RECOVER':
       // Re-send a note that was persisted in-flight but never confirmed (RB-1d).

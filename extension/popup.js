@@ -28,11 +28,9 @@ const GLOBAL_KEYS = [
   'mm2c_failed_list',
   'mm2c_last_note',
   'mm2c_stats',
-  'mm2c_beta_enabled',
   'mm2c_expanded_groups',
   'mm2c_theme',
   'mm2c_inflight',
-  'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
@@ -447,7 +445,6 @@ function applyState(s, tabId, live = null) {
   $('craft-space-id').value = s.mm2c_craft_space_id || '';
   $('craft-folder-error').textContent = craftFolderIdError(s.mm2c_craft_folder_id || '');
   $('obsidian-vault-error').textContent = obsidianVaultPathError(s.mm2c_obsidian_vault_path || '');
-  $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
   $('cleanup-snap-enabled').checked = s.mm2c_cleanup_snap_enabled === true;
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 7;
   $('cleanup-final-enabled').checked = s.mm2c_cleanup_final_enabled === true;
@@ -469,12 +466,6 @@ function applyState(s, tabId, live = null) {
     if (_hadAlsoSend) chrome.storage.local.remove('mm2c_also_send');
   }
   renderDestinations(_cleanDests, _primary);
-  const betaOn = s.mm2c_beta_enabled === true;
-  $('beta-enabled').checked = betaOn;
-  document.body.classList.toggle('beta-enabled', betaOn);
-  // The Beta tab is hidden when experimental features are off — don't strand
-  // the user on a now-hidden tab (UXF-14).
-  if (!betaOn && $('tab-beta').classList.contains('active')) switchTab('settings');
   applyTheme(s.mm2c_theme);
   const fileBackupOn = s.mm2c_file_backup_enabled === true;
   $('file-backup-enabled').checked = fileBackupOn;
@@ -890,10 +881,10 @@ function renderLogs(logs) {
     const meta = formatTimeOnly(group.entries[0].ts);
 
     // "Open ↗" — if a saved note left a deep-link reference (Apple Notes for now),
-    // surface a control to re-open it. Beta-gated until the round-trip is verified.
+    // surface a control to re-open it.
     const linkEntry = group.entries.find(e => e.link && e.link.app === 'apple_notes' && e.link.value);
     const openChip = linkEntry
-      ? `<button class="log-open-btn beta" title="Open in Apple Notes" data-ts="${linkEntry.ts}" data-noteid="${escapeHtml(linkEntry.link.value)}">Open ↗</button>`
+      ? `<button class="log-open-btn" title="Open in Apple Notes" data-ts="${linkEntry.ts}" data-noteid="${escapeHtml(linkEntry.link.value)}">Open ↗</button>`
       : '';
 
     const entriesHtml = group.entries.map(entry => {
@@ -940,7 +931,7 @@ function renderLogs(logs) {
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
 
-const TABS = ['main', 'logs', 'rules', 'settings', 'about', 'beta'];
+const TABS = ['main', 'logs', 'rules', 'settings', 'about'];
 
 function switchTab(tabName) {
   TABS.forEach(t => {
@@ -1272,12 +1263,6 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_craft_space_id: e.target.value.trim() });
   });
 
-  $('selector-hotfix-url').addEventListener('change', e => {
-    const url = e.target.value.trim();
-    $('selector-hotfix-url').value = url;
-    save({ mm2c_selector_hotfix_url: url });
-    chrome.runtime.sendMessage({ type: 'MM2C_REFRESH_HOTFIX' }, () => void chrome.runtime.lastError);
-  });
   // Backup-folder auto-cleanup (UXF-13) — beta.
   const clampDays = v => Math.max(1, Math.min(3650, parseInt(v, 10) || 30));
   $('cleanup-snap-enabled').addEventListener('change', e => save({ mm2c_cleanup_snap_enabled: e.target.checked }));
@@ -1308,14 +1293,6 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_destinations: clean });
     renderDestinations(clean, _destPrimary);
   });
-  $('beta-enabled').addEventListener('change', e => {
-    document.body.classList.toggle('beta-enabled', e.target.checked);
-    // If experimental is turned off while on the Beta tab, fall back to
-    // Settings so the user isn't stranded on a now-hidden tab (UXF-14).
-    if (!e.target.checked && $('tab-beta').classList.contains('active')) switchTab('settings');
-    save({ mm2c_beta_enabled: e.target.checked });
-  });
-
   // Tri-state appearance control (UXF-8)
   $('theme-control').addEventListener('click', e => {
     const btn = e.target.closest('button[data-theme-value]');
