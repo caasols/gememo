@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Added
+- **One-click "Connect Google" in onboarding — Docs + Calendar in a single consent.** The Welcome card's *Connect Google* step now has a **Connect** button: one OAuth consent grants **both** `calendar.readonly` + `documents`, lighting up the Google Docs output *and* Calendar enrichment together. New host module `gauth.py` runs the combined flow detached (outlives Chrome's native-messaging window) and writes both token files; the popup polls until connected, then ticks the step — and it auto-ticks if the host is already connected. The card's ✕ still dismisses, so Google stays optional. Requires a one-time Google Cloud OAuth client at `~/.config/gememo/credentials.json` (see `CALENDAR_SETUP.md`). The existing per-app Calendar/Docs connects are untouched. (Host is symlinked, so reload the extension; new installs get it via `install.sh`.)
+
 ### Changed
 - **The file-backup folder is now stored agnostically of your Mac username (BUG-12).** Picking a folder saves it home-relative (`~/Documents/gememo-meeting-notes`) instead of an absolute `/Users/<you>/…`, and the host resolves *any* stored path against the **current** home — so a path saved on one machine (e.g. a work laptop, `/Users/caraujo/…`) automatically re-homes to whatever account it's running under (`/Users/caasols/…`). Same settings, multiple Macs, iCloud-synced Documents — it just works; only the part below your home folder matters. (Host change → re-run `install.sh`.)
 

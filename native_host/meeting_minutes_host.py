@@ -28,8 +28,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
+import gauth  # combined one-flow Google connect (Calendar + Docs in one consent)
 
-HOST_VERSION = '0.2.32'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.33'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1823,6 +1824,25 @@ def _dispatch() -> None:
         # messaging window; the popup polls gdocs_status afterward. Separate grant.
         try:
             subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gdocs.py"))],
+                             start_new_session=True)
+            send_message({"status": "ok", "started": True})
+        except Exception as exc:
+            send_message({"status": "error", "error": str(exc)})
+        return
+
+    if msg.get("type") == "google_status":
+        send_message(gauth.status())
+        return
+
+    if msg.get("type") == "google_disconnect":
+        send_message(gauth.disconnect())
+        return
+
+    if msg.get("type") == "google_connect":
+        # One combined Calendar+Docs consent. Run detached so it outlives Chrome's
+        # ~30s native-messaging window; the popup polls google_status afterward.
+        try:
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gauth.py"))],
                              start_new_session=True)
             send_message({"status": "ok", "started": True})
         except Exception as exc:
