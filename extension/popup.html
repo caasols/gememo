@@ -879,19 +879,6 @@
       margin-top: 4px;
     }
 
-    /* Action items checklist (P6-B) */
-    #action-items-list { display: flex; flex-direction: column; gap: 4px; }
-    .action-item {
-      display: flex;
-      gap: 7px;
-      align-items: flex-start;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .action-item input { margin-top: 2px; flex-shrink: 0; }
-    .action-item .action-meta { color: var(--text-muted); font-size: 11px; }
-    .action-item input:checked + .action-task { text-decoration: line-through; color: var(--text-muted); }
-
     /* Additional-destinations repeater row — select + optional config + remove,
        sized so the remove control never overflows the 340px popup. */
     .dest-row { gap: 6px; }
@@ -1169,26 +1156,6 @@
     <!-- Retry list — one card per mm2c_failed_list entry; populated by popup.js -->
     <div id="retry-list"></div>
 
-    <!-- Email this note (RB-3c, beta) — zero-config mailto destination -->
-    <div class="widget beta hidden" id="email-note-widget">
-      <div class="row">
-        <span class="label">Email this note <span class="beta-pill">Beta</span></span>
-        <button class="btn" id="email-note-btn">Email note</button>
-      </div>
-    </div>
-
-    <!-- Action items from the most recent capture (P6-B) — beta-gated -->
-    <div class="widget hidden beta" id="action-items-widget">
-      <div class="widget-header">
-        <div class="widget-title">Action items <span id="my-items-badge" class="beta-pill hidden" style="color:var(--primary);background:var(--hover-primary);border-color:var(--primary)"></span></div>
-        <div style="display:flex;gap:6px">
-          <button class="btn hidden" id="send-to-tasks">Send to tasks</button>
-          <button class="btn" id="copy-action-items">Copy as tasks</button>
-        </div>
-      </div>
-      <div id="action-items-list"></div>
-    </div>
-
   </div><!-- /main-panel -->
 
   <!-- ── Rules panel ────────────────────────────────────────────── -->
@@ -1228,16 +1195,6 @@
 
   <!-- ── Settings panel ─────────────────────────────────────────── -->
   <div class="panel hidden" id="settings-panel" role="tabpanel" aria-labelledby="tab-settings">
-
-    <!-- Identity — flag action items assigned to me (UXF-7) — beta-gated -->
-    <div class="widget beta">
-      <div class="widget-title">Your name <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Name &amp; aliases</span>
-        <input type="text" id="my-aliases" class="text-normal" placeholder="James, James R, JR">
-      </div>
-      <p class="hint">Comma-separated. Action items assigned to any of these are flagged as yours on the captured note.</p>
-    </div>
 
     <!-- Appearance (UXF-8) -->
     <div class="widget">
@@ -1364,21 +1321,6 @@
         <button class="btn" id="gdocs-connect" aria-label="Connect Google Docs">Connect</button>
       </div>
       <p class="hint">Used whenever Google Docs is your Primary output or an Additional destination. Separate connection from Calendar (its own consent + token) — needs the Docs scope on the consent screen; see the setup guide (GDOCS_SETUP.md).</p>
-    </div>
-
-    <!-- Action items → task manager (RB-3a) — beta-gated -->
-    <div class="widget beta">
-      <div class="widget-title">Action items <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Send to</span>
-        <select id="task-app">
-          <option value="">Off</option>
-          <option value="things">Things</option>
-          <option value="todoist">Todoist</option>
-          <option value="omnifocus">OmniFocus</option>
-        </select>
-      </div>
-      <p class="hint">Adds a "Send to tasks" button to the captured action items, opening each as a task in your chosen app (via its URL scheme — no account needed).</p>
     </div>
 
     <!-- File backup -->

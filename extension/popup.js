@@ -38,9 +38,7 @@ const GLOBAL_KEYS = [
   'mm2c_expanded_groups',
   'mm2c_theme',
   'mm2c_wikilinks',
-  'mm2c_task_app',
   'mm2c_inflight',
-  'mm2c_my_aliases',
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
   'mm2c_preview_before_send',
@@ -127,9 +125,6 @@ function syncGoogleConnected(cb) {
     if (cb) cb();
   });
 }
-
-// The user's name aliases (UXF-7), loaded in applyState; used by renderActionItems.
-let myAliases = '';
 
 // Last known native-host status (RB-7a) so the setup checklist can refresh when
 // the output app changes without re-pinging the host.
@@ -353,43 +348,6 @@ function renderStats(stats) {
   }
 }
 
-// Render the action-item checklist from the last captured note (P6-B).
-function renderActionItems(noteBody) {
-  // Email-this-note widget (RB-3c, beta) — available whenever a note exists.
-  // .beta keeps it hidden unless beta is on; .hidden tracks note presence.
-  const emailWidget = $('email-note-widget');
-  if (emailWidget) emailWidget.classList.toggle('hidden', !String(noteBody || '').trim());
-
-  const widget = $('action-items-widget');
-  const list   = $('action-items-list');
-  if (!widget || !list) return;
-  const items = parseActionItems(noteBody || '');
-  if (!items.length) {
-    widget.classList.add('hidden');
-    list.innerHTML = '';
-    return;
-  }
-  widget.classList.remove('hidden');
-  // Show "Send to tasks" only when a task app is configured (RB-3a).
-  const sendBtn = $('send-to-tasks');
-  if (sendBtn) sendBtn.classList.toggle('hidden', !$('task-app')?.value);
-  // "N for you" badge — action items assigned to the user's aliases (UXF-7).
-  const badge = $('my-items-badge');
-  if (badge) {
-    const mine = countMyActionItems(items, myAliases);
-    badge.textContent = mine ? `${mine} for you` : '';
-    badge.classList.toggle('hidden', !mine);
-  }
-  list.innerHTML = items.map(it => {
-    const meta = [it.owner, it.deadline].filter(Boolean).join(' · ');
-    return `
-      <label class="action-item">
-        <input type="checkbox">
-        <span class="action-task">${escapeHtml(it.task)}${meta ? ` <span class="action-meta">${escapeHtml(meta)}</span>` : ''}</span>
-      </label>`;
-  }).join('');
-}
-
 // Built-in templates shown inline at the bottom of the rules list — OFF by
 // default. Only templates not yet added (by name) are shown; switching the toggle
 // ON materialises it into mm2c_prompt_rules as a normal editable rule (so it joins
@@ -508,9 +466,6 @@ function applyState(s, tabId, live = null) {
   $('emit-ics').checked = s.mm2c_emit_ics === true;
   $('preview-before-send').checked = s.mm2c_preview_before_send === true;
   $('wikilinks').checked = s.mm2c_wikilinks === true;
-  $('task-app').value = s.mm2c_task_app || '';
-  myAliases = s.mm2c_my_aliases || '';
-  $('my-aliases').value = myAliases;
   $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
   $('cleanup-snap-enabled').checked = s.mm2c_cleanup_snap_enabled === true;
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 7;
@@ -604,7 +559,6 @@ function applyState(s, tabId, live = null) {
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
   renderRecovery(s.mm2c_inflight);
-  renderActionItems(s.mm2c_last_note);
   renderStats(s.mm2c_stats);
 }
 
@@ -1420,33 +1374,6 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_destinations: clean });
     renderDestinations(clean, _destPrimary);
   });
-  $('my-aliases').addEventListener('change', e => {
-    myAliases = e.target.value.trim();
-    save({ mm2c_my_aliases: myAliases });
-    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => renderActionItems(mm2c_last_note));
-  });
-  $('task-app').addEventListener('change', e => {
-    save({ mm2c_task_app: e.target.value });
-    // Reflect the new choice on the action-items "Send to tasks" button now.
-    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => renderActionItems(mm2c_last_note));
-  });
-
-  // Send captured action items to the configured task manager (RB-3a)
-  $('send-to-tasks').addEventListener('click', () => {
-    chrome.storage.local.get(['mm2c_last_note', 'mm2c_task_app'], ({ mm2c_last_note, mm2c_task_app }) => {
-      const app = mm2c_task_app || '';
-      if (!app) return;
-      const items = parseActionItems(mm2c_last_note || '');
-      let opened = 0;
-      items.forEach(it => {
-        const url = buildTaskUrl(app, it);
-        if (url) { window.open(url, '_blank'); opened++; }
-      });
-      const btn = $('send-to-tasks');
-      btn.textContent = opened ? `Sent ${opened}` : 'No items';
-      setTimeout(() => { btn.textContent = 'Send to tasks'; }, 2000);
-    });
-  });
   $('beta-enabled').addEventListener('change', e => {
     document.body.classList.toggle('beta-enabled', e.target.checked);
     // If experimental is turned off while on the Beta tab, fall back to
@@ -1542,9 +1469,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if ('mm2c_prompt_rules' in changes) {
       renderRules(changes.mm2c_prompt_rules.newValue || []);
-    }
-    if ('mm2c_last_note' in changes) {
-      renderActionItems(changes.mm2c_last_note.newValue || '');
     }
     if ('mm2c_stats' in changes) {
       renderStats(changes.mm2c_stats.newValue || {});
@@ -1643,18 +1567,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('capture-now-btn').addEventListener('click', () => {
     if (!activeMetTabId) return;
     chrome.tabs.sendMessage(activeMetTabId, { type: 'MM2C_CAPTURE_NOW' });
-  });
-
-  // Copy action items as Markdown task list (P6-B)
-  $('copy-action-items').addEventListener('click', () => {
-    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => {
-      const md = formatActionItemsMarkdown(parseActionItems(mm2c_last_note || ''));
-      if (!md) return;
-      navigator.clipboard.writeText(md).then(() => {
-        const btn = $('copy-action-items');
-        flashCopied(btn, 'Copy as tasks');
-      });
-    });
   });
 
   // Run diagnostics — gather host/settings/permissions into a shareable report (RB-7b)
@@ -1770,15 +1682,6 @@ document.addEventListener('DOMContentLoaded', () => {
     statusAction: 'google_status', connectAction: 'google_connect', disconnectAction: 'google_disconnect',
     onConnect: () => { save({ mm2c_google_connected: true }); refreshDestinationStatus(); },
     onDisconnect: () => { save({ mm2c_google_connected: false }); refreshDestinationStatus(); },
-  });
-
-  // Email the most recent note via the OS mail client (RB-3c, beta)
-  $('email-note-btn').addEventListener('click', () => {
-    chrome.storage.local.get(['mm2c_last_note'], ({ mm2c_last_note }) => {
-      const body = String(mm2c_last_note || '').trim();
-      if (!body) return;
-      window.open(buildMailtoUrl({ title: 'Meeting notes', body }), '_blank');
-    });
   });
 
   // Download logs as JSON

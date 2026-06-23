@@ -1094,12 +1094,10 @@ test.describe('extension E2E harness', () => {
     test('advanced features are hidden when Experimental is OFF (beta gating)', async () => {
       const page = await popupWith({ mm2c_beta_enabled: false });
       await page.click('#tab-settings');
-      // Settings-tab gated widgets: Your name, Webhook, the Privacy-settings redaction
-      // sub-block, action-item routing, wikilinks.
-      await expect(page.locator('#my-aliases')).not.toBeVisible();
+      // Settings-tab gated widgets: Webhook, the Privacy-settings redaction
+      // sub-block, wikilinks.
       await expect(page.locator('#webhook-url')).not.toBeVisible();
       await expect(page.locator('#redact-keywords')).not.toBeVisible();
-      await expect(page.locator('#task-app')).not.toBeVisible();
       await expect(page.getByText('Wikilinks for graph apps')).not.toBeVisible();
       await expect(page.locator('#note-language')).not.toBeVisible();
       await expect(page.locator('#preview-before-send')).not.toBeVisible();
@@ -1125,10 +1123,8 @@ test.describe('extension E2E harness', () => {
     test('advanced features appear when Experimental is ON (beta gating)', async () => {
       const page = await popupWith({ mm2c_beta_enabled: true });
       await page.click('#tab-settings');
-      await expect(page.locator('#my-aliases')).toBeVisible();
       await expect(page.locator('#webhook-url')).toBeVisible();
       await expect(page.locator('#redact-keywords')).toBeVisible();
-      await expect(page.locator('#task-app')).toBeVisible();
       await expect(page.getByText('Wikilinks for graph apps')).toBeVisible();
       await expect(page.locator('#note-language')).toBeVisible();
       await expect(page.getByText('Review notes before saving')).toBeVisible();

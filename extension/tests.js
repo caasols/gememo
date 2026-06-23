@@ -1943,21 +1943,6 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  function testMyActionItems() {
-    console.group('owner/alias matching (UXF-7)');
-    assertEq('parseAliases trims + drops blanks',
-      JSON.stringify(parseAliases('James, , James R ,JR')), JSON.stringify(['James', 'James R', 'JR']));
-    assert('whole-word match', ownerMatchesAliases('James R', 'James, JR') === true);
-    assert('no partial-word match (Jameson)', ownerMatchesAliases('Jameson', 'James') === false);
-    assert('case-insensitive', ownerMatchesAliases('james', 'James') === true);
-    assert('empty owner → false', ownerMatchesAliases('', 'James') === false);
-    assert('empty aliases → false', ownerMatchesAliases('James', '') === false);
-    const items = [{ owner: 'James R' }, { owner: 'Alice' }, { owner: 'JR' }];
-    assertEq('counts my items across aliases', countMyActionItems(items, 'James, JR'), 2);
-    assertEq('no aliases → 0', countMyActionItems(items, ''), 0);
-    console.groupEnd();
-  }
-
   function testHandlerPredicates() {
     console.group('handler predicates (D2)');
     const now = 1_000_000, win = 40 * 60 * 1000;
@@ -2235,37 +2220,6 @@ window.MM2C_TESTS = (() => {
     const full = {};
     for (const k in FIRST_RUN_DEFAULTS) full[k] = FIRST_RUN_DEFAULTS[k];
     assert('a fully-set install seeds nothing', Object.keys(firstRunDefaults(full)).length === 0);
-    console.groupEnd();
-  }
-
-  function testBuildTaskUrl() {
-    console.group('buildTaskUrl (RB-3a)');
-    const item = { task: 'Ship the spec', owner: 'Alice', deadline: 'June 6' };
-    assert('things scheme + encoded title',
-      buildTaskUrl('things', item).startsWith('things:///add?title=Ship%20the%20spec'));
-    assert('things includes notes with owner + deadline',
-      /notes=Owner%3A%20Alice%20%C2%B7%20Due%3A%20June%206/.test(buildTaskUrl('things', item)));
-    assert('todoist scheme', buildTaskUrl('todoist', item).startsWith('todoist://addtask?content='));
-    assert('omnifocus scheme', buildTaskUrl('omnifocus', item).startsWith('omnifocus:///add?name='));
-    assertEq('unknown app → empty', buildTaskUrl('evernote', item), '');
-    assertEq('empty task → empty', buildTaskUrl('things', { task: '' }), '');
-    assert('no notes when owner/deadline absent',
-      buildTaskUrl('things', { task: 'X' }) === 'things:///add?title=X');
-    console.groupEnd();
-  }
-
-  function testBuildMailtoUrl() {
-    console.group('buildMailtoUrl (RB-3c)');
-    const u = buildMailtoUrl({ title: 'Q3 Sync', body: 'Notes here' });
-    assert('starts with mailto:?subject=', u.startsWith('mailto:?subject='));
-    assert('subject is URL-encoded', u.includes('Q3%20Sync'));
-    assert('body is URL-encoded in the body param', u.includes('body=Notes%20here'));
-    assert('blank title falls back to "Meeting notes"',
-      buildMailtoUrl({ body: 'x' }).includes('subject=Meeting%20notes'));
-    const longBody = 'a'.repeat(5000);
-    const lu = buildMailtoUrl({ body: longBody, maxBody: 100 });
-    assert('long body is truncated', decodeURIComponent(lu.split('body=')[1]).includes('truncated'));
-    assert('truncation keeps the URL short', lu.length < 5000);
     console.groupEnd();
   }
 
@@ -2594,31 +2548,6 @@ window.MM2C_TESTS = (() => {
   assert('groupOutcome: empty → info',
     groupOutcome([]) === 'info');
 
-  // parseActionItems — extract {owner, task, deadline} from a note body (P6-B)
-  const _note = 'Summary\nWe shipped it.\n\n' +
-    'Action Items\n' +
-    'Alice Chen: Draft the spec by June 6.\n' +
-    'Bob: Review the PR. No deadline set.\n\n' +
-    'Open Questions\nWhat about Z?';
-  const _items = parseActionItems(_note);
-  assert('parseActionItems: count is 2 (stops at next heading)', _items.length === 2);
-  assert('parseActionItems: owner + deadline parsed',
-    _items[0].owner === 'Alice Chen' && _items[0].deadline === 'June 6');
-  assert('parseActionItems: no-deadline → null deadline',
-    _items[1].owner === 'Bob' && _items[1].deadline === null);
-  assert('parseActionItems: strips ## and ** around the heading',
-    parseActionItems('## Action Items\n**Carlos:** ship it.').length === 1);
-  assert('parseActionItems: no section → empty',
-    parseActionItems('Summary\nNothing here.').length === 0);
-
-  // formatActionItemsMarkdown — copy-as-tasks output
-  assert('formatActionItemsMarkdown: owner + deadline in parens',
-    formatActionItemsMarkdown([{ owner: 'Alice', task: 'Draft spec', deadline: 'June 6' }])
-      === '- [ ] Draft spec (Alice, June 6)');
-  assert('formatActionItemsMarkdown: no meta → bare task',
-    formatActionItemsMarkdown([{ owner: '', task: 'Do thing', deadline: null }])
-      === '- [ ] Do thing');
-
   // filterLogsByLevel — two-tier logging: hide debug entries by default (UX-6)
   const _logs = [
     { level: 'user', message: 'saved' },
@@ -2854,7 +2783,6 @@ window.MM2C_TESTS = (() => {
     testDestinationAvailability();
     testPrimaryOutputWarning();
     testSafeSend();
-    testMyActionItems();
     testHandlerPredicates();
     testPromptPrefixHelpers();
     testInflightRecoverable();
@@ -2867,8 +2795,6 @@ window.MM2C_TESTS = (() => {
     testBuildDiagnosticsReport();
     testBuildForwardConfig();
     testFirstRunDefaults();
-    testBuildTaskUrl();
-    testBuildMailtoUrl();
     testFriendlyError();
     testShouldPreviewBeforeSend();
     testCloseOverlayBody();
