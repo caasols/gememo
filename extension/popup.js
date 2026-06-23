@@ -720,7 +720,9 @@ function updateAddDestinationState() {
   const btn = $('add-destination');
   if (!btn) return;
   const used = normalizeDestinations(readDestinationsFromDom()).map(e => e.type);
-  btn.disabled = availableDestTypes(_DEST_TYPE_VALUES, _destPrimary, used, null).length === 0;
+  const unused = availableDestTypes(_DEST_TYPE_VALUES, _destPrimary, used, null);
+  const avail = addableDestTypes(unused, (t) => destinationAvailability(_lastDestStatus, t).reason);
+  btn.disabled = avail.length === 0;
 }
 
 // Show the Google Docs connection control whenever Google Docs is in use — as the
@@ -1287,8 +1289,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Additional destinations repeater (UXF-11) — add a fresh row.
   $('add-destination').addEventListener('click', () => {
     const clean = dedupeDestinations(normalizeDestinations(readDestinationsFromDom()), _destPrimary);
-    const avail = availableDestTypes(_DEST_TYPE_VALUES, _destPrimary, clean.map(e => e.type), null);
-    if (!avail.length) return; // all apps used or are the primary
+    const unused = availableDestTypes(_DEST_TYPE_VALUES, _destPrimary, clean.map(e => e.type), null);
+    // Don't auto-pick a not-installed app (the dropdown hides those from manual
+    // selection too) — fall through to the first genuinely addable type.
+    const avail = addableDestTypes(unused, (t) => destinationAvailability(_lastDestStatus, t).reason);
+    if (!avail.length) return; // all apps used, the primary, or not installed
     clean.push({ type: avail[0] });
     save({ mm2c_destinations: clean });
     renderDestinations(clean, _destPrimary);

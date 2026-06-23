@@ -1221,6 +1221,35 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Add destination never auto-picks a not-installed app (skips Bear)', async () => {
+      const page = await popupWith(
+        { mm2c_output_app: 'obsidian', mm2c_destinations: [{ type: 'apple_notes' }, { type: 'craft' }] },
+        {
+          ping: { status: 'ok' },
+          destination_status: {
+            status: 'ok',
+            destinations: {
+              obsidian:    { available: true,  reason: '' },
+              apple_notes: { available: true,  reason: '' },
+              craft:       { available: true,  reason: '' },
+              bear:        { available: false, reason: 'Not installed' },
+              google_docs: { available: false, reason: 'Not connected' },
+            },
+          },
+          __default: { status: 'ok' },
+        }
+      );
+      await page.click('#tab-settings');
+      const rows = page.locator('#destinations-list .dest-row');
+      // Gate: wait until destination_status has applied (a connectable option is disabled+relabeled).
+      await expect(rows.first().locator('.dest-type option[value="google_docs"]')).toBeDisabled();
+      // Next free type by list order is Bear (Not installed). The fix must SKIP it
+      // and land on the connectable google_docs — not auto-add a dead Bear row.
+      await page.click('#add-destination');
+      await expect(rows.nth(2).locator('.dest-type')).toHaveValue('google_docs');
+      await page.close();
+    });
+
     test('Google Docs primary reveals the Google Docs connection widget (5.7)', async () => {
       const page = await popupWith({ mm2c_output_app: 'google_docs' });
       await page.click('#tab-settings');

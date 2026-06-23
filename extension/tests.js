@@ -1262,6 +1262,19 @@ window.MM2C_TESTS = (() => {
       JSON.stringify(availableDestTypes(_ALL, 'craft', ['obsidian'], null)),
       JSON.stringify(['apple_notes']));
 
+    // addableDestTypes — Add-destination must skip not-installed apps (the bug:
+    // a new row auto-defaulted to Bear when Bear wasn't installed).
+    const _reason = (t) => ({ bear: 'Not installed', google_docs: 'Not connected', obsidian: 'No vault set' }[t] || '');
+    assertEq('addable: drops "Not installed" (bear)',
+      JSON.stringify(addableDestTypes(['bear', 'google_docs'], _reason)),
+      JSON.stringify(['google_docs']));
+    assertEq('addable: keeps connectable ("Not connected") + available + other reasons',
+      JSON.stringify(addableDestTypes(['craft', 'google_docs', 'obsidian'], _reason)),
+      JSON.stringify(['craft', 'google_docs', 'obsidian']));
+    assertEq('addable: no reason fn → all kept (status not loaded yet)',
+      JSON.stringify(addableDestTypes(['bear', 'craft'])), JSON.stringify(['bear', 'craft']));
+    assertEq('addable: non-array → []', JSON.stringify(addableDestTypes(null, _reason)), '[]');
+
     // P5-L · findPromptRule returns the matched rule; depthInstruction maps depth → text
     const depthRules = [{ regex: 'standup', prompt: 'p', depth: 'brief' }];
     assert('findPromptRule: returns the matched rule object',
