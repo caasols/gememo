@@ -262,6 +262,16 @@ function availableDestTypes(allTypes, primaryApp, usedTypes, currentType) {
   return (Array.isArray(allTypes) ? allTypes : []).filter(t => t === currentType || !taken.has(t));
 }
 
+// Pure helper — from candidate destination types, drop the ones the host reports
+// as "Not installed" (an absent local app), so "Add destination" never auto-picks
+// an app the dropdown itself hides. `reasonFor(type)` returns the unavailability
+// reason ('' when available/unknown). Connectable apps (reason "Not connected",
+// e.g. Google Docs) and available apps are kept — matching the dropdown's own rule.
+function addableDestTypes(candidateTypes, reasonFor) {
+  const reasonOf = typeof reasonFor === 'function' ? reasonFor : () => '';
+  return (Array.isArray(candidateTypes) ? candidateTypes : []).filter(t => reasonOf(t) !== 'Not installed');
+}
+
 // Built-in prompt templates for the most common meeting types (P5-K). These are
 // matched AFTER the user's own rules (so users can override) and BEFORE the
 // DEFAULT_PROMPT fallback. They are non-deletable; the Rules tab shows them as a
