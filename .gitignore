@@ -32,6 +32,10 @@ node_modules/
 test-results/
 playwright-report/
 
+# ── Parked (local only) ───────────────────────────────────────────────────────
+# Self-contained features moved out of the active build but preserved on disk.
+parked/
+
 # ── Secrets & credentials ─────────────────────────────────────────────────────
 .env
 .env.*

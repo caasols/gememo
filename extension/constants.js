@@ -272,9 +272,6 @@ function buildForwardConfig(data) {
     redactKeywords: data.mm2c_redact_keywords || '',
     emitIcs: data.mm2c_emit_ics === true,
     wikilinks: data.mm2c_wikilinks === true,
-    // Google Calendar enrichment is experimental — gate it behind the beta flag so
-    // a persisted connection never runs (or breaks) a capture unless beta is on.
-    calendarEnabled: data.mm2c_calendar_enabled === true && data.mm2c_beta_enabled === true,
     fileBackupEnabled: data.mm2c_file_backup_enabled === true,
     fileBackupType: data.mm2c_file_backup_type || 'markdown',
     fileBackupPath: data.mm2c_file_backup_path || '~/Documents/gememo-meeting-notes',
@@ -571,10 +568,10 @@ function firstRunChecklist({ hostOk = false, outputApp = '', captured = false, g
     { id: 'host',    label: 'Install the native host', ok: !!hostOk },
     { id: 'output',  label: 'Choose an output app',     ok: !!outputApp && outputApp !== 'none' },
     { id: 'capture', label: 'Capture your first meeting', ok: !!captured },
-    // Connecting Google unlocks Google Docs + Calendar. Not labelled "(optional)"
+    // Connecting Google unlocks Google Docs. Not labelled "(optional)"
     // — the whole card is dismissible, so every step is effectively optional.
     // `optional: true` is kept as internal metadata (Google isn't a required step).
-    { id: 'google',  label: 'Connect Google for Docs & Calendar', ok: !!googleConnected, optional: true },
+    { id: 'google',  label: 'Connect Google for Docs', ok: !!googleConnected, optional: true },
   ];
 }
 

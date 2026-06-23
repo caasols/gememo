@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Unit tests for gauth.py — the combined one-flow Google connect (Calendar +
-Docs in a single consent). No live OAuth; the google libs may be absent. We
-assert structure + the token/account file ops + the status logic, mocking the
-google libs where a real grant would otherwise be required."""
+"""Unit tests for gauth.py — the one-flow Google connect (Docs scope). No live
+OAuth; the google libs may be absent. We assert structure + the token/account
+file ops + the status logic, mocking the google libs where a real grant would
+otherwise be required. (Calendar is parked; gauth is Docs-only.)"""
 import shutil
 import sys
 import tempfile
@@ -15,20 +15,17 @@ import gauth
 
 
 class TestScopesAndPaths(unittest.TestCase):
-    """The combined module must request BOTH scopes and write to the SAME paths
-    that gcal.py / gdocs.py read (so both existing modules pick up the token)."""
+    """The module must request the Docs scope and write to the SAME path that
+    gdocs.py reads (so gdocs picks up the token)."""
 
-    def test_requests_both_scopes(self):
-        self.assertIn('https://www.googleapis.com/auth/calendar.readonly', gauth.SCOPES)
+    def test_requests_docs_scope_only(self):
         self.assertIn('https://www.googleapis.com/auth/documents', gauth.SCOPES)
+        self.assertNotIn('https://www.googleapis.com/auth/calendar.readonly', gauth.SCOPES)
 
-    def test_token_paths_match_gcal_and_gdocs(self):
-        import gcal
+    def test_docs_token_path_matches_gdocs(self):
         import gdocs
-        self.assertEqual(gauth.TOKEN_PATH.name, gcal.TOKEN_PATH.name)
         self.assertEqual(gauth.DOCS_TOKEN_PATH.name, gdocs.TOKEN_PATH.name)
         # Same config dir so the on-disk files line up.
-        self.assertEqual(gauth.TOKEN_PATH.parent, gcal.TOKEN_PATH.parent)
         self.assertEqual(gauth.DOCS_TOKEN_PATH.parent, gdocs.TOKEN_PATH.parent)
 
 
@@ -37,25 +34,20 @@ class TestTokenOps(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self._orig = (gauth.CONFIG_DIR, gauth.TOKEN_PATH,
-                      gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH)
+        self._orig = (gauth.CONFIG_DIR, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH)
         gauth.CONFIG_DIR = Path(self.tmp)
-        gauth.TOKEN_PATH = Path(self.tmp) / "token.json"
         gauth.DOCS_TOKEN_PATH = Path(self.tmp) / "token_docs.json"
         gauth.ACCOUNT_PATH = Path(self.tmp) / "account.json"
 
     def tearDown(self):
-        (gauth.CONFIG_DIR, gauth.TOKEN_PATH,
-         gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH) = self._orig
+        (gauth.CONFIG_DIR, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH) = self._orig
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_disconnect_removes_all_three_files(self):
-        gauth.TOKEN_PATH.write_text("{}")
+    def test_disconnect_removes_docs_token_and_account(self):
         gauth.DOCS_TOKEN_PATH.write_text("{}")
         gauth.ACCOUNT_PATH.write_text('{"email":"x@y.com"}')
         r = gauth.disconnect()
         self.assertTrue(r["ok"])
-        self.assertFalse(gauth.TOKEN_PATH.exists())
         self.assertFalse(gauth.DOCS_TOKEN_PATH.exists())
         self.assertFalse(gauth.ACCOUNT_PATH.exists())
 
@@ -78,21 +70,18 @@ class TestTokenOps(unittest.TestCase):
 
 
 class TestStatusLogic(unittest.TestCase):
-    """status() must report connected only when BOTH token files load valid creds.
-    Inject fakes so no real tokens/libs are needed."""
+    """status() must report connected only when the Docs token file loads valid
+    creds. Inject fakes so no real tokens/libs are needed."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self._orig = (gauth.CONFIG_DIR, gauth.TOKEN_PATH,
-                      gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH)
+        self._orig = (gauth.CONFIG_DIR, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH)
         gauth.CONFIG_DIR = Path(self.tmp)
-        gauth.TOKEN_PATH = Path(self.tmp) / "token.json"
         gauth.DOCS_TOKEN_PATH = Path(self.tmp) / "token_docs.json"
         gauth.ACCOUNT_PATH = Path(self.tmp) / "account.json"
 
     def tearDown(self):
-        (gauth.CONFIG_DIR, gauth.TOKEN_PATH,
-         gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH) = self._orig
+        (gauth.CONFIG_DIR, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH) = self._orig
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _valid(self):
@@ -105,7 +94,7 @@ class TestStatusLogic(unittest.TestCase):
         c.valid = False
         return c
 
-    def test_connected_when_both_creds_valid(self):
+    def test_connected_when_docs_creds_valid(self):
         gauth.ACCOUNT_PATH.write_text('{"email":"me@x.com"}')
         with patch.object(gauth, 'GAUTH_AVAILABLE', True), \
                 patch.object(gauth, '_load_creds_for',
@@ -114,21 +103,14 @@ class TestStatusLogic(unittest.TestCase):
         self.assertTrue(s["connected"])
         self.assertEqual(s["email"], "me@x.com")
 
-    def test_not_connected_when_calendar_missing(self):
-        with patch.object(gauth, 'GAUTH_AVAILABLE', True), \
-                patch.object(gauth, '_load_creds_for',
-                             side_effect=lambda p: None if p == gauth.TOKEN_PATH else self._valid()):
-            s = gauth.status()
-        self.assertFalse(s["connected"])
-
     def test_not_connected_when_docs_missing(self):
         with patch.object(gauth, 'GAUTH_AVAILABLE', True), \
                 patch.object(gauth, '_load_creds_for',
-                             side_effect=lambda p: None if p == gauth.DOCS_TOKEN_PATH else self._valid()):
+                             side_effect=lambda p: None):
             s = gauth.status()
         self.assertFalse(s["connected"])
 
-    def test_needs_reconnect_when_a_cred_is_invalid(self):
+    def test_needs_reconnect_when_cred_invalid(self):
         with patch.object(gauth, 'GAUTH_AVAILABLE', True), \
                 patch.object(gauth, '_load_creds_for',
                              side_effect=lambda p: self._invalid()):
@@ -138,7 +120,7 @@ class TestStatusLogic(unittest.TestCase):
 
 
 class TestConnectGuards(unittest.TestCase):
-    """connect() guard branches — same error strings as gcal, no live flow."""
+    """connect() guard branches — no live flow."""
 
     def test_connect_blocks_when_libs_unavailable(self):
         with patch.object(gauth, 'GAUTH_AVAILABLE', False):
@@ -154,19 +136,18 @@ class TestConnectGuards(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("credentials.json", r["error"])
 
-    def test_connect_writes_both_tokens_and_account(self):
-        """Mirror the live flow with fakes: one consent → both token files +
+    def test_connect_writes_docs_token_and_account(self):
+        """Mirror the live flow with fakes: one consent → the Docs token file +
         account.json, RELAX_TOKEN_SCOPE set."""
         import os
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
-        orig = (gauth.CONFIG_DIR, gauth.TOKEN_PATH, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH)
+        orig = (gauth.CONFIG_DIR, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH)
 
         def restore():
-            (gauth.CONFIG_DIR, gauth.TOKEN_PATH, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH) = orig
+            (gauth.CONFIG_DIR, gauth.DOCS_TOKEN_PATH, gauth.ACCOUNT_PATH) = orig
         self.addCleanup(restore)
         gauth.CONFIG_DIR = Path(tmp)
-        gauth.TOKEN_PATH = Path(tmp) / "token.json"
         gauth.DOCS_TOKEN_PATH = Path(tmp) / "token_docs.json"
         gauth.ACCOUNT_PATH = Path(tmp) / "account.json"
 
@@ -186,11 +167,10 @@ class TestConnectGuards(unittest.TestCase):
 
         self.assertTrue(r["ok"])
         self.assertEqual(r["email"], "me@x.com")
-        # Both token files carry the SAME creds json.
-        self.assertEqual(gauth.TOKEN_PATH.read_text(), '{"token":"abc"}')
+        # The Docs token file carries the creds json.
         self.assertEqual(gauth.DOCS_TOKEN_PATH.read_text(), '{"token":"abc"}')
         self.assertIn("me@x.com", gauth.ACCOUNT_PATH.read_text())
-        # One consent for both scopes.
+        # One consent for the Docs scope.
         Flow.from_client_secrets_file.assert_called_once()
         self.assertEqual(Flow.from_client_secrets_file.call_args[0][1], gauth.SCOPES)
         # consent prompt requested on a random port.

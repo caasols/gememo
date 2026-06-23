@@ -43,7 +43,6 @@ const GLOBAL_KEYS = [
   'mm2c_my_aliases',
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
-  'mm2c_calendar_enabled',
   'mm2c_preview_before_send',
   'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
@@ -1724,7 +1723,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Wire an OAuth service row (status render + connect/disconnect + 30-try poll).
-  // gcal and gdocs share this; they differ only in ids, actions, and save hooks.
+  // gdocs and the combined Google connect share this; they differ only in ids,
+  // actions, and save hooks.
   function wireOAuthService({ statusId, connectBtnId, statusAction,
                               connectAction, disconnectAction, onConnect, onDisconnect }) {
     function render() {
@@ -1778,14 +1778,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Google Calendar connect/disconnect/status (5.3, beta)
-  wireOAuthService({
-    statusId: 'gcal-status', connectBtnId: 'gcal-connect',
-    statusAction: 'gcal_status', connectAction: 'gcal_connect', disconnectAction: 'gcal_disconnect',
-    onConnect: () => save({ mm2c_calendar_enabled: true }),
-    onDisconnect: () => save({ mm2c_calendar_enabled: false }),
-  });
-
   // Google Docs connect/disconnect/status (5.7) — separate OAuth grant for the
   // Google Docs primary output; rides the existing MM2C_GCAL relay (forwards the
   // action as the host type). No save hooks: the connection is independent of
@@ -1796,60 +1788,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Combined Google connect/disconnect in Settings → Privacy (one consent covers
-  // BOTH Docs + Calendar — the same grant the onboarding "Connect" button uses).
-  // Disconnecting clears the onboarding tick (mm2c_google_connected), disables
-  // Calendar enrichment, and re-greys Google Docs via the OUT-1 destination probe.
+  // Docs — the same grant the onboarding "Connect" button uses). Disconnecting
+  // clears the onboarding tick (mm2c_google_connected) and re-greys Google Docs
+  // via the OUT-1 destination probe.
   wireOAuthService({
     statusId: 'google-acct-status', connectBtnId: 'google-acct-btn',
     statusAction: 'google_status', connectAction: 'google_connect', disconnectAction: 'google_disconnect',
     onConnect: () => { save({ mm2c_google_connected: true }); refreshDestinationStatus(); },
-    onDisconnect: () => { save({ mm2c_google_connected: false, mm2c_calendar_enabled: false }); refreshDestinationStatus(); },
-  });
-
-  // Pre-meeting brief (P9-G, beta) — ask the background to brief the active Meet
-  // tab; render the host's bullets, or a friendly message per error branch.
-  function renderPreBrief(resp) {
-    const out = $('pre-brief-out');
-    out.textContent = '';
-    if (!resp || resp.ok === false) {
-      const msg = {
-        beta_off: 'Enable experimental features first.',
-        no_meet_tab: 'Open a Google Meet tab first.',
-      }[resp && resp.error] || 'Connect Google Calendar first.';
-      const p = document.createElement('p');
-      p.className = 'hint';
-      p.textContent = msg;
-      out.appendChild(p);
-      return;
-    }
-    if (resp.matched === false || !(resp.bullets || []).length) {
-      const p = document.createElement('p');
-      p.className = 'hint';
-      p.textContent = 'No matching calendar event for this meeting.';
-      out.appendChild(p);
-      return;
-    }
-    const ul = document.createElement('ul');
-    ul.setAttribute('aria-label', 'Brief bullets');
-    for (const b of resp.bullets) {
-      const li = document.createElement('li');
-      li.textContent = String(b);
-      ul.appendChild(li);
-    }
-    out.appendChild(ul);
-  }
-
-  $('pre-brief-btn').addEventListener('click', () => {
-    const out = $('pre-brief-out');
-    out.textContent = '';
-    const p = document.createElement('p');
-    p.className = 'hint';
-    p.textContent = 'Briefing…';
-    out.appendChild(p);
-    chrome.runtime.sendMessage({ type: 'MM2C_PRE_BRIEF' }, (resp) => {
-      if (chrome.runtime.lastError) { renderPreBrief({ ok: false }); return; }
-      renderPreBrief(resp);
-    });
+    onDisconnect: () => { save({ mm2c_google_connected: false }); refreshDestinationStatus(); },
   });
 
   // Email the most recent note via the OS mail client (RB-3c, beta)

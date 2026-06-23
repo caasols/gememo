@@ -168,14 +168,14 @@ test.describe('extension E2E harness', () => {
 
     test('MM2C_GCAL relays the action to the host', async () => {
       await stubNativeMessage(ext.serviceWorker, {
-        gcal_status: { connected: true, available: true, email: 'me@x.com' },
+        gdocs_status: { connected: true, available: true, email: 'me@x.com' },
         __default: { status: 'ok' },
       });
-      const resp = await sendFromPage(popup, { type: 'MM2C_GCAL', action: 'gcal_status' });
+      const resp = await sendFromPage(popup, { type: 'MM2C_GCAL', action: 'gdocs_status' });
       expect(resp.connected).toBe(true);
       expect(resp.email).toBe('me@x.com');
       const sent = await getSent(ext.serviceWorker);
-      expect(sent.some(s => s.msg.type === 'gcal_status')).toBe(true);
+      expect(sent.some(s => s.msg.type === 'gdocs_status')).toBe(true);
     });
 
     test('MM2C_GOOGLE relays the combined connect action to the host', async () => {
@@ -202,56 +202,6 @@ test.describe('extension E2E harness', () => {
       const call = sent.find(s => s.msg.type === 'search');
       expect(call.msg.query).toBe('q3');
       expect(call.msg.since).toBe('2026-06-01');
-    });
-
-    test('MM2C_PRE_BRIEF beta OFF returns beta_off WITHOUT calling the host (P9-G)', async () => {
-      await seedStorage(ext.serviceWorker, { mm2c_beta_enabled: false });
-      const resp = await sendFromPage(popup, { type: 'MM2C_PRE_BRIEF' });
-      expect(resp).toEqual({ ok: false, error: 'beta_off' });
-      // Invariant: the native host must NOT have been called.
-      const sent = await getSent(ext.serviceWorker);
-      expect(sent.some(s => s.msg.type === 'pre_meeting_brief')).toBe(false);
-    });
-
-    test('MM2C_PRE_BRIEF with no active Meet tab returns no_meet_tab (P9-G)', async () => {
-      await seedStorage(ext.serviceWorker, { mm2c_beta_enabled: true });
-      // No meet.google.com tab is open in this context; the popup is the only tab.
-      const resp = await sendFromPage(popup, { type: 'MM2C_PRE_BRIEF' });
-      expect(resp).toEqual({ ok: false, error: 'no_meet_tab' });
-      const sent = await getSent(ext.serviceWorker);
-      expect(sent.some(s => s.msg.type === 'pre_meeting_brief')).toBe(false);
-    });
-
-    test('MM2C_PRE_BRIEF with beta ON relays the host bullets (P9-G)', async () => {
-      await seedStorage(ext.serviceWorker, { mm2c_beta_enabled: true, mm2c_redact_pii: false });
-      await stubNativeMessage(ext.serviceWorker, {
-        pre_meeting_brief: { ok: true, matched: true, title: 'Q3 Planning',
-                             bullets: ['Agenda: Roadmap', 'Who: 2 attendees'] },
-        __default: { status: 'ok' },
-      });
-      // Stub chrome.tabs.query so the handler sees an active Meet tab without
-      // needing to launch a real meet.google.com page (blocked headlessly).
-      await ext.serviceWorker.evaluate(() => {
-        globalThis.__origQuery = chrome.tabs.query;
-        chrome.tabs.query = (info, cb) => cb([
-          { id: 1, active: true, url: 'https://meet.google.com/abc-defg-hij?authuser=0', title: 'Q3 Planning' },
-        ]);
-      });
-      try {
-        const resp = await sendFromPage(popup, { type: 'MM2C_PRE_BRIEF' });
-        expect(resp.ok).toBe(true);
-        expect(resp.matched).toBe(true);
-        expect(resp.bullets).toEqual(['Agenda: Roadmap', 'Who: 2 attendees']);
-        // The host got the parsed room code + redaction flag.
-        const sent = await getSent(ext.serviceWorker);
-        const call = sent.find(s => s.msg.type === 'pre_meeting_brief');
-        expect(call).toBeTruthy();
-        expect(call.msg.meetingCode).toBe('abc-defg-hij');
-        expect(call.msg.redactPii).toBe(false);
-        expect(call.msg.meetingTitle).toBe('Q3 Planning');
-      } finally {
-        await ext.serviceWorker.evaluate(() => { chrome.tabs.query = globalThis.__origQuery; });
-      }
     });
 
     test('MM2C_SET_CAPTURE_STATE records capturing state + REC tab tracking', async () => {
@@ -385,7 +335,6 @@ test.describe('extension E2E harness', () => {
       const at = Date.parse('2026-06-01T09:12:00Z');
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
-        mm2c_calendar_enabled: true, mm2c_beta_enabled: true,  // Calendar enrichment is beta-gated
         mm2c_cleanup_snap_enabled: true, mm2c_cleanup_snap_days: 7,
         mm2c_inflight: { title: 'Recovered', text: 'recovered body', durationMin: 20, at },
       });
@@ -395,12 +344,11 @@ test.describe('extension E2E harness', () => {
         const fwd = (await getSent(ext.serviceWorker)).find(s => s.msg.transcript === 'recovered body');
         if (!fwd) return null;
         return {
-          cal: fwd.msg.calendarEnabled,
           cleanup: fwd.msg.backupCleanup?.snapshots?.enabled,
           ts: fwd.msg.timestamp,
           recover: fwd.msg.recover,
         };
-      }).toEqual({ cal: true, cleanup: true, ts: new Date(at).toISOString(), recover: true });
+      }).toEqual({ cleanup: true, ts: new Date(at).toISOString(), recover: true });
     });
 
     test('MM2C_RECOVER re-sends only the primary — never the additional destinations (BUG-11 #3)', async () => {
@@ -663,7 +611,7 @@ test.describe('extension E2E harness', () => {
   test.describe('popup render', () => {
     // Seed storage, then (re)open the popup so popup.js renders from it.
     // `nativeResponder` (optional) overrides the SW-side native-message stub so
-    // popup-init relays (e.g. MM2C_GCAL → gcal_status/gdocs_status) resolve to
+    // popup-init relays (e.g. MM2C_GCAL → gdocs_status) resolve to
     // real values through the genuine background relay BEFORE the popup renders.
     async function popupWith(state, nativeResponder) {
       await clearStorage(ext.serviceWorker);
@@ -1153,7 +1101,7 @@ test.describe('extension E2E harness', () => {
       const page = await popupWith({ mm2c_beta_enabled: true });
       await expect(page.locator('#tab-beta')).toBeVisible();
       await page.click('#tab-beta');
-      await expect(page.locator('#beta-panel #gcal-connect')).toBeVisible();
+      await expect(page.locator('#beta-panel #selector-hotfix-url')).toBeVisible();
       await expect(page.locator('#beta-panel #dual-output')).toBeAttached();
       await page.close();
     });
@@ -1351,48 +1299,6 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Beta tab renders the Pre-meeting brief widget (P9-G)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      await page.click('#tab-beta');
-      await expect(page.locator('#beta-panel #pre-brief-btn')).toBeVisible();
-      await expect(page.locator('#beta-panel #pre-brief-out')).toBeAttached();
-      await page.close();
-    });
-
-    test('Clicking Pre-meeting brief renders the stubbed bullets (P9-G)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      // Intercept the runtime message in the popup page so the click renders
-      // deterministically without a live host or Meet tab.
-      await page.evaluate(() => {
-        chrome.runtime.sendMessage = (msg, cb) => {
-          if (msg && msg.type === 'MM2C_PRE_BRIEF') {
-            cb({ ok: true, matched: true, title: 'Q3',
-                 bullets: ['Agenda: Roadmap', 'Who: 3 attendees', 'Context: Recurring meeting'] });
-          } else if (cb) { cb({}); }
-        };
-      });
-      await page.click('#tab-beta');
-      await page.click('#pre-brief-btn');
-      const items = page.locator('#pre-brief-out ul li');
-      await expect(items).toHaveCount(3);
-      await expect(items.first()).toHaveText('Agenda: Roadmap');
-      await page.close();
-    });
-
-    test('Pre-meeting brief shows a friendly message when no event matches (P9-G)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      await page.evaluate(() => {
-        chrome.runtime.sendMessage = (msg, cb) => {
-          if (msg && msg.type === 'MM2C_PRE_BRIEF') cb({ ok: true, matched: false, bullets: [] });
-          else if (cb) cb({});
-        };
-      });
-      await page.click('#tab-beta');
-      await page.click('#pre-brief-btn');
-      await expect(page.locator('#pre-brief-out')).toContainText('No matching calendar event');
-      await page.close();
-    });
-
     test('Selecting Google Docs as the primary persists mm2c_output_app + shows the connection widget (5.7)', async () => {
       const page = await popupWith({ mm2c_output_app: 'none' });
       await page.click('#tab-settings');
@@ -1421,54 +1327,9 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Pre-meeting brief renders the exact friendly string per error (no_meet_tab / beta_off) (P9-G)', async () => {
-      // The friendly per-error map lives in popup.js renderPreBrief(); assert the
-      // exact strings for two distinct host error codes.
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      await page.click('#tab-beta');
-
-      // no_meet_tab → "Open a Google Meet tab first."
-      await page.evaluate(() => {
-        chrome.runtime.sendMessage = (msg, cb) => {
-          if (msg && msg.type === 'MM2C_PRE_BRIEF') cb({ ok: false, error: 'no_meet_tab' });
-          else if (cb) cb({});
-        };
-      });
-      await page.click('#pre-brief-btn');
-      await expect(page.locator('#pre-brief-out')).toHaveText('Open a Google Meet tab first.');
-
-      // beta_off → "Enable experimental features first."
-      await page.evaluate(() => {
-        chrome.runtime.sendMessage = (msg, cb) => {
-          if (msg && msg.type === 'MM2C_PRE_BRIEF') cb({ ok: false, error: 'beta_off' });
-          else if (cb) cb({});
-        };
-      });
-      await page.click('#pre-brief-btn');
-      await expect(page.locator('#pre-brief-out')).toHaveText('Enable experimental features first.');
-      await page.close();
-    });
-
-    test('Google Calendar status: connected shows "Connected as …" + Disconnect (5.3)', async () => {
-      // Drive the status render through the GENUINE MM2C_GCAL → host relay by
-      // stubbing the native responder before the popup init renders the panel.
-      const page = await popupWith({ mm2c_beta_enabled: true }, {
-        gcal_status: { connected: true, available: true, email: 'me@x' },
-        gdocs_status: { connected: false, available: false },
-        ping: { status: 'ok' },
-        __default: { status: 'ok' },
-      });
-      await page.click('#tab-beta');
-      await expect.poll(async () => page.locator('#gcal-status').textContent())
-        .toContain('Connected as me@x');
-      await expect(page.locator('#gcal-connect')).toHaveText('Disconnect');
-      await page.close();
-    });
-
     test('Google Docs status: not installed shows the re-run install hint + Connect (5.7)', async () => {
       const page = await popupWith({ mm2c_output_app: 'google_docs' }, {
         gdocs_status: { connected: false, available: false },
-        gcal_status: { connected: false, available: false },
         ping: { status: 'ok' },
         __default: { status: 'ok' },
       });
@@ -1482,7 +1343,6 @@ test.describe('extension E2E harness', () => {
     test('Google Docs status: connected shows "Connected as …" + Disconnect (5.7)', async () => {
       const page = await popupWith({ mm2c_output_app: 'google_docs' }, {
         gdocs_status: { connected: true, available: true, email: 'me@x' },
-        gcal_status: { connected: false, available: false },
         ping: { status: 'ok' },
         __default: { status: 'ok' },
       });
@@ -1496,7 +1356,6 @@ test.describe('extension E2E harness', () => {
     test('Google Docs Disconnect relays gdocs_disconnect to the host (5.7)', async () => {
       const page = await popupWith({ mm2c_output_app: 'google_docs' }, {
         gdocs_status: { connected: true, available: true, email: 'me@x' },
-        gcal_status: { connected: false, available: false },
         gdocs_disconnect: { ok: true },
         ping: { status: 'ok' },
         __default: { status: 'ok' },
@@ -1510,13 +1369,12 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Settings → Privacy: Google account Disconnect relays google_disconnect + clears connect/calendar flags', async () => {
+    test('Settings → Privacy: Google account Disconnect relays google_disconnect + clears the connect flag', async () => {
       const page = await popupWith({
-        mm2c_google_connected: true, mm2c_calendar_enabled: true,
+        mm2c_google_connected: true,
       }, {
         google_status: { connected: true, available: true, email: 'me@x' },
         google_disconnect: { ok: true },
-        gcal_status: { connected: false, available: false },
         gdocs_status: { connected: false, available: false },
         destination_status: { status: 'ok', destinations: { google_docs: { available: false, reason: 'Not connected' } } },
         ping: { status: 'ok' }, __default: { status: 'ok' },
@@ -1529,17 +1387,17 @@ test.describe('extension E2E harness', () => {
       // Relays google_disconnect to the host…
       await expect.poll(async () =>
         (await getSent(ext.serviceWorker)).some(s => s.msg && s.msg.type === 'google_disconnect')).toBe(true);
-      // …and clears the onboarding tick + disables Calendar enrichment.
+      // …and clears the onboarding tick.
       await expect.poll(async () =>
-        (await getStorage(ext.serviceWorker, ['mm2c_google_connected', 'mm2c_calendar_enabled'])))
-        .toEqual({ mm2c_google_connected: false, mm2c_calendar_enabled: false });
+        (await getStorage(ext.serviceWorker, ['mm2c_google_connected'])))
+        .toEqual({ mm2c_google_connected: false });
       await page.close();
     });
 
     test('onboarding Connect surfaces an error instead of spinning forever when it cannot connect (BUG-14)', async () => {
       const page = await popupWith({ mm2c_setup_dismissed: false }, {
         google_status: { connected: false, available: true },
-        google_connect: { status: 'error', error: 'Google isn’t set up on this Mac — no credentials.json (see CALENDAR_SETUP.md).' },
+        google_connect: { status: 'error', error: 'Google isn’t set up on this Mac — no credentials.json (see GDOCS_SETUP.md).' },
         ping: { status: 'ok' }, __default: { status: 'ok' },
       });
       const btn = page.locator('#setup-google-connect');

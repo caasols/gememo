@@ -1,12 +1,11 @@
-# gauth.py — combined one-flow Google connect for Gememo. A SINGLE consent grants
-# BOTH scopes (Calendar read + Docs) and writes the SAME creds to BOTH token files
-# that the existing gcal.py (token.json) and gdocs.py (token_docs.json) modules
-# read — so one click lights up Calendar enrichment AND the Google Docs output.
+# gauth.py — one-flow Google connect for Gememo. A single consent grants the Docs
+# scope and writes the creds to the token file that gdocs.py (token_docs.json)
+# reads — so one click lights up the Google Docs output. (Calendar parked.)
 #
-# Paths are defined directly here (not imported from gcal/gdocs) to avoid coupling,
-# but they MUST stay in lockstep with those modules' paths. The OAuth/API functions
+# Paths are defined directly here (not imported from gdocs) to avoid coupling,
+# but they MUST stay in lockstep with that module's path. The OAuth/API functions
 # need the google-* libraries; the file ops + status logic are unit-testable
-# without them (mirrors gcal.py's split).
+# without them (mirrors gdocs.py's split).
 from pathlib import Path
 
 try:
@@ -18,15 +17,13 @@ try:
 except ImportError:
     GAUTH_AVAILABLE = False
 
-# BOTH scopes in one grant. Order/relaxation handled in connect().
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly',
-          'https://www.googleapis.com/auth/documents']
+# Docs-only scope (Calendar parked). Order/relaxation handled in connect().
+SCOPES = ['https://www.googleapis.com/auth/documents']
 CONFIG_DIR = Path.home() / '.config' / 'gememo'
 CREDENTIALS_PATH = CONFIG_DIR / 'credentials.json'
-# These MUST match gcal.TOKEN_PATH and gdocs.TOKEN_PATH so those modules pick up
-# the token written here. Defined directly to avoid importing them.
-TOKEN_PATH = CONFIG_DIR / 'token.json'             # Calendar (== gcal.TOKEN_PATH)
-DOCS_TOKEN_PATH = CONFIG_DIR / 'token_docs.json'   # Docs     (== gdocs.TOKEN_PATH)
+# MUST match gdocs.TOKEN_PATH so that module picks up the token written here.
+# Defined directly to avoid importing it.
+DOCS_TOKEN_PATH = CONFIG_DIR / 'token_docs.json'   # Docs (== gdocs.TOKEN_PATH)
 ACCOUNT_PATH = CONFIG_DIR / 'account.json'
 
 
@@ -39,7 +36,7 @@ def _save_token(path, creds):
 
 def _load_creds_for(path):
     """Load + refresh stored creds at `path`, or None. Requires the google libs.
-    Mirrors gcal._load_creds, parameterised over the token path."""
+    Mirrors gdocs._load_creds, parameterised over the token path."""
     path = Path(path)
     if not GAUTH_AVAILABLE or not path.exists():
         return None
@@ -65,22 +62,21 @@ def _fetch_primary_email(creds):
 
 
 def connect():
-    """Run ONE interactive loopback OAuth flow requesting BOTH scopes (opens the
-    browser). Writes the resulting creds to BOTH token files so gcal + gdocs both
-    pick them up. Blocking; invoked detached by the host so it outlives Chrome's
-    native-messaging window."""
+    """Run ONE interactive loopback OAuth flow requesting the Docs scope (opens the
+    browser). Writes the resulting creds to the Docs token file so gdocs picks them
+    up. Blocking; invoked detached by the host so it outlives Chrome's native-
+    messaging window."""
     if not GAUTH_AVAILABLE:
         return {'ok': False, 'error': 'Google libraries not installed — re-run install.sh'}
     if not CREDENTIALS_PATH.exists():
-        return {'ok': False, 'error': f'No credentials.json at {CREDENTIALS_PATH} — see CALENDAR_SETUP.md'}
+        return {'ok': False, 'error': f'No credentials.json at {CREDENTIALS_PATH} — see GDOCS_SETUP.md'}
     import os
     # Google may grant the scopes back in a different order / with extra scopes;
     # relaxing the scope check keeps the single combined grant from erroring.
     os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
     flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
     creds = flow.run_local_server(port=0, prompt='consent')
-    # Same creds → both token files. gcal reads token.json, gdocs reads token_docs.json.
-    _save_token(TOKEN_PATH, creds)
+    # Docs only — gdocs reads token_docs.json.
     _save_token(DOCS_TOKEN_PATH, creds)
     email = _fetch_primary_email(creds)
     if email:
@@ -91,15 +87,14 @@ def connect():
 
 
 def status():
-    """Connected only when BOTH token files load valid (or refreshable) creds —
-    i.e. the combined grant is fully live for Calendar and Docs."""
+    """Connected only when the Docs token file loads valid (or refreshable) creds —
+    i.e. the grant is live for Docs."""
     if not GAUTH_AVAILABLE:
         return {'connected': False, 'available': False}
-    cal = _load_creds_for(TOKEN_PATH)
     docs = _load_creds_for(DOCS_TOKEN_PATH)
-    if not cal or not docs:
+    if not docs:
         return {'connected': False, 'available': True}
-    if not cal.valid or not docs.valid:
+    if not docs.valid:
         return {'connected': False, 'available': True, 'needs_reconnect': True}
     email = ''
     if ACCOUNT_PATH.exists():
@@ -112,9 +107,9 @@ def status():
 
 
 def disconnect():
-    """Drop both token files + the cached account email. Leaves the combined grant
+    """Drop the Docs token file + the cached account email. Leaves the grant
     fully revoked locally (the user re-connects with one click)."""
-    for p in (TOKEN_PATH, DOCS_TOKEN_PATH, ACCOUNT_PATH):
+    for p in (DOCS_TOKEN_PATH, ACCOUNT_PATH):
         try:
             Path(p).unlink(missing_ok=True)
         except OSError:
