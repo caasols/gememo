@@ -30,7 +30,7 @@ import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs ab
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 import gauth  # combined one-flow Google connect (Calendar + Docs in one consent)
 
-HOST_VERSION = '0.2.36'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.37'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1842,6 +1842,17 @@ def _dispatch() -> None:
         return
 
     if msg.get("type") == "google_connect":
+        # Fail FAST when the flow can't possibly succeed — Google libs missing, or no
+        # credentials.json on THIS Mac (e.g. a second machine that never got set up).
+        # Otherwise the doomed detached process exits silently and the popup polls a
+        # never-connecting status forever ("Connecting…" with no error). (BUG-14)
+        if not gauth.GAUTH_AVAILABLE:
+            send_message({"status": "error", "error": "Google libraries not installed — re-run install.sh"})
+            return
+        if not gauth.CREDENTIALS_PATH.exists():
+            send_message({"status": "error",
+                          "error": "Google isn't set up on this Mac — no credentials.json (see CALENDAR_SETUP.md)."})
+            return
         # One combined Calendar+Docs consent. Run detached so it outlives Chrome's
         # ~30s native-messaging window; the popup polls google_status afterward.
         try:

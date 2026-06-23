@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Fixed
+- **"Connect Google" no longer spins on "Connecting…" forever when it can't connect (BUG-14).** On a Mac without `credentials.json` (e.g. a second machine that never did the one-time Google setup), clicking Connect spawned a flow that failed silently — and the popup polled a never-connecting status indefinitely with no feedback. The host now **fails fast** (Google libs missing, or no `credentials.json` → an immediate error reply), and both the onboarding **Connect** button and the **Settings → Privacy** row surface the error and reset — plus a ~90s safety timeout if a started flow never completes (e.g. you cancel the browser consent). (Host symlinked → reload the extension.)
+
 ### Changed
 - **Output menus now hide apps that aren't installed, instead of greying them.** If a local note app (Craft, Bear, …) isn't on your Mac, it no longer clutters the primary or additional-destination menus — only apps Gememo can actually detect are shown. Connectable integrations like **Google Docs stay visible but greyed** with a "Not connected" hint (so a one-click integration stays discoverable), and your **currently-selected** output is always shown (greyed if it became unavailable) so you can change it. (Extension reload only; host version bumped for lockstep.)
 

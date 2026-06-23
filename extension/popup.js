@@ -71,17 +71,31 @@ function renderSetupWizard(hostOk) {
            ? `<button type="button" id="setup-google-connect" class="btn"
                 style="margin-left:auto;padding:2px 10px;font-size:12px">Connect</button>`
            : ''}
-       </div>`).join('');
+       </div>`).join('')
+      + `<div id="setup-google-error" style="color:var(--danger,#e5534b);font-size:12px;margin-top:8px;display:none"></div>`;
     // The onboarding "Connect" button for the still-pending Google step: kick off
-    // the combined one-flow connect, then poll status until it flips (reuses the
-    // Beta-tab gcal connect+poll approach).
+    // the combined one-flow connect, then poll status until it flips. A doomed
+    // connect (no credentials.json on this Mac, libs missing, or the user cancels
+    // consent) surfaces an error + resets the button rather than spinning (BUG-14).
     const gbtn = $('setup-google-connect');
     if (gbtn) {
+      const showErr = (errMsg) => {
+        const el = $('setup-google-error');
+        if (el) { el.textContent = errMsg || ''; el.style.display = errMsg ? 'block' : 'none'; }
+      };
+      const resetBtn = (errMsg) => { gbtn.disabled = false; gbtn.textContent = 'Connect'; showErr(errMsg); };
       gbtn.addEventListener('click', () => {
+        showErr(''); // clear any prior error
         gbtn.disabled = true;
         gbtn.textContent = 'Connecting…';
-        chrome.runtime.sendMessage({ type: 'MM2C_GOOGLE', action: 'google_connect' }, () => {
-          // The flow runs detached; poll status (~2s, cap ~2 min) until connected.
+        chrome.runtime.sendMessage({ type: 'MM2C_GOOGLE', action: 'google_connect' }, (resp) => {
+          // The host fails fast when it can't connect — show why, don't poll.
+          if (chrome.runtime.lastError || !resp || resp.status === 'error' || resp.ok === false) {
+            resetBtn((resp && resp.error) || chrome.runtime.lastError?.message
+              || 'Couldn’t start the Google connection.');
+            return;
+          }
+          // The flow runs detached; poll status (~2s, cap ~90s) until connected.
           let tries = 0;
           const timer = setInterval(() => {
             tries++;
@@ -91,7 +105,7 @@ function renderSetupWizard(hostOk) {
                 chrome.storage.local.set({ mm2c_google_connected: true }, () => renderSetupWizard(lastHostOk));
               }
             });
-            if (tries > 60) { clearInterval(timer); renderSetupWizard(lastHostOk); }
+            if (tries > 45) { clearInterval(timer); resetBtn('Connection didn’t complete — try again.'); }
           }, 2000);
         });
       });
@@ -1732,7 +1746,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       $(statusId).textContent = 'Opening browser — approve access, then return…';
-      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: connectAction }, () => {
+      chrome.runtime.sendMessage({ type: 'MM2C_GCAL', action: connectAction }, (resp) => {
+        // The host fails fast when it can't connect (no credentials.json / libs) —
+        // show why and reset instead of polling a doomed connect forever (BUG-14).
+        if (chrome.runtime.lastError || (resp && (resp.status === 'error' || resp.ok === false))) {
+          $(statusId).textContent = (resp && resp.error) || chrome.runtime.lastError?.message || 'Couldn’t connect';
+          render();
+          return;
+        }
         if (onConnect) onConnect();
         // The flow runs detached; poll status until it flips to connected.
         let tries = 0;
