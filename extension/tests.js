@@ -1275,12 +1275,6 @@ window.MM2C_TESTS = (() => {
     assert('depthInstruction: standard/empty → no instruction',
       depthInstruction('standard') === '' && depthInstruction() === '');
 
-    // RB-4a · glossaryPrefix — inject a "spell these exactly" instruction
-    assert('glossaryPrefix: empty → ""', glossaryPrefix('') === '' && glossaryPrefix('  ') === '');
-    const gp = glossaryPrefix('Falcon, Kubernetes\nCarlos Sol');
-    assert('glossaryPrefix: lists terms', gp.includes('Falcon, Kubernetes, Carlos Sol'));
-    assert('glossaryPrefix: says exactly', /exactly/i.test(gp));
-
     // RB-1c · buildIssueUrl — prefilled GitHub issue link
     const iu = buildIssueUrl({ title: 'Selector broke: Leave', body: 'v0.1.119\nDOM: x' });
     assert('buildIssueUrl: points to the repo issues/new',
@@ -1323,16 +1317,15 @@ window.MM2C_TESTS = (() => {
     const empty = assemblePrompt({ base: 'BASE' });
     assert('assemblePrompt: bare base when nothing else', empty === 'BASE');
     const full = assemblePrompt({
-      title: 'Q3 Plan', priorContext: 'PRIOR', glossary: 'Falcon',
+      title: 'Q3 Plan', priorContext: 'PRIOR',
       language: 'Spanish', attendees: ['Alice', 'Bob'], example: 'EX', base: 'BASE', depth: 'brief',
     });
     assert('assemblePrompt: includes every piece',
-      /Meeting title: Q3 Plan/.test(full) && full.includes('PRIOR') && /Falcon/.test(full) &&
+      /Meeting title: Q3 Plan/.test(full) && full.includes('PRIOR') &&
       /Spanish/.test(full) && /Alice/.test(full) && full.includes('EX') && full.endsWith('BASE'));
-    assert('assemblePrompt: order title<prior<glossary<language<attendees<example<base',
+    assert('assemblePrompt: order title<prior<language<attendees<example<base',
       full.indexOf('Q3 Plan') < full.indexOf('PRIOR') &&
-      full.indexOf('PRIOR') < full.indexOf('Falcon') &&
-      full.indexOf('Falcon') < full.indexOf('Spanish') &&
+      full.indexOf('PRIOR') < full.indexOf('Spanish') &&
       full.indexOf('Spanish') < full.indexOf('Alice') &&
       full.indexOf('Alice') < full.indexOf('EX') &&
       full.indexOf('EX') < full.indexOf('BASE'));

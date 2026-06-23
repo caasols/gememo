@@ -33,7 +33,6 @@ const GLOBAL_KEYS = [
   'mm2c_stats',
   'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_blocklist',
   'mm2c_emit_ics',
-  'mm2c_glossary',
   'mm2c_beta_enabled',
   'mm2c_expanded_groups',
   'mm2c_theme',
@@ -439,7 +438,6 @@ function applyState(s, tabId, live = null) {
   document.body.classList.toggle('ext-disabled', !enabled);
 
   $('prompt').value = s.mm2c_prompt || DEFAULT_PROMPT;
-  $('glossary').value = s.mm2c_glossary || '';
 
   // Output app selector — default to 'none' so onboarding's "Choose an output
   // app" step is a real choice (and nothing is silently saved before you pick).
@@ -1281,9 +1279,6 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_prompt: e.target.value.trim() || DEFAULT_PROMPT });
   });
 
-  $('glossary').addEventListener('change', e => {
-    save({ mm2c_glossary: e.target.value.trim() });
-  });
 
   $('output-app').addEventListener('change', e => {
     const app = e.target.value;
