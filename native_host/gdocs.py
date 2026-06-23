@@ -149,7 +149,7 @@ def connect():
     if not GDOCS_AVAILABLE:
         return {'ok': False, 'error': 'Google libraries not installed — re-run install.sh'}
     if not CREDENTIALS_PATH.exists():
-        return {'ok': False, 'error': f'No credentials.json at {CREDENTIALS_PATH} — see CALENDAR_SETUP.md'}
+        return {'ok': False, 'error': f'No credentials.json at {CREDENTIALS_PATH} — see GDOCS_SETUP.md'}
     flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
     creds = flow.run_local_server(port=0)
     _save_token(creds)

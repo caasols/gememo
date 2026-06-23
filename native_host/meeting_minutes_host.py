@@ -18,19 +18,17 @@ import re
 import struct
 import subprocess
 import sys
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
-# Resolve through the install symlink so sibling modules (gcal.py) import at
-# runtime whether run directly or via the symlinked wrapper.
+# Resolve through the install symlink so sibling modules (gdocs.py / gauth.py)
+# import at runtime whether run directly or via the symlinked wrapper.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 import gauth  # combined one-flow Google connect (Calendar + Docs in one consent)
 
-HOST_VERSION = '0.3.3'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.3.4'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1382,39 +1380,6 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
     return results
 
 
-# Wall-clock budget for Google Calendar enrichment. The google API client has no
-# network timeout, so a stalled token-refresh or events query would otherwise hang
-# the whole capture indefinitely (the "best-effort, never blocks capture" promise).
-_GCAL_ENRICH_TIMEOUT = 12  # seconds
-
-
-def _enrich_calendar_bounded(msg, timeout=_GCAL_ENRICH_TIMEOUT) -> dict:
-    """Run Calendar enrichment with a hard wall-clock cap. A try/except can't rescue
-    a *hung* network call, so the work runs on a daemon thread we simply stop waiting
-    on after `timeout`; on timeout or any error we return {} and the capture proceeds.
-    The abandoned thread dies with the (one-shot) host process."""
-    result: dict = {}
-
-    def _run():
-        try:
-            cf, _status = gcal.enrich_frontmatter_fields(
-                msg.get("meetingCode", ""), msg.get("timestamp", ""),
-                msg.get("meetingTitle", ""), bool(msg.get("redactPii")),
-                events_provider=gcal.live_events_provider(msg.get("timestamp", "")),
-            )
-            if isinstance(cf, dict):
-                result["cal"] = cf
-        except Exception:
-            pass  # best-effort — a Calendar failure never affects the note
-
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
-    t.join(timeout)
-    if t.is_alive():
-        _heartbeat("gcal_enrich_timeout")  # visible: enrichment abandoned, capture continues
-    return result.get("cal", {})
-
-
 def handle_capture(msg) -> None:
     transcript = msg.get("transcript", "").strip()
     # Recovery (RB-1d): when re-sending a note that failed mid-send, prefer the
@@ -1440,13 +1405,9 @@ def handle_capture(msg) -> None:
     # promote it to YAML frontmatter; the line never reaches the rendered note.
     topic_tags, craft_md = extract_tags(craft_md)
 
-    # Google Calendar enrichment (5.3) — best-effort, never blocks capture. Bounded
-    # by a wall-clock timeout because the google client has no network timeout, so a
-    # stalled refresh/query would otherwise hang the capture (the failure we saw:
-    # the capture froze right after "parsed" with no note written).
+    # Calendar enrichment (5.3) parked — cal_fields stays an inert {} and threads
+    # through the write/route path unchanged (so re-adding the feature is local).
     cal_fields = {}
-    if msg.get("calendarEnabled") and gcal.GCAL_AVAILABLE:
-        cal_fields = _enrich_calendar_bounded(msg)
 
     # Resolve the timestamp — convert to local timezone so the Craft note title
     # shows wall-clock time rather than UTC (e.g. 09:12 CEST not 07:12 UTC).
@@ -1773,41 +1734,6 @@ def _dispatch() -> None:
             text = prior.read_text(encoding="utf-8", errors="ignore")
             ctx = build_prior_context(text, _note_date_from(text, prior))
         send_message({"status": "ok", "context": ctx})
-        return
-
-    if msg.get("type") == "gcal_status":
-        send_message(gcal.status())
-        return
-
-    if msg.get("type") == "gcal_disconnect":
-        send_message(gcal.disconnect())
-        return
-
-    if msg.get("type") == "pre_meeting_brief":
-        # P9-G — beta pre-meeting brief. Match the active meeting's calendar
-        # event and return ≤3 prep bullets. Best-effort; guarded by the libs.
-        if not gcal.GCAL_AVAILABLE:
-            send_message({"ok": False, "error": "unavailable"})
-            return
-        ts = msg.get("timestamp", "")
-        send_message(gcal.pre_meeting_brief(
-            msg.get("meetingCode", ""),
-            ts,
-            msg.get("meetingTitle", ""),
-            bool(msg.get("redactPii")),
-            events_provider=gcal.live_events_provider(ts),
-        ))
-        return
-
-    if msg.get("type") == "gcal_connect":
-        # Run the interactive flow detached so it outlives Chrome's ~30s native-
-        # messaging window; the popup polls gcal_status afterward.
-        try:
-            subprocess.Popen([sys.executable, str(Path(__file__).resolve().with_name("gcal.py"))],
-                             start_new_session=True)
-            send_message({"status": "ok", "started": True})
-        except Exception as exc:
-            send_message({"status": "error", "error": str(exc)})
         return
 
     if msg.get("type") == "gdocs_status":

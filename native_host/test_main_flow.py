@@ -377,61 +377,6 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertIn("agreed on the plan", sent[-1]["context"])
 
 
-class TestGcalDispatch(unittest.TestCase):
-    """main() routing for the gcal_* / pre_meeting_brief beta messages."""
-
-    def _dispatch(self, msg):
-        sent = []
-        with patch.object(host, 'read_message', return_value=msg), \
-                patch.object(host, 'send_message', side_effect=lambda r: sent.append(r)), \
-                patch.object(host, 'notify'):
-            host.main()
-        return sent
-
-    def test_gcal_status_sent_verbatim(self):
-        canned = {"connected": True, "available": True, "email": "lead@x.com"}
-        with patch.object(host.gcal, 'status', return_value=canned):
-            sent = self._dispatch({"type": "gcal_status"})
-        self.assertEqual(sent[-1], canned)
-
-    def test_gcal_disconnect_sent(self):
-        with patch.object(host.gcal, 'disconnect', return_value={"ok": True}) as dc:
-            sent = self._dispatch({"type": "gcal_disconnect"})
-        dc.assert_called_once()
-        self.assertEqual(sent[-1], {"ok": True})
-
-    def test_gcal_connect_spawns_detached(self):
-        with patch.object(host.subprocess, 'Popen') as popen:
-            sent = self._dispatch({"type": "gcal_connect"})
-        popen.assert_called_once()
-        # spawns gcal.py, detached
-        self.assertTrue(str(popen.call_args[0][0][-1]).endswith("gcal.py"))
-        self.assertEqual(popen.call_args[1].get("start_new_session"), True)
-        self.assertEqual(sent[-1], {"status": "ok", "started": True})
-
-    def test_gcal_connect_popen_failure_errors(self):
-        with patch.object(host.subprocess, 'Popen', side_effect=OSError("nope")):
-            sent = self._dispatch({"type": "gcal_connect"})
-        self.assertEqual(sent[-1]["status"], "error")
-        self.assertIn("nope", sent[-1]["error"])
-
-    def test_pre_meeting_brief_ok(self):
-        with patch.object(host.gcal, 'GCAL_AVAILABLE', True), \
-                patch.object(host.gcal, 'live_events_provider', return_value=lambda: []), \
-                patch.object(host.gcal, 'pre_meeting_brief',
-                             return_value={"ok": True, "matched": True,
-                                           "bullets": ["Agenda: ship it"], "title": "Q3"}):
-            sent = self._dispatch({"type": "pre_meeting_brief", "meetingCode": "abc-defg-hij",
-                                   "timestamp": "2026-06-01T09:00:00Z", "meetingTitle": "Q3"})
-        self.assertTrue(sent[-1]["ok"])
-        self.assertIn("Agenda: ship it", sent[-1]["bullets"])
-
-    def test_pre_meeting_brief_unavailable(self):
-        with patch.object(host.gcal, 'GCAL_AVAILABLE', False):
-            sent = self._dispatch({"type": "pre_meeting_brief"})
-        self.assertEqual(sent[-1], {"ok": False, "error": "unavailable"})
-
-
 class TestGdocsDispatch(unittest.TestCase):
     """main() routing for the gdocs_* beta messages."""
 
@@ -535,7 +480,7 @@ class TestGoogleDispatch(unittest.TestCase):
 
 class TestCaptureHooks(unittest.TestCase):
     """Capture-path wiring inside main(): googleDocsOutput / destinations /
-    calendar enrichment / wikilinks / backupCleanup / timestamp fallback.
+    wikilinks / backupCleanup / timestamp fallback.
     Reuses the TestMainCaptureFlow harness."""
 
     _run = TestMainCaptureFlow._run
@@ -635,20 +580,6 @@ class TestCaptureHooks(unittest.TestCase):
             self.assertEqual(r["saved"], [])
             self.assertEqual(set(r["failed"]), {"Obsidian", "Apple Notes"})
 
-    # 9 — calendar enrichment → cal_fields reach the frontmatter (covers 309)
-    def test_calendar_enrichment_reaches_frontmatter(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            cal = {"organizer": "lead@x.com", "scheduled_end": "2026-06-01T10:00:00Z"}
-            with patch.object(host.gcal, 'GCAL_AVAILABLE', True), \
-                    patch.object(host.gcal, 'live_events_provider', return_value=lambda: []), \
-                    patch.object(host.gcal, 'enrich_frontmatter_fields',
-                                 return_value=(cal, 'ok')):
-                self._run(self._capture_msg(tmp, calendarEnabled=True,
-                                            meetingCode="abc-defg-hij"), _proc(0))
-            content = next(Path(tmp).glob("*.md")).read_text(encoding="utf-8")
-            self.assertIn("organizer: lead@x.com", content)
-            self.assertIn("scheduled_end: 2026-06-01T10:00:00Z", content)
-
     # 14 — wikilinks → attendee names wrapped in [[ ]] on the persisted note
     def test_wikilinks_hook_wraps_attendees(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -722,33 +653,6 @@ class TestMainNeverCrashes(unittest.TestCase):
                 patch.object(host, 'send_message', side_effect=lambda d: sent.append(d)):
             host.main()
         self.assertEqual(sent, [])  # guard only fires on an uncaught exception
-
-
-class TestCalendarEnrichBounded(unittest.TestCase):
-    """Calendar enrichment must never block the capture: a hung Calendar API call
-    (the google client has no network timeout) is abandoned after a wall-clock
-    timeout and the capture proceeds with no enrichment."""
-
-    def test_returns_fields_on_success(self):
-        with patch.object(host.gcal, 'enrich_frontmatter_fields',
-                          return_value=({'organizer': 'https://x'}, 'ok')):
-            out = host._enrich_calendar_bounded({'timestamp': '', 'meetingCode': ''}, timeout=5)
-        self.assertEqual(out, {'organizer': 'https://x'})
-
-    def test_hang_is_abandoned_and_returns_empty_quickly(self):
-        import time
-        with patch.object(host.gcal, 'enrich_frontmatter_fields',
-                          side_effect=lambda *a, **k: time.sleep(5)):
-            t0 = time.time()
-            out = host._enrich_calendar_bounded({'timestamp': '', 'meetingCode': ''}, timeout=0.2)
-            elapsed = time.time() - t0
-        self.assertEqual(out, {})            # gave up on the hang
-        self.assertLess(elapsed, 2.0)        # and returned promptly, not after 5s
-
-    def test_exception_is_swallowed(self):
-        with patch.object(host.gcal, 'enrich_frontmatter_fields',
-                          side_effect=RuntimeError('boom')):
-            self.assertEqual(host._enrich_calendar_bounded({'timestamp': ''}, timeout=5), {})
 
 
 if __name__ == "__main__":

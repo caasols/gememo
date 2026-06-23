@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Removed
+- **Parked the Google Calendar enrichment (5.3) + Pre-meeting brief (P9-G) features.** Both were beta-gated and depend on the Google integration; they're moved out of the build (preserved locally + re-appliable) to shrink the Google story to one purpose — the Docs output. The Google connect is now **Docs-only** (a single scope). Calendar frontmatter enrichment, the Calendar Connect row, and the pre-meeting brief are gone from the UI. (Host + extension; reload the extension. Next Connect re-consents for Docs only.)
+
 ### Changed
 - **The History tab now leads with a "History" section title**, matching Rules / Settings / About — it was the only tab missing the header. (Extension reload only; host version bumped for lockstep.)
 
