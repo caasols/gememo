@@ -514,8 +514,8 @@ class TestGoogleDispatch(unittest.TestCase):
         self.assertIn("nope", sent[-1]["error"])
 
     def test_google_connect_errors_fast_without_credentials(self):
-        # BUG-14: no credentials.json on this Mac → immediate error, no doomed spawn
-        # (otherwise the popup polls a never-connecting status forever).
+        # BUG-14: no shared client fetched yet → immediate error pointing at
+        # install.sh (no doomed spawn that would leave the popup spinning forever).
         with patch.object(host.gauth, 'GAUTH_AVAILABLE', True), \
                 patch.object(host.gauth, 'CREDENTIALS_PATH') as creds, \
                 patch.object(host.subprocess, 'Popen') as popen:
@@ -523,7 +523,7 @@ class TestGoogleDispatch(unittest.TestCase):
             sent = self._dispatch({"type": "google_connect"})
         popen.assert_not_called()
         self.assertEqual(sent[-1]["status"], "error")
-        self.assertIn("credentials.json", sent[-1]["error"])
+        self.assertIn("install.sh", sent[-1]["error"])
 
     def test_google_connect_errors_fast_without_libs(self):
         with patch.object(host.gauth, 'GAUTH_AVAILABLE', False), \

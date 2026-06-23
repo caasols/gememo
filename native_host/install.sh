@@ -61,6 +61,26 @@ else
   echo "  (Optional) Could not create venv — Google Calendar feature stays off."
 fi
 
+# Bundled Google OAuth client (5.3/5.7) — fetch the SHARED credentials.json from a
+# GitHub release asset so ANY install can connect a Google account with no per-user
+# GCP setup. It's a Desktop client (Google treats its secret as non-confidential),
+# distributed via the release rather than committed to source — same posture as
+# MeetingBar. Skipped if you already brought your own ~/.config/gememo/credentials.json.
+# Best-effort: offline / fetch failure just leaves Google connect unavailable.
+GEMEMO_CONFIG_DIR="$HOME/.config/gememo"
+GEMEMO_CRED="$GEMEMO_CONFIG_DIR/credentials.json"
+GEMEMO_CRED_URL="https://github.com/caasols/gememo/releases/download/oauth-client/credentials.json"
+if [ ! -f "$GEMEMO_CRED" ]; then
+  mkdir -p "$GEMEMO_CONFIG_DIR"
+  if curl -fsSL "$GEMEMO_CRED_URL" -o "$GEMEMO_CRED" 2>/dev/null && [ -s "$GEMEMO_CRED" ]; then
+    chmod 600 "$GEMEMO_CRED"
+    echo "  Shared Google OAuth client installed — Connect Google works out of the box."
+  else
+    rm -f "$GEMEMO_CRED" 2>/dev/null || true
+    echo "  (Optional) Couldn't fetch the shared Google client — Connect Google stays off until ~/.config/gememo/credentials.json exists."
+  fi
+fi
+
 # Detect Craft space ID from the local app cache so notes always land in
 # the right space (Unsorted view). Falls back to empty — Craft then uses
 # whatever space is currently active.
