@@ -44,7 +44,6 @@ const GLOBAL_KEYS = [
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
   'mm2c_preview_before_send',
-  'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
   'mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days',
@@ -526,11 +525,6 @@ function applyState(s, tabId, live = null) {
   $('blocklist').value = s.mm2c_blocklist || '';
   $('emit-ics').checked = s.mm2c_emit_ics === true;
   $('preview-before-send').checked = s.mm2c_preview_before_send === true;
-  const dualOn = s.mm2c_dual_output === true;
-  $('dual-output').checked = dualOn;
-  $('dual-output-sub').classList.toggle('hidden', !dualOn);
-  $('private-prompt').value = s.mm2c_private_prompt || '';
-  $('private-app').value = s.mm2c_private_app || '';
   $('wikilinks').checked = s.mm2c_wikilinks === true;
   $('task-app').value = s.mm2c_task_app || '';
   myAliases = s.mm2c_my_aliases || '';
@@ -1404,12 +1398,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('preview-before-send').addEventListener('change', e => {
     save({ mm2c_preview_before_send: e.target.checked });
   });
-  $('dual-output').addEventListener('change', e => {
-    $('dual-output-sub').classList.toggle('hidden', !e.target.checked);
-    save({ mm2c_dual_output: e.target.checked });
-  });
-  $('private-prompt').addEventListener('change', e => save({ mm2c_private_prompt: e.target.value.trim() }));
-  $('private-app').addEventListener('change', e => save({ mm2c_private_app: e.target.value }));
   $('selector-hotfix-url').addEventListener('change', e => {
     const url = e.target.value.trim();
     $('selector-hotfix-url').value = url;

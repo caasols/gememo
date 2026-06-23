@@ -206,8 +206,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         chrome.storage.local.get(FORWARD_KEYS, (data) => {
           forwardToNativeHost(msg.text, {
             ...buildForwardConfig(data),
-            // P9-H private pass overrides the destination; primary uses output_app.
-            backupType:    msg.privateApp || data.mm2c_output_app || 'none',
+            backupType:    data.mm2c_output_app || 'none',
             meetingTitle:  title,
             attendees:     Array.isArray(msg.attendees) ? msg.attendees : [],
             durationMin:   msg.durationMin ?? null,
