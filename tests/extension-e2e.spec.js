@@ -1163,6 +1163,22 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Developer logs toggle persists across popup opens', async () => {
+      // Toggling it on saves the preference…
+      const page = await popupWith({});
+      await page.click('#tab-settings');
+      await page.locator('label.toggle-wrap', { has: page.locator('#show-debug-logs') }).click();
+      await expect
+        .poll(async () => (await getStorage(ext.serviceWorker, ['mm2c_show_debug_logs'])).mm2c_show_debug_logs)
+        .toBe(true);
+      await page.close();
+      // …and a fresh popup restores the checked state (no longer session-only).
+      const page2 = await popupWith({ mm2c_show_debug_logs: true });
+      await page2.click('#tab-settings');
+      await expect(page2.locator('#show-debug-logs')).toBeChecked();
+      await page2.close();
+    });
+
     test('History auto-cleanup: entries older than N days are pruned on open', async () => {
       const DAY = 86400000;
       const now = Date.now();
