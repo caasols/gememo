@@ -154,55 +154,6 @@ function filterLogsByLevel(logs, showDebug) {
   return (Array.isArray(logs) ? logs : []).filter(e => showDebug || e.level !== 'debug');
 }
 
-// Section headings the note pipeline produces — used to bound the Action Items
-// block when extracting tasks (P6-B).
-const _NOTE_HEADING_RE = /^#{0,3}\s*\*{0,2}\s*(attendees|summary|key points|decisions made|action items|next steps|open questions|updates|blockers|discussion|decisions|follow-up|what went well|what to improve)\s*\*{0,2}\s*:?\s*$/i;
-
-// Pure helper — extract action items from a note body as {owner, task, deadline}
-// (P6-B). Reads the lines under the "Action Items" heading until the next
-// section heading. Owner is the text before the first colon; deadline is a
-// best-effort "by <when>" suffix ("no deadline set" → null).
-function parseActionItems(body) {
-  const lines = String(body || '').split('\n');
-  const items = [];
-  let inSection = false;
-  for (const raw of lines) {
-    const line = raw.trim();
-    const hm = line.match(_NOTE_HEADING_RE);
-    if (hm) { inSection = /action items/i.test(hm[1]); continue; }
-    if (!inSection || !line) continue;
-    const text = line.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim();
-    if (!text) continue;
-    const colon = text.indexOf(':');
-    let owner = '', task = text;
-    if (colon > 0 && colon <= 40) { owner = text.slice(0, colon).trim(); task = text.slice(colon + 1).trim(); }
-    let deadline = null;
-    if (!/no deadline set/i.test(task)) {
-      const m = task.match(/\bby ([^.]+?)\.?$/i);
-      if (m) deadline = m[1].trim();
-    }
-    items.push({ owner, task, deadline });
-  }
-  return items;
-}
-
-// Pure helper — build a task-manager URL for one action item (RB-3a). Owner +
-// deadline become the task note. Returns '' for an unknown app or empty task.
-function buildTaskUrl(app, item = {}) {
-  const title = String(item.task || '').trim();
-  if (!title) return '';
-  const notes = [item.owner ? `Owner: ${item.owner}` : '', item.deadline ? `Due: ${item.deadline}` : '']
-    .filter(Boolean).join(' · ');
-  const t = encodeURIComponent(title);
-  const n = encodeURIComponent(notes);
-  switch (app) {
-    case 'things':    return `things:///add?title=${t}${notes ? `&notes=${n}` : ''}`;
-    case 'todoist':   return `todoist://addtask?content=${t}${notes ? `&description=${n}` : ''}`;
-    case 'omnifocus': return `omnifocus:///add?name=${t}${notes ? `&note=${n}` : ''}`;
-    default:          return '';
-  }
-}
-
 // Pure helper — normalise the "Additional destinations" repeater array (UXF-11)
 // into a clean, storable list. Each kept entry is an object with a known `type`
 // and only that type's own config; everything else is dropped. Non-array/falsy
@@ -315,38 +266,6 @@ function firstRunDefaults(existing = {}) {
 function availableDestTypes(allTypes, primaryApp, usedTypes, currentType) {
   const taken = new Set([primaryApp, ...(Array.isArray(usedTypes) ? usedTypes : []).filter(t => t !== currentType)]);
   return (Array.isArray(allTypes) ? allTypes : []).filter(t => t === currentType || !taken.has(t));
-}
-
-// Pure helper — split a comma-separated alias string into a clean list (UXF-7).
-function parseAliases(str) {
-  return String(str || '').split(',').map(s => s.trim()).filter(Boolean);
-}
-
-// Pure helper — does an action-item owner match any of the user's aliases
-// (UXF-7)? Whole-word, case-insensitive, so "James R" matches the alias "James"
-// but "Jameson" does not. Identity is user-confirmed (the aliases field), never
-// silently inferred. `aliases` may be an array or a comma-separated string.
-function ownerMatchesAliases(owner, aliases) {
-  const o = String(owner || '').trim();
-  if (!o) return false;
-  return parseAliases(Array.isArray(aliases) ? aliases.join(',') : aliases).some(a => {
-    if (!a) return false;
-    try { return new RegExp(`\\b${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(o); }
-    catch { return false; }
-  });
-}
-
-// Pure helper — count action items owned by the user (UXF-7).
-function countMyActionItems(items, aliases) {
-  return (Array.isArray(items) ? items : []).filter(it => ownerMatchesAliases(it.owner, aliases)).length;
-}
-
-// Pure helper — render action items as Markdown task list lines (P6-B).
-function formatActionItemsMarkdown(items) {
-  return (Array.isArray(items) ? items : []).map(it => {
-    const meta = [it.owner, it.deadline].filter(Boolean).join(', ');
-    return `- [ ] ${it.task}${meta ? ` (${meta})` : ''}`;
-  }).join('\n');
 }
 
 // Built-in prompt templates for the most common meeting types (P5-K). These are
@@ -521,19 +440,6 @@ function obsidianVaultPathError(path) {
   if (!v) return '';
   if (!/^(\/|~)/.test(v)) return 'Enter an absolute folder path (starting with / or ~)';
   return '';
-}
-
-// Pure helper — build a mailto: URL for emailing a captured note (RB-3c, beta).
-// Zero-config "just email me the summary" destination. The body is truncated to
-// keep the URL within mail-client length limits; the full note stays in the
-// saved file/output app.
-function buildMailtoUrl({ title = '', body = '', maxBody = 1500 } = {}) {
-  const subject = encodeURIComponent(title ? String(title) : 'Meeting notes');
-  let b = String(body || '');
-  if (b.length > maxBody) {
-    b = b.slice(0, maxBody) + '\n\n…(truncated — open the saved note for the full text)';
-  }
-  return `mailto:?subject=${subject}&body=${encodeURIComponent(b)}`;
 }
 
 // Pure helper — assemble a shareable plain-text diagnostics report (RB-7b) from
