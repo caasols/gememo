@@ -220,7 +220,7 @@ function normalizeDestinations(raw) {
       out.push({ type, vaultPath: String(entry.vaultPath || '').trim() });
     } else if (type === 'craft') {
       out.push({ type, folderId: String(entry.folderId || '').trim() });
-    } else if (type === 'apple_notes' || type === 'google_docs') {
+    } else if (type === 'apple_notes' || type === 'google_docs' || type === 'bear') {
       out.push({ type }); // no per-row config
     }
     // unknown type → dropped

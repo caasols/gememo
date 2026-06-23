@@ -1532,6 +1532,27 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('additional-destination rows offer Bear + apply OUT-1 availability (parity with primary)', async () => {
+      const page = await popupWith({
+        mm2c_output_app: 'obsidian',
+        mm2c_destinations: [{ type: 'craft' }],
+      }, {
+        destination_status: { status: 'ok', destinations: {
+          bear: { available: true, reason: '' },
+          google_docs: { available: false, reason: 'Not connected' },
+          craft: { available: true }, apple_notes: { available: true }, obsidian: { available: true },
+        } },
+        ping: { status: 'ok' }, __default: { status: 'ok' },
+      });
+      await page.click('#tab-settings');
+      const rowSel = '#destinations-list select.dest-type';
+      // Bug 1: Bear is now offered as an additional destination (was missing).
+      await expect(page.locator(`${rowSel} option[value="bear"]`).first()).toHaveCount(1);
+      // Bug 2: an un-connected Google Docs is greyed in the row, like the primary.
+      await expect(page.locator(`${rowSel} option[value="google_docs"]`).first()).toBeDisabled();
+      await page.close();
+    });
+
     test('popup self-heals duplicate/primary destinations on load', async () => {
       const page = await popupWith({
         mm2c_output_app: 'craft',
@@ -1549,8 +1570,8 @@ test.describe('extension E2E harness', () => {
 
     test('popup disables Add destination when all apps are used', async () => {
       const page = await popupWith({
-        mm2c_output_app: 'craft', // craft is primary → obsidian + apple_notes + google_docs addable
-        mm2c_destinations: [{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '' }, { type: 'google_docs' }],
+        mm2c_output_app: 'craft', // craft is primary → obsidian + apple_notes + bear + google_docs addable
+        mm2c_destinations: [{ type: 'apple_notes' }, { type: 'obsidian', vaultPath: '' }, { type: 'bear' }, { type: 'google_docs' }],
       });
       await page.click('#tab-settings');
       await expect(page.locator('#add-destination')).toBeDisabled();

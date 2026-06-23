@@ -30,7 +30,7 @@ import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs ab
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 import gauth  # combined one-flow Google connect (Calendar + Docs in one consent)
 
-HOST_VERSION = '0.2.34'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.35'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -1360,6 +1360,9 @@ def send_to_destinations(destinations, craft_md, title, dt, label,
                         proc.stderr.strip() or f"push_to_craft exited {proc.returncode}")
                     results.append({"dest": human, "ok": False, "error": err})
                     continue
+            elif dest == 'bear':
+                _default_open_url(build_bear_url(title, craft_md))
+                notify("Meeting Notes → Bear", title)
             elif dest == 'google_docs':
                 res = gdocs.create_doc(title, craft_md)
                 if isinstance(res, dict) and res.get('ok'):

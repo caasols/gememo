@@ -57,6 +57,14 @@ class TestSendToDestinations(unittest.TestCase):
             gd.assert_called_once_with(TITLE, CRAFT_MD)
             note.assert_called_once()
 
+    def test_bear_dispatch(self):
+        # Bear as an ADDITIONAL destination opens a bear:// x-callback-url and rows ok.
+        with patch.object(host, '_default_open_url') as op, patch.object(host, 'notify'):
+            rows = host.send_to_destinations([{'type': 'bear'}], CRAFT_MD, TITLE, DT, LABEL)
+            op.assert_called_once()
+            self.assertTrue(op.call_args[0][0].startswith('bear://'))
+            self.assertEqual(rows, [{'dest': 'Bear', 'ok': True, 'error': ''}])
+
     def test_google_docs_not_connected_skips_quietly(self):
         with patch.object(host.gdocs, 'create_doc', return_value={'ok': False, 'error': 'not_connected'}), \
                 patch.object(host, 'notify') as note:
