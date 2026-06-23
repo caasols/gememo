@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Added
+- **Bundled Google OAuth client via the installer — connect any account with no GCP setup.** `install.sh` now fetches the shared OAuth client (`credentials.json`) from a GitHub **release asset** into `~/.config/gememo/`, so a fresh install can **Connect → authorize → done** without creating a Google Cloud project or placing a file. The secret stays **out of the source repo** — distributed through the release, not committed (same posture as MeetingBar), and rotatable by swapping the asset. A user-placed `~/.config/gememo/credentials.json` still wins (bring-your-own client). *Note:* the consent screen is in **Testing** (≤100 test-user accounts) until Google verifies the sensitive Calendar/Docs scopes for a public launch. (Re-run `install.sh`.)
+
 ## [0.3.0] – 2026-06-23 · Google Docs + Calendar via one-click OAuth, output-availability awareness & a run of save-reliability fixes (BUG-11→14)
 
 ### Fixed
