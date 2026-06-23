@@ -22,25 +22,18 @@ const GLOBAL_KEYS = [
   'mm2c_craft_space_id',
   'mm2c_file_backup_enabled', 'mm2c_file_backup_type', 'mm2c_file_backup_path',
   'mm2c_logs',
-  'mm2c_note_language',
   'mm2c_prompt_rules',
   'mm2c_snapshot_interval_min',
   'mm2c_obsidian_vault_path',
   'mm2c_failed_list',
   'mm2c_last_note',
-  'mm2c_webhook_url',
-  'mm2c_slack_webhook_url',
   'mm2c_stats',
-  'mm2c_redact_pii', 'mm2c_redact_keywords', 'mm2c_blocklist',
-  'mm2c_emit_ics',
   'mm2c_beta_enabled',
   'mm2c_expanded_groups',
   'mm2c_theme',
-  'mm2c_wikilinks',
   'mm2c_inflight',
   'mm2c_selector_hotfix_url',
   'mm2c_setup_done',
-  'mm2c_preview_before_send',
   'mm2c_cleanup_snap_enabled', 'mm2c_cleanup_snap_days',
   'mm2c_cleanup_final_enabled', 'mm2c_cleanup_final_days',
   'mm2c_logs_cleanup_enabled', 'mm2c_logs_cleanup_days', 'mm2c_show_debug_logs',
@@ -454,16 +447,6 @@ function applyState(s, tabId, live = null) {
   $('craft-space-id').value = s.mm2c_craft_space_id || '';
   $('craft-folder-error').textContent = craftFolderIdError(s.mm2c_craft_folder_id || '');
   $('obsidian-vault-error').textContent = obsidianVaultPathError(s.mm2c_obsidian_vault_path || '');
-  $('webhook-url').value = s.mm2c_webhook_url || '';
-  $('slack-webhook-url').value = s.mm2c_slack_webhook_url || '';
-  $('webhook-error').textContent = webhookUrlError(s.mm2c_webhook_url || '');
-  $('slack-error').textContent = webhookUrlError(s.mm2c_slack_webhook_url || '');
-  $('redact-pii').checked = s.mm2c_redact_pii === true;
-  $('redact-keywords').value = s.mm2c_redact_keywords || '';
-  $('blocklist').value = s.mm2c_blocklist || '';
-  $('emit-ics').checked = s.mm2c_emit_ics === true;
-  $('preview-before-send').checked = s.mm2c_preview_before_send === true;
-  $('wikilinks').checked = s.mm2c_wikilinks === true;
   $('selector-hotfix-url').value = s.mm2c_selector_hotfix_url || '';
   $('cleanup-snap-enabled').checked = s.mm2c_cleanup_snap_enabled === true;
   $('cleanup-snap-days').value = s.mm2c_cleanup_snap_days || 7;
@@ -509,18 +492,6 @@ function applyState(s, tabId, live = null) {
 
   // Update snapshot preview content (visibility is controlled by MM2C_STATUS_QUERY callback)
   updateSnapshotContent(lastSnapshotVal);
-
-  // Render note language selection
-  const lang = s.mm2c_note_language || '';
-  const PRESETS = ['', 'English', 'Spanish', 'Portuguese', 'French', 'German', 'Italian', 'Dutch'];
-  if (PRESETS.includes(lang)) {
-    $('note-language').value = lang;
-    $('note-language-custom-row').classList.add('hidden');
-  } else {
-    $('note-language').value = '__custom__';
-    $('note-language-custom').value = lang;
-    $('note-language-custom-row').classList.remove('hidden');
-  }
 
   renderRules(s.mm2c_prompt_rules || []);
   renderTemplates(availableTemplates(BUILT_IN_RULES, s.mm2c_prompt_rules || []));
@@ -1301,38 +1272,6 @@ document.addEventListener('DOMContentLoaded', () => {
     save({ mm2c_craft_space_id: e.target.value.trim() });
   });
 
-  $('webhook-url').addEventListener('input', e => {
-    $('webhook-error').textContent = webhookUrlError(e.target.value);
-  });
-  $('webhook-url').addEventListener('change', e => {
-    save({ mm2c_webhook_url: e.target.value.trim() });
-  });
-
-  $('slack-webhook-url').addEventListener('input', e => {
-    $('slack-error').textContent = webhookUrlError(e.target.value);
-  });
-  $('slack-webhook-url').addEventListener('change', e => {
-    save({ mm2c_slack_webhook_url: e.target.value.trim() });
-  });
-
-  $('redact-pii').addEventListener('change', e => {
-    save({ mm2c_redact_pii: e.target.checked });
-  });
-  $('redact-keywords').addEventListener('change', e => {
-    save({ mm2c_redact_keywords: e.target.value.trim() });
-  });
-  $('blocklist').addEventListener('change', e => {
-    save({ mm2c_blocklist: e.target.value.trim() });
-  });
-  $('emit-ics').addEventListener('change', e => {
-    save({ mm2c_emit_ics: e.target.checked });
-  });
-  $('wikilinks').addEventListener('change', e => {
-    save({ mm2c_wikilinks: e.target.checked });
-  });
-  $('preview-before-send').addEventListener('change', e => {
-    save({ mm2c_preview_before_send: e.target.checked });
-  });
   $('selector-hotfix-url').addEventListener('change', e => {
     const url = e.target.value.trim();
     $('selector-hotfix-url').value = url;
@@ -1398,21 +1337,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('file-type').addEventListener('change', e => {
     save({ mm2c_file_backup_type: e.target.value });
-  });
-
-  $('note-language').addEventListener('change', e => {
-    const val = e.target.value;
-    if (val === '__custom__') {
-      $('note-language-custom-row').classList.remove('hidden');
-    } else {
-      $('note-language-custom-row').classList.add('hidden');
-      save({ mm2c_note_language: val });
-    }
-  });
-
-  $('note-language-custom').addEventListener('change', e => {
-    const val = e.target.value.trim();
-    if (val) save({ mm2c_note_language: val });
   });
 
   $('snapshot-interval').addEventListener('change', e => {

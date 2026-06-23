@@ -1284,13 +1284,6 @@ window.MM2C_TESTS = (() => {
     assert('buildIssueUrl: tolerates missing fields',
       buildIssueUrl().includes('title=') && buildIssueUrl({}).includes('issues/new'));
 
-    // ARCH-6 · webhookUrlError — validate user-entered webhook/Slack URLs
-    assert('webhookUrlError: blank is allowed (off)', webhookUrlError('') === '' && webhookUrlError('  ') === '');
-    assert('webhookUrlError: https ok', webhookUrlError('https://hooks.slack.com/x') === '');
-    assert('webhookUrlError: http localhost ok', webhookUrlError('http://localhost:3000/h') === '');
-    assert('webhookUrlError: missing scheme → error', webhookUrlError('hooks.slack.com/x') !== '');
-    assert('webhookUrlError: wrong scheme → error', webhookUrlError('ftp://x') !== '');
-
     // A4 · craftFolderIdError — validate the Craft inbox/doc ID field
     assert('craftFolderIdError: blank is allowed (default)', craftFolderIdError('') === '' && craftFolderIdError('  ') === '');
     assert('craftFolderIdError: bare docId ok', craftFolderIdError('A1B2-c3d4-EF56') === '');
@@ -1305,28 +1298,19 @@ window.MM2C_TESTS = (() => {
     assert('obsidianVaultPathError: relative path → error', obsidianVaultPathError('Documents/Vault') !== '');
     assert('obsidianVaultPathError: URL → error', obsidianVaultPathError('https://x/y') !== '');
 
-    // RB-5a · titleBlocked — exclude sensitive meetings from capture
-    assert('titleBlocked: regex match (array)', titleBlocked('1:1 with HR', ['1:1 with HR|interview']) === true);
-    assert('titleBlocked: regex match (string list)', titleBlocked('Interview: Bob', 'interview, salary') === true);
-    assert('titleBlocked: no match', titleBlocked('Q3 Planning', ['interview']) === false);
-    assert('titleBlocked: empty title or patterns → false',
-      titleBlocked('', ['x']) === false && titleBlocked('Sync', '') === false);
-    assert('titleBlocked: invalid regex skipped', titleBlocked('Sync', ['(', 'sync']) === true);
-
     // Tier-3 · assemblePrompt — the full prompt construction, now a pure tested unit
     const empty = assemblePrompt({ base: 'BASE' });
     assert('assemblePrompt: bare base when nothing else', empty === 'BASE');
     const full = assemblePrompt({
       title: 'Q3 Plan', priorContext: 'PRIOR',
-      language: 'Spanish', attendees: ['Alice', 'Bob'], example: 'EX', base: 'BASE', depth: 'brief',
+      attendees: ['Alice', 'Bob'], example: 'EX', base: 'BASE', depth: 'brief',
     });
     assert('assemblePrompt: includes every piece',
       /Meeting title: Q3 Plan/.test(full) && full.includes('PRIOR') &&
-      /Spanish/.test(full) && /Alice/.test(full) && full.includes('EX') && full.endsWith('BASE'));
-    assert('assemblePrompt: order title<prior<language<attendees<example<base',
+      /Alice/.test(full) && full.includes('EX') && full.endsWith('BASE'));
+    assert('assemblePrompt: order title<prior<attendees<example<base',
       full.indexOf('Q3 Plan') < full.indexOf('PRIOR') &&
-      full.indexOf('PRIOR') < full.indexOf('Spanish') &&
-      full.indexOf('Spanish') < full.indexOf('Alice') &&
+      full.indexOf('PRIOR') < full.indexOf('Alice') &&
       full.indexOf('Alice') < full.indexOf('EX') &&
       full.indexOf('EX') < full.indexOf('BASE'));
     assert('assemblePrompt: depth instruction prepended to base',
@@ -1969,16 +1953,6 @@ window.MM2C_TESTS = (() => {
   function testPromptPrefixHelpers() {
     console.group('prompt prefix helpers (direct, exact-string)');
 
-    // noteLanguagePrefix — exact strings (was the buildPromptWithLanguage copy)
-    assertEq('noteLanguagePrefix("") → ""', noteLanguagePrefix(''), '');
-    assertEq('noteLanguagePrefix() → ""', noteLanguagePrefix(), '');
-    assertEq('noteLanguagePrefix("Spanish") exact',
-      noteLanguagePrefix('Spanish'),
-      "Write all notes in Spanish. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n");
-    assertEq('noteLanguagePrefix("Japanese") exact',
-      noteLanguagePrefix('Japanese'),
-      "Write all notes in Japanese. Preserve proper nouns, product names, technical acronyms, and people's names in their original form without translating them.\n\n");
-
     // meetingTitlePrefix — exact strings (was the buildPromptWithTitle copy)
     assertEq('meetingTitlePrefix("") → ""', meetingTitlePrefix(''), '');
     assertEq('meetingTitlePrefix(null) → ""', meetingTitlePrefix(null), '');
@@ -2233,16 +2207,6 @@ window.MM2C_TESTS = (() => {
     assert('never echoes the raw stack/text verbatim',
       friendlyError('TypeError: x is not a function').indexOf('TypeError') === -1);
     assert('null/undefined safe', typeof friendlyError(null) === 'string' && friendlyError(undefined).length > 0);
-    console.groupEnd();
-  }
-
-  function testShouldPreviewBeforeSend() {
-    console.group('shouldPreviewBeforeSend (RB-4b)');
-    assert('enabled + real transcript → preview',
-      shouldPreviewBeforeSend(true, 'A reasonably long captured note here') === true);
-    assert('disabled → no preview', shouldPreviewBeforeSend(false, 'A long note here for review') === false);
-    assert('enabled but trivial transcript → no preview', shouldPreviewBeforeSend(true, 'tiny') === false);
-    assert('enabled but null transcript → no preview', shouldPreviewBeforeSend(true, null) === false);
     console.groupEnd();
   }
 
@@ -2789,7 +2753,6 @@ window.MM2C_TESTS = (() => {
     testBuildForwardConfig();
     testFirstRunDefaults();
     testFriendlyError();
-    testShouldPreviewBeforeSend();
     testCloseOverlayBody();
     testGeminiInactiveMessage();
     testDefaultPromptContent();

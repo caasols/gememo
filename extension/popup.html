@@ -1216,29 +1216,6 @@
       <p class="hint">How often to snapshot the running Gemini summary mid-meeting, so nothing is lost if capture fails when you leave.</p>
     </div>
 
-    <!-- Note language — beta-gated -->
-    <div class="widget beta">
-      <div class="widget-title">Note language <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Language</span>
-        <select id="note-language">
-          <option value="">Auto (same as meeting)</option>
-          <option value="English">English</option>
-          <option value="Spanish">Spanish</option>
-          <option value="Portuguese">Portuguese</option>
-          <option value="French">French</option>
-          <option value="German">German</option>
-          <option value="Italian">Italian</option>
-          <option value="Dutch">Dutch</option>
-          <option value="__custom__">Other…</option>
-        </select>
-      </div>
-      <div class="row hidden" id="note-language-custom-row">
-        <span class="label">Custom language</span>
-        <input type="text" id="note-language-custom" class="text-normal" placeholder="e.g. Japanese">
-      </div>
-    </div>
-
     <!-- Primary output selector — the single main app. Google Docs is a separate
          additive output (its own widget below); Additional destinations adds more. -->
     <div class="widget">
@@ -1281,17 +1258,6 @@
         <p class="hint">Click the field to open a folder picker and select your Obsidian vault.</p>
       </div>
 
-      <!-- Wikilinks for graph apps — beta-gated -->
-      <div class="beta">
-        <div class="row" style="margin-top:8px">
-          <span class="label">Wikilinks for graph apps</span>
-          <label class="toggle-wrap">
-            <input type="checkbox" id="wikilinks">
-            <span class="toggle-track"></span>
-          </label>
-        </div>
-        <p class="hint">Wrap attendee names in [[double brackets]] so each note links into your Obsidian/Craft graph. Best left off for non-graph apps.</p>
-      </div>
     </div>
 
     <!-- Additional destinations repeater (UXF-11) — promoted to production. Sits
@@ -1341,20 +1307,12 @@
           <span class="label">Folder</span>
           <input type="text" id="file-path" placeholder="~/Documents/gememo-meeting-notes" readonly>
         </div>
-        <div class="row beta">
-          <span class="label">.ics for Next Steps</span>
-          <label class="toggle-wrap">
-            <input type="checkbox" id="emit-ics">
-            <span class="toggle-track"></span>
-          </label>
-        </div>
       </div>
 
     </div>
 
-    <!-- Privacy settings — all privacy-related controls in one place: local-backup
-         retention (production, always shown) + redaction/blocklist (beta-gated; the
-         .beta sub-block appears here only when Experimental is on). -->
+    <!-- Privacy settings — local-backup retention plus the Google account
+         connection. -->
     <div class="widget">
       <div class="widget-title">Privacy settings</div>
 
@@ -1408,58 +1366,6 @@
         <button class="btn" id="google-acct-btn">Connect</button>
       </div>
       <p class="hint">One consent connects the Google Docs output + Calendar enrichment. <strong>Disconnect</strong> removes the stored tokens from this Mac, greys out Google Docs, and turns off Calendar enrichment.</p>
-
-      <!-- Redaction + blocklist (RB-5b) — beta-gated; appears inside Privacy settings when Experimental is on. -->
-      <div class="beta">
-        <div class="subhead">Redaction &amp; blocklist <span class="beta-pill">Beta</span></div>
-        <div class="row">
-          <span class="label">Redact PII</span>
-          <label class="toggle-wrap">
-            <input type="checkbox" id="redact-pii">
-            <span class="toggle-track"></span>
-          </label>
-        </div>
-        <div class="row">
-          <span class="label">Also redact</span>
-          <input type="text" id="redact-keywords" placeholder="comma,separated,keywords">
-        </div>
-        <p class="hint">Strips emails, phone numbers, and card-like numbers (plus your keywords) from notes and webhook payloads before anything is written.</p>
-        <div style="margin-top:4px">
-          <span class="label">Never capture (blocklist)</span>
-          <textarea id="blocklist" rows="2" placeholder="interview, 1:1 with HR, /salary/i"></textarea>
-        </div>
-        <p class="hint">Meetings whose title matches any of these (regex, comma or newline separated) are never captured.</p>
-      </div>
-    </div>
-
-    <!-- Review before send (RB-4b) — beta-gated -->
-    <div class="widget beta">
-      <div class="widget-title">Review <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Review notes before saving</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="preview-before-send">
-          <span class="toggle-track"></span>
-        </label>
-      </div>
-      <p class="hint">When you leave a call, show the captured notes for a quick review (15s) with Discard / Save before they're sent.</p>
-    </div>
-
-    <!-- Generic webhook (P9-D) — beta-gated -->
-    <div class="widget beta">
-      <div class="widget-title">Webhook <span class="beta-pill">Beta</span></div>
-      <p class="hint">POST each captured note as JSON to a URL (Zapier, n8n, Make, your own endpoint). Leave blank to disable.</p>
-      <div class="row">
-        <span class="label">URL</span>
-        <input type="text" id="webhook-url" placeholder="https://hooks.example.com/...">
-      </div>
-      <span class="field-error" id="webhook-error" role="alert"></span>
-      <div class="row">
-        <span class="label">Slack</span>
-        <input type="text" id="slack-webhook-url" placeholder="https://hooks.slack.com/services/...">
-      </div>
-      <span class="field-error" id="slack-error" role="alert"></span>
-      <p class="hint">Posts the title, summary, and action-item count to a Slack incoming webhook.</p>
     </div>
 
     <!-- Diagnostics (RB-7b) — maintenance tool; moved here from the About tab. -->
