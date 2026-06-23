@@ -2210,7 +2210,35 @@ window.MM2C_TESTS = (() => {
       cfg.backupCleanup.snapshots.enabled === true && cfg.backupCleanup.snapshots.days === 10);
     const defaults = buildForwardConfig({ mm2c_output_app: 'craft' });
     assert('defaults applied',
-      defaults.fileBackupType === 'markdown' && defaults.fileBackupPath === '~/Downloads/meeting-notes');
+      defaults.fileBackupType === 'markdown' && defaults.fileBackupPath === '~/Documents/gememo-meeting-notes');
+    assert('default cleanup retention is 7 days',
+      defaults.backupCleanup.snapshots.days === 7 && defaults.backupCleanup.finalNotes.days === 7);
+    console.groupEnd();
+  }
+
+  function testFirstRunDefaults() {
+    console.group('firstRunDefaults');
+    const fresh = firstRunDefaults({});
+    assert('fresh install: file backup on, markdown, to ~/Documents/gememo-meeting-notes',
+      fresh.mm2c_file_backup_enabled === true && fresh.mm2c_file_backup_type === 'markdown'
+      && fresh.mm2c_file_backup_path === '~/Documents/gememo-meeting-notes');
+    assert('fresh install: all three auto-cleanups on',
+      fresh.mm2c_cleanup_snap_enabled === true && fresh.mm2c_cleanup_final_enabled === true
+      && fresh.mm2c_logs_cleanup_enabled === true);
+    assert('fresh install: 7-day retention everywhere',
+      fresh.mm2c_cleanup_snap_days === 7 && fresh.mm2c_cleanup_final_days === 7
+      && fresh.mm2c_logs_cleanup_days === 7);
+    // Never override an existing user's explicit choice (e.g. cleanup left OFF, a
+    // custom path) — those keys are absent from the seed, so auto-delete is never
+    // retroactively enabled; the other still-unset defaults are filled in.
+    const partial = firstRunDefaults({ mm2c_cleanup_snap_enabled: false, mm2c_file_backup_path: '~/custom' });
+    assert('respects an existing cleanup=off choice', !('mm2c_cleanup_snap_enabled' in partial));
+    assert('respects an existing custom backup path', !('mm2c_file_backup_path' in partial));
+    assert('still fills the other unset defaults', partial.mm2c_cleanup_final_enabled === true);
+    // A fully-configured install needs nothing seeded.
+    const full = {};
+    for (const k in FIRST_RUN_DEFAULTS) full[k] = FIRST_RUN_DEFAULTS[k];
+    assert('a fully-set install seeds nothing', Object.keys(firstRunDefaults(full)).length === 0);
     console.groupEnd();
   }
 
@@ -2852,6 +2880,7 @@ window.MM2C_TESTS = (() => {
     testFirstRunChecklist();
     testBuildDiagnosticsReport();
     testBuildForwardConfig();
+    testFirstRunDefaults();
     testBuildTaskUrl();
     testBuildMailtoUrl();
     testFriendlyError();

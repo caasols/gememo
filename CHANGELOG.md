@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Changed
+- **Fresh installs now start with sensible defaults: file backup on + 7-day auto-cleanup.** A brand-new install seeds a local Markdown backup saved to **`~/Documents/gememo-meeting-notes`**, and turns on all three auto-cleanups — old **snapshots**, old **notes**, and old **activity-log entries** — at **7 days**. Everything shows enabled in Settings and you can change or disable any of it. **Existing installs are untouched:** defaults are seeded only on a first install and never override a choice you've already made, so auto-delete is never retroactively enabled on your backups. (Extension reload only; host version bumped for lockstep.)
 - **Dropped "(optional)" from the onboarding "Connect Google" step** — the whole Welcome card is dismissible, so every step is effectively optional; the label is just "Connect Google for Docs & Calendar". (Extension reload only; host version bumped for lockstep.)
 
 ### Fixed
