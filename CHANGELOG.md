@@ -13,6 +13,8 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+## [0.3.0] – 2026-06-23 · Google Docs + Calendar via one-click OAuth, output-availability awareness & a run of save-reliability fixes (BUG-11→14)
+
 ### Fixed
 - **"Connect Google" no longer spins on "Connecting…" forever when it can't connect (BUG-14).** On a Mac without `credentials.json` (e.g. a second machine that never did the one-time Google setup), clicking Connect spawned a flow that failed silently — and the popup polled a never-connecting status indefinitely with no feedback. The host now **fails fast** (Google libs missing, or no `credentials.json` → an immediate error reply), and both the onboarding **Connect** button and the **Settings → Privacy** row surface the error and reset — plus a ~90s safety timeout if a started flow never completes (e.g. you cancel the browser consent). (Host symlinked → reload the extension.)
 
