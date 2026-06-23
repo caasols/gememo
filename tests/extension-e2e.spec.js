@@ -1534,6 +1534,22 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('onboarding Connect surfaces an error instead of spinning forever when it cannot connect (BUG-14)', async () => {
+      const page = await popupWith({ mm2c_setup_dismissed: false }, {
+        google_status: { connected: false, available: true },
+        google_connect: { status: 'error', error: 'Google isn’t set up on this Mac — no credentials.json (see CALENDAR_SETUP.md).' },
+        ping: { status: 'ok' }, __default: { status: 'ok' },
+      });
+      const btn = page.locator('#setup-google-connect');
+      await expect(btn).toHaveText('Connect');
+      await btn.click();
+      // It must NOT get stuck on "Connecting…" — it resets to Connect + shows why.
+      await expect(btn).toHaveText('Connect');
+      await expect(page.locator('#setup-google-error')).toBeVisible();
+      await expect(page.locator('#setup-google-error')).toContainText('credentials.json');
+      await page.close();
+    });
+
     test('output dropdown hides not-installed apps, greys connectable ones, keeps the current pick visible', async () => {
       const page = await popupWith({ mm2c_output_app: 'bear' }, {
         destination_status: { status: 'ok', destinations: {

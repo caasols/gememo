@@ -494,7 +494,10 @@ class TestGoogleDispatch(unittest.TestCase):
         self.assertEqual(sent[-1], {"ok": True})
 
     def test_google_connect_spawns_detached(self):
-        with patch.object(host.subprocess, 'Popen') as popen:
+        with patch.object(host.gauth, 'GAUTH_AVAILABLE', True), \
+                patch.object(host.gauth, 'CREDENTIALS_PATH') as creds, \
+                patch.object(host.subprocess, 'Popen') as popen:
+            creds.exists.return_value = True
             sent = self._dispatch({"type": "google_connect"})
         popen.assert_called_once()
         self.assertTrue(str(popen.call_args[0][0][-1]).endswith("gauth.py"))
@@ -502,10 +505,32 @@ class TestGoogleDispatch(unittest.TestCase):
         self.assertEqual(sent[-1], {"status": "ok", "started": True})
 
     def test_google_connect_popen_failure_errors(self):
-        with patch.object(host.subprocess, 'Popen', side_effect=OSError("nope")):
+        with patch.object(host.gauth, 'GAUTH_AVAILABLE', True), \
+                patch.object(host.gauth, 'CREDENTIALS_PATH') as creds, \
+                patch.object(host.subprocess, 'Popen', side_effect=OSError("nope")):
+            creds.exists.return_value = True
             sent = self._dispatch({"type": "google_connect"})
         self.assertEqual(sent[-1]["status"], "error")
         self.assertIn("nope", sent[-1]["error"])
+
+    def test_google_connect_errors_fast_without_credentials(self):
+        # BUG-14: no credentials.json on this Mac → immediate error, no doomed spawn
+        # (otherwise the popup polls a never-connecting status forever).
+        with patch.object(host.gauth, 'GAUTH_AVAILABLE', True), \
+                patch.object(host.gauth, 'CREDENTIALS_PATH') as creds, \
+                patch.object(host.subprocess, 'Popen') as popen:
+            creds.exists.return_value = False
+            sent = self._dispatch({"type": "google_connect"})
+        popen.assert_not_called()
+        self.assertEqual(sent[-1]["status"], "error")
+        self.assertIn("credentials.json", sent[-1]["error"])
+
+    def test_google_connect_errors_fast_without_libs(self):
+        with patch.object(host.gauth, 'GAUTH_AVAILABLE', False), \
+                patch.object(host.subprocess, 'Popen') as popen:
+            sent = self._dispatch({"type": "google_connect"})
+        popen.assert_not_called()
+        self.assertEqual(sent[-1]["status"], "error")
 
 
 class TestCaptureHooks(unittest.TestCase):
