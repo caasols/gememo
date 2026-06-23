@@ -107,12 +107,11 @@ test.describe('extension E2E harness', () => {
       }).toBe('x-coredata://S/ICNote/p9');
     });
 
-    test('MM2C_RESPONSE forwards the destinations repeater regardless of beta state (UXF-11)', async () => {
+    test('MM2C_RESPONSE forwards the destinations repeater (UXF-11)', async () => {
       const dests = [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }, { type: 'apple_notes' }];
       await seedStorage(ext.serviceWorker, {
         mm2c_output_app: 'craft',
         mm2c_destinations: dests,
-        mm2c_beta_enabled: false, // beta OFF — must STILL thread (regression guard for the gating bug)
       });
       await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'destinations payload', meetingTitle: 'X' });
       await expect.poll(async () => {
@@ -126,7 +125,6 @@ test.describe('extension E2E harness', () => {
         mm2c_output_app: 'craft',
         mm2c_destinations: [{ type: 'obsidian', vaultPath: '/tmp/VaultA' }],
         mm2c_also_send: ['apple_notes'],
-        mm2c_beta_enabled: false,
       });
       await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'merge payload', meetingTitle: 'X' });
       await expect.poll(async () => {
@@ -143,7 +141,6 @@ test.describe('extension E2E harness', () => {
           { type: 'craft', folderId: '' },
           { type: 'obsidian', vaultPath: '/v' }, { type: 'obsidian', vaultPath: '/w' },
         ],
-        mm2c_beta_enabled: false,
       });
       await sendFromPage(popup, { type: 'MM2C_RESPONSE', text: 'dedup payload', meetingTitle: 'X' });
       await expect.poll(async () => {
@@ -737,9 +734,8 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('History: a saved Apple Notes link shows an "Open ↗" control (beta)', async () => {
+    test('History: a saved Apple Notes link shows an "Open ↗" control', async () => {
       const page = await popupWith({
-        mm2c_beta_enabled: true,
         mm2c_logs: [{ ts: 111, status: 'ok', title: 'Q3 Sync', message: 'Saved to Apple Notes', level: 'user',
                       link: { app: 'apple_notes', kind: 'note_id', value: 'x-coredata://S/ICNote/p9' } }],
       });
@@ -753,7 +749,6 @@ test.describe('extension E2E harness', () => {
     test('History: clicking Open on a deleted note drops the dead link', async () => {
       const page = await popupWith(
         {
-          mm2c_beta_enabled: true,
           mm2c_logs: [{ ts: 222, status: 'ok', title: 'Gone Mtg', message: 'Saved to Apple Notes', level: 'user',
                         link: { app: 'apple_notes', kind: 'note_id', value: 'x-coredata://S/ICNote/dead' } }],
         },
@@ -905,7 +900,7 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Settings: Privacy settings sits between File backup and Experimental (UXF-13 reorder)', async () => {
+    test('Settings: Privacy settings sits after File backup (UXF-13 reorder)', async () => {
       const page = await popupWith({});
       await page.click('#tab-settings');
       const order = await page.evaluate(() => {
@@ -914,12 +909,10 @@ test.describe('extension E2E harness', () => {
         return {
           fileBackup: titles.indexOf('File backup'),
           privacy: titles.findIndex(t => t.startsWith('Privacy settings')),
-          experimental: titles.indexOf('Experimental'),
         };
       });
       expect(order.fileBackup).toBeGreaterThanOrEqual(0);
       expect(order.privacy).toBeGreaterThan(order.fileBackup);
-      expect(order.experimental).toBeGreaterThan(order.privacy);
       await page.close();
     });
 
@@ -1070,42 +1063,21 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Beta tab appears when experimental is on and gathers the beta widgets (UXF-14)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      await expect(page.locator('#tab-beta')).toBeVisible();
-      await page.click('#tab-beta');
-      await expect(page.locator('#beta-panel #selector-hotfix-url')).toBeVisible();
-      await page.close();
-    });
-
-    test('advanced features are hidden when Experimental is OFF (beta gating)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: false });
+    test('Core Settings widgets are visible without any feature gating', async () => {
+      const page = await popupWith({});
       await page.click('#tab-settings');
-      // Beta-gated widget (selector hotfix) lives behind the hidden Beta tab.
-      await expect(page.locator('#tab-beta')).not.toBeVisible();
-      await expect(page.locator('#selector-hotfix-url')).not.toBeVisible();
-      // Core Settings stay visible. Additional destinations promoted out of beta —
-      // visible regardless of the Experimental toggle.
       await expect(page.locator('#output-app')).toBeVisible();
       await expect(page.locator('#add-destination')).toBeVisible();
-      await expect(page.getByText('Privacy settings')).toBeVisible();      // card title (production)
-      await expect(page.getByText('Local backups')).toBeVisible();         // retention sub-section stays
-      await expect(page.locator('#clear-logs')).toBeVisible();             // Clear moved here (production)
-      // Diagnostics: Developer logs + Download promoted out of beta — visible regardless of Experimental.
+      await expect(page.getByText('Privacy settings')).toBeVisible();      // card title
+      await expect(page.getByText('Local backups')).toBeVisible();         // retention sub-section
+      await expect(page.locator('#clear-logs')).toBeVisible();
+      // Diagnostics: Developer logs toggle + Download are always visible.
       // (#show-debug-logs is a styled toggle: assert its visible label, not the opacity-0 input.)
       await expect(page.locator('label.toggle-wrap', { has: page.locator('#show-debug-logs') })).toBeVisible();
       await expect(page.locator('#download-logs')).toBeVisible();
       // Rules-tab: the unified rules list (Default row) stays.
       await page.click('#tab-rules');
       await expect(page.locator('#default-rule')).toBeVisible();
-      await page.close();
-    });
-
-    test('advanced features appear when Experimental is ON (beta gating)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: true });
-      await expect(page.locator('#tab-beta')).toBeVisible();
-      await page.click('#tab-beta');
-      await expect(page.locator('#selector-hotfix-url')).toBeVisible();
       await page.close();
     });
 
@@ -1175,15 +1147,14 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Beta tab renders seeded additional-destination rows (UXF-11)', async () => {
+    test('Settings tab renders seeded additional-destination rows (UXF-11)', async () => {
       const page = await popupWith({
-        mm2c_beta_enabled: true,
         mm2c_destinations: [
           { type: 'obsidian', vaultPath: '/tmp/VaultA' },
           { type: 'craft', folderId: 'fid-123' },
         ],
       });
-      await page.click('#tab-beta');
+      await page.click('#tab-settings');
       const rows = page.locator('#destinations-list .dest-row');
       await expect(rows).toHaveCount(2);
       await expect(rows.nth(0).locator('.dest-type')).toHaveValue('obsidian');
@@ -1268,12 +1239,6 @@ test.describe('extension E2E harness', () => {
         (await getStorage(ext.serviceWorker, ['mm2c_output_app'])).mm2c_output_app
       ).toBe('google_docs');
       await expect(page.locator('#gdocs-conn')).toBeVisible(); // connection control revealed
-      await page.close();
-    });
-
-    test('Beta tab is hidden when experimental is off (UXF-14)', async () => {
-      const page = await popupWith({ mm2c_beta_enabled: false });
-      await expect(page.locator('#tab-beta')).toBeHidden();
       await page.close();
     });
 
