@@ -38,6 +38,13 @@ playwright-report/
 *.pem
 *.key
 secrets/
+# Google OAuth — these normally live in ~/.config/gememo/ (outside the repo), but
+# guard against one ever being dropped inside the project tree.
+credentials.json
+client_secret*.json
+token.json
+token_docs.json
+account.json
 
 # ── Build / cache artefacts ──────────────────────────────────────────────────
 *.zip
