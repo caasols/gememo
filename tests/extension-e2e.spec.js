@@ -746,9 +746,11 @@ test.describe('extension E2E harness', () => {
         }
       );
       await page.click('#tab-settings');
-      // craft is still disabled, but the banner stays hidden since the *selected*
+      // craft is not installed and isn't the selected primary → it's HIDDEN now
+      // (only show detectable apps); the banner stays hidden since the *selected*
       // primary (apple_notes) is fine.
-      await expect(page.locator('#output-app option[value="craft"]')).toBeDisabled();
+      await expect.poll(async () =>
+        page.locator('#output-app option[value="craft"]').evaluate((o) => o.hidden)).toBe(true);
       await expect(page.locator('#output-unavailable')).toBeHidden();
       await page.close();
     });
@@ -1529,6 +1531,30 @@ test.describe('extension E2E harness', () => {
       await expect.poll(async () =>
         (await getStorage(ext.serviceWorker, ['mm2c_google_connected', 'mm2c_calendar_enabled'])))
         .toEqual({ mm2c_google_connected: false, mm2c_calendar_enabled: false });
+      await page.close();
+    });
+
+    test('output dropdown hides not-installed apps, greys connectable ones, keeps the current pick visible', async () => {
+      const page = await popupWith({ mm2c_output_app: 'bear' }, {
+        destination_status: { status: 'ok', destinations: {
+          bear: { available: false, reason: 'Not installed' },        // the current pick
+          craft: { available: false, reason: 'Not installed' },       // not selected
+          google_docs: { available: false, reason: 'Not connected' }, // connectable, not installed-detection
+          apple_notes: { available: true, reason: '' },
+          obsidian: { available: true, reason: '' },
+        } },
+        ping: { status: 'ok' }, __default: { status: 'ok' },
+      });
+      await page.click('#tab-settings');
+      const opt = (v) => page.locator(`#output-app option[value="${v}"]`);
+      // Current pick (bear, not installed) stays VISIBLE + greyed so you can see/change it.
+      await expect.poll(async () => opt('bear').evaluate((o) => o.hidden)).toBe(false);
+      await expect(opt('bear')).toBeDisabled();
+      // A not-installed app you didn't pick → HIDDEN (not just greyed).
+      await expect.poll(async () => opt('craft').evaluate((o) => o.hidden)).toBe(true);
+      // Connectable (not connected) → VISIBLE + greyed, so it stays discoverable.
+      await expect.poll(async () => opt('google_docs').evaluate((o) => o.hidden)).toBe(false);
+      await expect(opt('google_docs')).toBeDisabled();
       await page.close();
     });
 

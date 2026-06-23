@@ -825,16 +825,25 @@ function updateGdocsConnVisibility() {
 // then grey out the dead ones in #output-app and surface a warning banner when
 // the *selected* primary is unavailable. Fail-open: any host error leaves every
 // option enabled and the banner hidden so a missing host never blocks the UI.
-// Grey out (disable + inline reason) the options of one <select> that point at
-// an unavailable destination, and restore them when they become available. Used
-// for BOTH the primary #output-app and every additional-destination row so they
-// agree on what's installed/connected (OUT-1).
+// Reflect each option's destination availability (OUT-1), for BOTH the primary
+// #output-app and every additional-destination row so they agree:
+//   • not installed (app absent from this Mac) → HIDE it — you can't act on it, so
+//     only show what we can detect. EXCEPT the current selection, which stays
+//     visible (greyed) so you can see + change your pick.
+//   • not connected / needs config (e.g. Google Docs) → keep VISIBLE + greyed with
+//     the reason, so a one-click-away integration stays discoverable.
+//   • available → normal.
 function applyDestAvailabilityToSelect(select, dests) {
+  const selected = select.value;
   Array.from(select.options).forEach((opt) => {
     if (!opt.value || opt.value === 'none') return;
     if (opt.disabled && !opt.dataset.out1) return; // markup-disabled (Coming soon)
     const { enabled, reason } = destinationAvailability(dests, opt.value);
-    if (!enabled) {
+    // "Not installed" is the host's signal for an absent local app → hide it,
+    // unless it's the current pick (don't strip the user's own selection).
+    const hide = !enabled && reason === 'Not installed' && opt.value !== selected;
+    opt.hidden = hide;
+    if (!enabled && !hide) {
       // Remember the original label once, then show the reason inline (not just
       // on hover) — rebuilt from the base each call so repeats don't stack.
       if (opt.dataset.out1Base === undefined) opt.dataset.out1Base = opt.textContent;
@@ -843,6 +852,7 @@ function applyDestAvailabilityToSelect(select, dests) {
       opt.textContent = reason ? `${opt.dataset.out1Base} — ${reason}` : opt.dataset.out1Base;
       opt.dataset.out1 = '1';
     } else if (opt.dataset.out1) {
+      // available, or now hidden → restore to the clean enabled label
       opt.disabled = false;
       opt.title = '';
       if (opt.dataset.out1Base !== undefined) {
