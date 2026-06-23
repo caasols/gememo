@@ -1111,14 +1111,14 @@ test.describe('extension E2E harness', () => {
       await expect(page.getByText('Local backups')).toBeVisible();         // retention sub-section stays
       await expect(page.getByText('Redaction & blocklist')).not.toBeVisible(); // beta sub-block gated off
       await expect(page.locator('#clear-logs')).toBeVisible();             // Clear moved here (production)
+      // Diagnostics: Developer logs + Download promoted out of beta — visible regardless of Experimental.
+      // (#show-debug-logs is a styled toggle: assert its visible label, not the opacity-0 input.)
+      await expect(page.locator('label.toggle-wrap', { has: page.locator('#show-debug-logs') })).toBeVisible();
+      await expect(page.locator('#download-logs')).toBeVisible();
       // Rules-tab Glossary is gated; the unified rules list (Default row) stays.
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).not.toBeVisible();
       await expect(page.locator('#default-rule')).toBeVisible();
-      // Logs-tab: Developer logs and the Download footer are gated off.
-      await page.click('#tab-logs');
-      await expect(page.locator('#show-debug-logs')).not.toBeVisible();
-      await expect(page.locator('#download-logs')).not.toBeVisible();
       await page.close();
     });
 
@@ -1134,9 +1134,6 @@ test.describe('extension E2E harness', () => {
       await expect(page.getByText('Review notes before saving')).toBeVisible();
       await page.click('#tab-rules');
       await expect(page.locator('#glossary')).toBeVisible();
-      await page.click('#tab-logs');
-      await expect(page.locator('#show-debug-logs')).toBeVisible();
-      await expect(page.locator('#download-logs')).toBeVisible();
       await page.close();
     });
 

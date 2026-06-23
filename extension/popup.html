@@ -1534,6 +1534,17 @@
       </div>
       <pre id="diag-output" class="diag-output hidden"></pre>
       <button class="btn hidden" id="copy-diagnostics" style="align-self:flex-start">Copy report</button>
+
+      <!-- Promoted out of Beta — diagnostic tools worth having always available. -->
+      <div class="row">
+        <span class="label">Developer logs</span>
+        <label class="toggle-wrap"><input type="checkbox" id="show-debug-logs"><span class="toggle-track"></span></label>
+      </div>
+      <div class="row">
+        <span class="label">Download activity log</span>
+        <button class="btn" id="download-logs">Download</button>
+      </div>
+      <p class="hint">Developer logs reveal the verbose debug entries in the History tab; Download exports the activity log to a file — both handy when reporting an issue.</p>
     </div>
 
     <!-- Experimental features toggle (UXF-1) — always the LAST widget in Settings. -->
@@ -1560,7 +1571,6 @@
       <div class="widget-title">History</div>
       <div class="logs-toolbar">
         <span class="logs-count" id="logs-count"></span>
-        <label class="logs-debug-toggle beta"><input type="checkbox" id="show-debug-logs"> Developer logs</label>
       </div>
 
       <div class="log-list-wrap">
@@ -1568,13 +1578,6 @@
           <div class="log-empty">No activity yet. Notes will appear here after your meetings.</div>
         </div>
       </div>
-    </div>
-
-    <!-- Sticky action footer — stays pinned to the bottom while the logs scroll.
-         Only holds the Beta "Download" now (Clear moved to Settings → Privacy
-         settings), so the whole footer is beta-gated: hidden when Experimental is off. -->
-    <div class="logs-footer beta">
-      <button class="btn beta" id="download-logs">Download</button>
     </div>
 
   </div><!-- /logs-panel -->

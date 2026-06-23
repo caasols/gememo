@@ -19,6 +19,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 - **Parked the Google Calendar enrichment (5.3) + Pre-meeting brief (P9-G) features.** Both were beta-gated and depend on the Google integration; they're moved out of the build (preserved locally + re-appliable) to shrink the Google story to one purpose — the Docs output. The Google connect is now **Docs-only** (a single scope). Calendar frontmatter enrichment, the Calendar Connect row, and the pre-meeting brief are gone from the UI. (Host + extension; reload the extension. Next Connect re-consents for Docs only.)
 
 ### Changed
+- **Promoted "Developer logs" + "Download activity log" out of Experimental into Settings → Diagnostics.** Both are genuinely useful diagnostic tools (they're how issues get root-caused), so they're no longer beta-gated — always available, grouped under the existing **Diagnostics** section beside *Run diagnostics*, and removed from the History tab. The Beta tab is now down to just the Selector hotfix. (Extension reload only; host version bumped for lockstep.)
 - **The History tab now leads with a "History" section title**, matching Rules / Settings / About — it was the only tab missing the header. (Extension reload only; host version bumped for lockstep.)
 
 ### Fixed
