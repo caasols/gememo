@@ -289,12 +289,6 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertEqual(sent[-1]["status"], "ok")
             self.assertEqual(len(list(Path(tmp).glob("*-snap.md"))), 1)
 
-    def test_search_dispatch(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            sent = self._run({"type": "search", "query": "anything", "fileBackupPath": tmp}, _proc(0))
-            self.assertEqual(sent[-1]["status"], "ok")
-            self.assertEqual(sent[-1]["results"], [])
-
     def test_prior_context_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             sent = self._run({"type": "prior_context", "meetingTitle": "Standup",

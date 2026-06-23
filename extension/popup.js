@@ -390,24 +390,6 @@ function renderActionItems(noteBody) {
   }).join('');
 }
 
-// Render local note-search results (P9-E).
-function renderSearchResults(results) {
-  const c = $('search-results');
-  if (!c) return;
-  if (!Array.isArray(results) || !results.length) {
-    c.innerHTML = '<div class="search-empty">No matching past meetings. Try a different term or widen the date range.</div>';
-    return;
-  }
-  c.innerHTML = results.map(r => `
-    <div class="search-result">
-      <div class="search-result-head">
-        <span class="search-title">${escapeHtml(r.title || 'Untitled meeting')}</span>
-        <span class="search-date">${escapeHtml(r.date || '')}</span>
-      </div>
-      <div class="search-snippet">${escapeHtml(r.snippet || '')}</div>
-    </div>`).join('');
-}
-
 // Built-in templates shown inline at the bottom of the rules list — OFF by
 // default. Only templates not yet added (by name) are shown; switching the toggle
 // ON materialises it into mm2c_prompt_rules as a normal editable rule (so it joins
@@ -1822,28 +1804,4 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => renderLogs(mm2c_logs));
   });
 
-  // Local full-text search across past meeting notes (P9-E) + filters (RB-6b), debounced.
-  let searchDebounce = null;
-  function runSearch() {
-    const q = $('note-search').value.trim();
-    clearTimeout(searchDebounce);
-    if (!q) { $('search-results').innerHTML = ''; return; }
-    searchDebounce = setTimeout(() => {
-      chrome.runtime.sendMessage({
-        type: 'MM2C_SEARCH',
-        query: q,
-        since: $('search-since').value || '',
-        until: $('search-until').value || '',
-        attendee: $('search-attendee').value.trim() || '',
-      }, (resp) => {
-        if (chrome.runtime.lastError) return;
-        renderSearchResults(resp?.ok ? resp.results : []);
-      });
-    }, 300);
-  }
-  $('note-search').addEventListener('input', runSearch);
-  ['search-since', 'search-until', 'search-attendee'].forEach(id => {
-    $(id).addEventListener('change', runSearch);
-    $(id).addEventListener('input', runSearch);
-  });
 });

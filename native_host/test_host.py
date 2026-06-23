@@ -22,7 +22,7 @@ import types
 from unittest.mock import patch
 
 import meeting_minutes_host as host
-from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback, search_notes
+from meeting_minutes_host import read_message, send_message, choose_retry_file, retry_title_fallback
 
 
 class _BytesStream:
@@ -191,78 +191,6 @@ class TestRetryTitleFallback(unittest.TestCase):
         )
 
 
-class TestSearchNotes(unittest.TestCase):
-    """search_notes — local full-text search over backup .md files (P9-E)."""
-
-    def _make(self, d: Path, name: str, body: str) -> None:
-        (d / name).write_text(body, encoding="utf-8")
-
-    def test_empty_query_returns_empty(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            self.assertEqual(search_notes("", tmp), [])
-            self.assertEqual(search_notes("   ", tmp), [])
-
-    def test_missing_dir_returns_empty(self):
-        self.assertEqual(search_notes("anything", "/no/such/dir"), [])
-
-    def test_matches_content_with_title_date_snippet(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            d = Path(tmp)
-            self._make(d, "20260601-q3-planning.md",
-                       '---\ndate: 2026-06-01\ntitle: "Q3 Planning"\n---\n'
-                       '## Summary\nWe discussed the Kafka migration in detail.')
-            res = search_notes("kafka", tmp)
-            self.assertEqual(len(res), 1)
-            self.assertEqual(res[0]["title"], "Q3 Planning")
-            self.assertEqual(res[0]["date"], "2026-06-01")
-            self.assertIn("Kafka", res[0]["snippet"])
-
-    def test_case_insensitive(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            d = Path(tmp)
-            self._make(d, "20260601-x.md", "Discussed BUDGET allocation.")
-            self.assertEqual(len(search_notes("budget", tmp)), 1)
-
-    def test_excludes_snapshot_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            d = Path(tmp)
-            self._make(d, "20260601-x.md", "final note mentions widget")
-            self._make(d, "20260601-120000-x-snap.md", "snapshot mentions widget")
-            res = search_notes("widget", tmp)
-            self.assertEqual(len(res), 1)
-            self.assertTrue(res[0]["file"].endswith("20260601-x.md"))
-
-    def test_no_match_returns_empty(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            self._make(Path(tmp), "20260601-x.md", "nothing relevant here")
-            self.assertEqual(search_notes("zebra", tmp), [])
-
-    def test_since_until_date_filter(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            d = Path(tmp)
-            self._make(d, "20260101-a.md", '---\ndate: 2026-01-01\ntitle: "A"\n---\nwidget here')
-            self._make(d, "20260601-b.md", '---\ndate: 2026-06-01\ntitle: "B"\n---\nwidget here')
-            r = search_notes("widget", tmp, since="2026-03-01")
-            self.assertEqual([x["date"] for x in r], ["2026-06-01"])
-            r = search_notes("widget", tmp, until="2026-03-01")
-            self.assertEqual([x["date"] for x in r], ["2026-01-01"])
-
-    def test_attendee_filter(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            d = Path(tmp)
-            self._make(d, "20260101-a.md", '---\ndate: 2026-01-01\ntitle: "A"\nattendees:\n  - Alice\n---\nplan')
-            self._make(d, "20260102-b.md", '---\ndate: 2026-01-02\ntitle: "B"\nattendees:\n  - Bob\n---\nplan')
-            r = search_notes("plan", tmp, attendee="alice")
-            self.assertEqual([x["title"] for x in r], ["A"])
-
-    def test_limit_respected(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            d = Path(tmp)
-            for i in range(5):
-                self._make(d, f"2026060{i}-m{i}.md", "common keyword here")
-            self.assertEqual(len(search_notes("keyword", tmp, limit=3)), 3)
-
-
 class TestHandleRetry(unittest.TestCase):
     """handle_retry — re-push a failed note (subprocess mocked)."""
 
@@ -422,14 +350,6 @@ class TestPureEdges(unittest.TestCase):
         self.assertEqual(
             host._note_date_from("no yaml here", Path("20260601-standup.md")),
             "2026-06-01")
-
-    def test_snippet_around_no_match_is_empty(self):
-        # Query not present ⇒ '' (host 647).
-        self.assertEqual(host._snippet_around("the quick brown fox", "zebra"), "")
-
-    def test_snippet_around_match_returns_context(self):
-        snip = host._snippet_around("the quick brown fox jumps", "brown")
-        self.assertIn("brown", snip)
 
 
 if __name__ == '__main__':

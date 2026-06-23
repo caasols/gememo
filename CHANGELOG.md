@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Removed
+- **Deleted the History "Search past meetings" feature.** Searching old notes is better done in your note app; the in-popup full-text search over backup files added surface for little value. Removed end-to-end — the host `search_notes`, the `MM2C_SEARCH` relay, the search box + date/attendee filters, and the now-dead snippet helper. The separate recurring-meeting "prior context" enrichment is untouched. (Host + extension; reload the extension.)
 - **Deleted the "Private reflection" (P9-H / dual-output) feature entirely.** It ran a *second* full Gemini pass at leave (a separate private note), roughly doubling the leave-time wait for marginal value — not worth shipping. Gone, along with the now-unused `promptOverride` plumbing in the capture flow. (Extension reload only; host version bumped for lockstep.)
 - **Parked the Google Calendar enrichment (5.3) + Pre-meeting brief (P9-G) features.** Both were beta-gated and depend on the Google integration; they're moved out of the build (preserved locally + re-appliable) to shrink the Google story to one purpose — the Docs output. The Google connect is now **Docs-only** (a single scope). Calendar frontmatter enrichment, the Calendar Connect row, and the pre-meeting brief are gone from the UI. (Host + extension; reload the extension. Next Connect re-consents for Docs only.)
 
