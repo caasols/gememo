@@ -1680,32 +1680,6 @@
 
     <p class="hint">These features are experimental and may change or disappear in a future release.</p>
 
-    <!-- Dual output: private reflection (P9-H) — beta -->
-    <div class="widget beta">
-      <div class="widget-title">Private reflection <span class="beta-pill">Beta</span></div>
-      <div class="row">
-        <span class="label">Enable</span>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="dual-output">
-          <span class="toggle-track"></span>
-        </label>
-      </div>
-      <div id="dual-output-sub" class="sub-options hidden">
-        <textarea id="private-prompt" rows="3" placeholder="A private prompt — e.g. summarise my own takeaways and follow-ups, just for me."></textarea>
-        <div class="row">
-          <span class="label">Send private note to</span>
-          <select id="private-app">
-            <option value="">Same as primary</option>
-            <option value="craft">Craft</option>
-            <option value="apple_notes">Apple Notes</option>
-            <option value="obsidian">Obsidian</option>
-            <option value="bear">Bear</option>
-          </select>
-        </div>
-        <p class="hint">After the shared note is saved, runs a second Gemini pass with your private prompt and saves it separately. Adds time at leave; experimental.</p>
-      </div>
-    </div>
-
     <!-- Selector hotfix (RB-1b) — beta -->
     <div class="widget">
       <div class="widget-title">Selector hotfix</div>

@@ -1102,7 +1102,6 @@ test.describe('extension E2E harness', () => {
       await expect(page.locator('#tab-beta')).toBeVisible();
       await page.click('#tab-beta');
       await expect(page.locator('#beta-panel #selector-hotfix-url')).toBeVisible();
-      await expect(page.locator('#beta-panel #dual-output')).toBeAttached();
       await page.close();
     });
 

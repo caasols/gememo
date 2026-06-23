@@ -59,9 +59,6 @@
   let currentOutputApp     = 'craft';    // mirrors mm2c_output_app; updated from storage
   let currentTitleTemplate = '';         // per-rule note-title template, resolved at join (RB-4d)
   let previewBeforeSend    = false;      // opt-in review-before-send gate (RB-4b)
-  let dualOutput           = false;      // P9-H — also run a private reflection pass
-  let privatePrompt        = '';         // P9-H — prompt for the private pass
-  let privateApp           = '';         // P9-H — destination for the private note
   let snapshotsPausedFlag  = false;      // true while the "notes paused" badge/toast nudge is active (tab hidden mid-meeting)
   let pausedNudgeTimer     = null;       // debounce so a quick tab-switch doesn't flag the paused nudge
 
@@ -132,13 +129,10 @@
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides', 'mm2c_preview_before_send', 'mm2c_dual_output', 'mm2c_private_prompt', 'mm2c_private_app']).then((data) => {
+  chrome.storage.local.get(['mm2c_enabled', 'mm2c_snapshot_interval_min', 'mm2c_output_app', 'mm2c_selector_overrides', 'mm2c_preview_before_send']).then((data) => {
     enabled = data.mm2c_enabled !== false;
     currentOutputApp = data.mm2c_output_app || 'craft';
     previewBeforeSend = data.mm2c_preview_before_send === true;
-    dualOutput = data.mm2c_dual_output === true;
-    privatePrompt = data.mm2c_private_prompt || '';
-    privateApp = data.mm2c_private_app || '';
     // Apply any remote selector hotfix overrides (RB-1b) over the bundled registry.
     if (typeof SELECTORS !== 'undefined') {
       effectiveSelectors = mergeSelectorOverrides(SELECTORS, data.mm2c_selector_overrides);
@@ -274,9 +268,6 @@
     if ('mm2c_preview_before_send' in changes) {
       previewBeforeSend = changes.mm2c_preview_before_send.newValue === true;
     }
-    if ('mm2c_dual_output' in changes) dualOutput = changes.mm2c_dual_output.newValue === true;
-    if ('mm2c_private_prompt' in changes) privatePrompt = changes.mm2c_private_prompt.newValue || '';
-    if ('mm2c_private_app' in changes) privateApp = changes.mm2c_private_app.newValue || '';
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -695,13 +686,13 @@
 
   // ── Gemini panel flow ──────────────────────────────────────────────────────
 
-  async function runGeminiFlow(timeoutMs = 120000, promptOverride = null) {
+  async function runGeminiFlow(timeoutMs = 120000) {
     if (geminiFlowPromise) throw new Error('Another Gemini capture is already running');
     let releaseLock;
     geminiFlowPromise = new Promise(resolve => { releaseLock = resolve; });
     safeSend({ type: 'MM2C_SET_CAPTURE_STATE', state: 'capturing' });
     try {
-      return await _runGeminiFlowInner(timeoutMs, promptOverride);
+      return await _runGeminiFlowInner(timeoutMs);
     } finally {
       releaseLock();            // unblocks any onLeaveClick awaiting this promise
       geminiFlowPromise = null; // null so guard check passes for the next caller
@@ -709,7 +700,7 @@
     }
   }
 
-  async function _runGeminiFlowInner(timeoutMs = 120000, promptOverride = null) {
+  async function _runGeminiFlowInner(timeoutMs = 120000) {
     const { mm2c_prompt, mm2c_note_language, mm2c_prompt_rules, mm2c_glossary } = isContextValid()
       ? await chrome.storage.local.get(['mm2c_prompt', 'mm2c_note_language', 'mm2c_prompt_rules', 'mm2c_glossary'])
       : {};
@@ -724,8 +715,7 @@
       findPromptRule(rules, currentMeetingTitle, new Date(), { durationMin: durMin });
 
     // Full prompt construction lives in the (unit-tested) assemblePrompt helper.
-    // promptOverride bypasses rule matching (used by the P9-H private pass).
-    const prompt = promptOverride || assemblePrompt({
+    const prompt = assemblePrompt({
       title:       currentMeetingTitle,
       priorContext,                                  // recurring-meeting context (P9-C)
       glossary:    mm2c_glossary,                     // custom vocabulary (RB-4a)
@@ -1308,29 +1298,6 @@
             resolve();
           });
         });
-
-        // P9-H — best-effort private reflection pass. Opt-in; a second Gemini
-        // run with the user's private prompt, routed to a separate destination.
-        // Never blocks leaving on failure. (Adds latency by design; verify in a
-        // live meeting — the second pass needs the Gemini panel still present.)
-        if (dualOutput && privatePrompt.trim()) {
-          try {
-            sendLog('Running private reflection pass (P9-H)…', 'debug');
-            const reflection = await runGeminiFlow(45_000, assemblePrompt({
-              title: currentMeetingTitle, base: privatePrompt.trim(), example: '',
-            }));
-            if (reflection && reflection.length > 20) {
-              safeSend({
-                type: 'MM2C_RESPONSE',
-                text: reflection,
-                meetingTitle: currentMeetingTitle ? `${currentMeetingTitle} (private)` : 'Private reflection',
-                privateApp: privateApp || currentOutputApp,
-              });
-            }
-          } catch (e) {
-            sendLog(`Private reflection pass skipped: ${e.message}`, 'debug');
-          }
-        }
       }
 
     } catch (err) {

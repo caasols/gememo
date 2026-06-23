@@ -2269,16 +2269,6 @@ window.MM2C_TESTS = (() => {
     console.groupEnd();
   }
 
-  function testPrivateReflectionPrompt() {
-    console.group('private reflection prompt (P9-H)');
-    const p = assemblePrompt({ title: 'Q3 Sync', base: 'Summarise just my takeaways.', example: '' });
-    assert('includes the private base prompt', p.includes('Summarise just my takeaways.'));
-    assert('omits the few-shot example anchor when example is empty',
-      !p.includes('example of the exact note format'));
-    assert('still carries the meeting title context', p.includes('Q3 Sync'));
-    console.groupEnd();
-  }
-
   function testFriendlyError() {
     console.group('friendlyError (UXC-3)');
     assert('native-host-not-found → setup guidance',
@@ -2881,7 +2871,6 @@ window.MM2C_TESTS = (() => {
     testBuildMailtoUrl();
     testFriendlyError();
     testShouldPreviewBeforeSend();
-    testPrivateReflectionPrompt();
     testCloseOverlayBody();
     testGeminiInactiveMessage();
     testDefaultPromptContent();
