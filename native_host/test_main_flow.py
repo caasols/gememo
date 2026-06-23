@@ -104,6 +104,20 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertEqual(sent[-1]["status"], "ok")    # craft (primary) still saved
             self.assertTrue(sent[-1]["title"].endswith("Q3 Planning"))
 
+    def test_foreign_user_backup_path_is_rehomed(self):
+        """A backup path saved under a DIFFERENT Mac user (another laptop) re-homes
+        to the current user — no crash, the note lands under the current home (BUG-12)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_home = Path(tmp) / "home"
+            fake_home.mkdir()
+            with patch.object(host.Path, 'home', return_value=fake_home):
+                sent = self._run(self._capture_msg(
+                    tmp, fileBackupPath="/Users/someoneelse/Documents/gememo-meeting-notes"
+                ), _proc(0))
+            landed = list((fake_home / "Documents/gememo-meeting-notes").glob("*.md"))
+            self.assertEqual(sent[-1]["status"], "ok")
+            self.assertEqual(len(landed), 1)   # re-homed under the CURRENT home
+
     def test_heartbeat_records_capture_stages(self):
         """A successful Craft capture writes the ordered stage trail ending in
         'replied status=ok' (BUG-9 Layer 0)."""

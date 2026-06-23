@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs absent)
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 
-HOST_VERSION = '0.2.31'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.2.32'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
@@ -110,6 +110,40 @@ _PII_PHONE = (
 def _ics_escape(s: str) -> str:
     return (s.replace('\\', '\\\\').replace(';', '\\;')
              .replace(',', '\\,').replace('\n', '\\n'))
+
+
+_DEFAULT_BACKUP_PATH = "~/Documents/gememo-meeting-notes"
+
+
+def _resolve_backup_path(raw, home=None):
+    """Resolve a stored backup folder agnostically of which Mac account saved it.
+
+    The extension stores a folder path, but that path can be saved on one laptop
+    and run on another (e.g. a personal vs. work account with an iCloud-synced
+    Documents folder). Only the part *below* the home dir is meaningful:
+      - '~/…'                       → expand against the CURRENT home
+      - '/Users/<anyone>/<rest>'    → re-home <rest> under the CURRENT home
+      - anything else (e.g. /Volumes/…) → left as-is
+    `home` is injectable for testing; defaults to the real home (BUG-12)."""
+    home = home or Path.home()
+    raw = (str(raw).strip() if raw is not None else "") or _DEFAULT_BACKUP_PATH
+    if raw.startswith("~"):
+        rest = raw[1:].lstrip("/")
+        return home / rest if rest else home
+    parts = Path(raw).parts
+    if len(parts) >= 3 and parts[1] == "Users":   # /Users/<name>/<rest…>
+        return home.joinpath(*parts[3:])
+    return Path(raw)
+
+
+def _homerel_path(abs_path, home=None):
+    """Store a picked folder agnostically: an absolute path under the current home
+    becomes '~/…' so it travels across machines/users. Anything else is unchanged."""
+    home = home or Path.home()
+    try:
+        return str(Path("~") / Path(abs_path).relative_to(home))
+    except (ValueError, TypeError):
+        return abs_path
 
 
 def build_ics(steps, dt, meeting_title: str = '') -> str:
@@ -567,7 +601,7 @@ def cleanup_backups(backup_path, cfg, now=None, stamp_path=None, throttle=True):
 def handle_snapshot(msg: dict) -> None:
     """Write a timestamped snapshot file to the backup folder and prune old ones."""
     file_backup_type = msg.get("fileBackupType", "markdown")
-    file_backup_path = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
+    file_backup_path = _resolve_backup_path(msg.get("fileBackupPath"))
     transcript       = msg.get("transcript", "").strip()
     if not transcript:
         return
@@ -977,7 +1011,7 @@ def _recover_freshest_text(inflight_text: str, msg: dict) -> str:
         label = (msg.get("meetingTitle") or "").strip() or "Meeting"
         slug = _file_slug(label)
         file_ext = ".txt" if msg.get("fileBackupType") == "txt" else ".md"
-        backup_path = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
+        backup_path = _resolve_backup_path(msg.get("fileBackupPath"))
         snap = find_latest_snapshot(backup_path, slug, file_ext)
         snap_text = _strip_frontmatter(snap.read_text(encoding="utf-8")) if snap else None
         return pick_recovery_text(inflight_text, snap_text)
@@ -1439,7 +1473,7 @@ def handle_capture(msg) -> None:
 
     file_backup_enabled = msg.get("fileBackupEnabled", False)
     file_backup_type    = msg.get("fileBackupType", "markdown")
-    file_backup_path    = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
+    file_backup_path    = _resolve_backup_path(msg.get("fileBackupPath"))
 
     # Backup-folder auto-cleanup (UXF-13) — best-effort, never blocks capture.
     try:
@@ -1697,7 +1731,9 @@ def _dispatch() -> None:
             send_message({"status": "error", "error": "Folder picker timed out — please try again"})
             return
         if result.returncode == 0 and result.stdout.strip():
-            path = result.stdout.strip().rstrip("/")
+            # Store the pick agnostically of the Mac account (BUG-12): a folder
+            # under home is saved as '~/…' so it resolves on any machine/user.
+            path = _homerel_path(result.stdout.strip().rstrip("/"))
             send_message({"status": "ok", "path": path})
         else:
             send_message({"status": "error", "error": "No folder selected"})
@@ -1715,7 +1751,7 @@ def _dispatch() -> None:
     if msg.get("type") == "search":
         results = search_notes(
             msg.get("query", ""),
-            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
+            str(_resolve_backup_path(msg.get("fileBackupPath"))),
             since=msg.get("since") or None,
             until=msg.get("until") or None,
             attendee=msg.get("attendee") or None,
@@ -1726,7 +1762,7 @@ def _dispatch() -> None:
     if msg.get("type") == "prior_context":
         prior = find_prior_note(
             msg.get("meetingTitle", "").strip(),
-            msg.get("fileBackupPath", "~/Downloads/meeting-notes"),
+            str(_resolve_backup_path(msg.get("fileBackupPath"))),
         )
         ctx = ""
         if prior:
@@ -1800,7 +1836,7 @@ def _dispatch() -> None:
         label = (msg.get("meetingTitle") or "").strip() or "Meeting"
         slug = _file_slug(label)
         file_ext = ".txt" if msg.get("fileBackupType") == "txt" else ".md"
-        backup_path = Path(msg.get("fileBackupPath", "~/meeting-notes")).expanduser()
+        backup_path = _resolve_backup_path(msg.get("fileBackupPath"))
         snap = find_latest_snapshot(backup_path, slug, file_ext)
         if not snap:
             send_message({"ok": False, "reason": "no_snapshot"})

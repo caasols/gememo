@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Changed
+- **The file-backup folder is now stored agnostically of your Mac username (BUG-12).** Picking a folder saves it home-relative (`~/Documents/gememo-meeting-notes`) instead of an absolute `/Users/<you>/…`, and the host resolves *any* stored path against the **current** home — so a path saved on one machine (e.g. a work laptop, `/Users/caraujo/…`) automatically re-homes to whatever account it's running under (`/Users/caasols/…`). Same settings, multiple Macs, iCloud-synced Documents — it just works; only the part below your home folder matters. (Host change → re-run `install.sh`.)
+
 ### Fixed
 - **A "/" in a meeting title no longer crashes the capture — and a backup failure can never lose your note (BUG-12).** A title like *"Carlos / Pablo"* put a literal `/` into the backup filename, which the OS read as a folder → the write threw `[Errno 2]` and, because it wasn't guarded, aborted the **entire** capture: the primary output (Obsidian/Craft) got nothing and recovery re-crashed. Two fixes: **(1)** the backup filename now strips `/` and `\` (like the snapshot path already did); **(2)** the file backup is now wrapped so any write failure — bad/stale path, full disk, permissions, odd title — logs a warning and the capture **continues to your primary destination**. A backup is a safety net, never a gate. Also fixed a stale `~/Downloads/meeting-notes` fallback in the extension's snapshot/search/recover paths (now `~/Documents/gememo-meeting-notes`). (Host + extension change → re-run `install.sh`.)
 
