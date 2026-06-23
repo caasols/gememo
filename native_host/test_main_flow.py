@@ -81,6 +81,29 @@ class TestMainCaptureFlow(unittest.TestCase):
             self.assertIn("duration_min: 30", content)
             self.assertIn("We shipped it.", content)
 
+    def test_slash_in_title_sanitized_in_backup_filename(self):
+        """A meeting title containing '/' must not smuggle a path separator into the
+        backup filename and create a phantom subdirectory (BUG-12). The note writes
+        as one flat .md and the capture oks."""
+        with tempfile.TemporaryDirectory() as tmp:
+            sent = self._run(self._capture_msg(tmp, meetingTitle="1:1 Carlos / Pablo"), _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")
+            mds = list(Path(tmp).glob("*.md"))            # top level only — not under a subdir
+            self.assertEqual(len(mds), 1)
+            self.assertFalse([p for p in Path(tmp).iterdir() if p.is_dir()])  # no phantom subdir
+
+    def test_backup_write_failure_is_nonfatal(self):
+        """A failed file-backup write must NOT abort the capture — the primary output
+        still runs (BUG-12). Here the backup folder can't be created (its parent is a
+        regular file), yet the Craft push succeeds and the capture oks."""
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / "afile"
+            blocker.write_text("x")
+            bad_path = str(blocker / "sub")               # parent is a file → mkdir fails
+            sent = self._run(self._capture_msg(tmp, fileBackupPath=bad_path), _proc(0))
+            self.assertEqual(sent[-1]["status"], "ok")    # craft (primary) still saved
+            self.assertTrue(sent[-1]["title"].endswith("Q3 Planning"))
+
     def test_heartbeat_records_capture_stages(self):
         """A successful Craft capture writes the ordered stage trail ending in
         'replied status=ok' (BUG-9 Layer 0)."""
