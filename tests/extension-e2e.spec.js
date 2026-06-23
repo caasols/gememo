@@ -1595,6 +1595,30 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('adding a destination keeps an un-connected app greyed in the freshly-built row', async () => {
+      // A re-render rebuilds the row dropdowns; greying must re-apply (from the
+      // cached status) so there's no window where Google Docs is selectable while
+      // not connected — matching the primary dropdown.
+      const page = await popupWith({
+        mm2c_output_app: 'obsidian',
+        mm2c_destinations: [{ type: 'craft' }],
+      }, {
+        destination_status: { status: 'ok', destinations: {
+          google_docs: { available: false, reason: 'Not connected' },
+          craft: { available: true }, apple_notes: { available: true },
+          obsidian: { available: true }, bear: { available: true },
+        } },
+        ping: { status: 'ok' }, __default: { status: 'ok' },
+      });
+      await page.click('#tab-settings');
+      // initial status populates the cache (existing row greys Google Docs)
+      await expect(page.locator('#destinations-list select.dest-type option[value="google_docs"]').first()).toBeDisabled();
+      // add a destination → the NEW row's Google Docs option must be greyed too
+      await page.click('#add-destination');
+      await expect(page.locator('#destinations-list .dest-row:last-child select.dest-type option[value="google_docs"]')).toBeDisabled();
+      await page.close();
+    });
+
     test('popup self-heals duplicate/primary destinations on load', async () => {
       const page = await popupWith({
         mm2c_output_app: 'craft',

@@ -30,7 +30,7 @@ import gcal  # 5.3 — Google Calendar enrichment (self-guards if google libs ab
 import gdocs  # 5.7 — Google Docs output (self-guards; separate OAuth grant + token)
 import gauth  # combined one-flow Google connect (Calendar + Docs in one consent)
 
-HOST_VERSION = '0.3.1'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
+HOST_VERSION = '0.3.2'  # in lockstep with manifest.json (major stays 0 → re-run install.sh only to refresh the shown version; not required for compatibility)
 
 SCRIPT_DIR = Path(__file__).parent
 # push_to_craft.py is copied alongside the host during install.
