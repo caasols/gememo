@@ -14,6 +14,7 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 ## [Unreleased]
 
 ### Changed
+- **The Diagnostics report now lists the extra destinations by name, in add order** — e.g. `Extra destinations: 3 (Craft, Apple Notes, Bear)` instead of a bare count — so a bug report shows *which* apps a note should reach. The `Output app` line now uses the friendly name too (e.g. `Obsidian`) for consistency. (Extension reload only; host version bumped for lockstep.)
 - **Diagnostics section: the header is now just a title, and the report copies straight to the clipboard (no on-screen dump).** It previously made the section *title* an action ("Run diagnostics" sat on the title line) and rendered a verbose report into an inline box. Now it matches the Privacy-settings pattern — a plain **Diagnostics** header with each tool as its own labeled row: **Copy diagnostics report** → `Copy` (gathers version/host/settings/permissions and copies, briefly flashing "Copied!"), plus the existing Developer logs + Download activity log rows. (Extension reload only; host version bumped for lockstep.)
 
 ### Fixed

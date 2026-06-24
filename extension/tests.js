@@ -2123,8 +2123,9 @@ window.MM2C_TESTS = (() => {
     });
     assert('includes version', r.includes('Version: 0.1.130'));
     assert('host ready with version', /Native host: ready \(v0\.1\.130\)/.test(r));
-    assert('output app shown', r.includes('Output app: obsidian'));
-    assert('extra destinations count shown', r.includes('Extra destinations: 2'));
+    assert('output app shown (friendly name)', r.includes('Output app: Obsidian'));
+    assert('extra destinations count + list in add order',
+      r.includes('Extra destinations: 2 (Craft, Apple Notes)'));
     assert('permissions joined', r.includes('Permissions: storage, tabs'));
     const r2 = buildDiagnosticsReport({ hostOk: false, hostMismatch: false });
     assert('host not found path', r2.includes('Native host: not found'));
