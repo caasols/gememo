@@ -1130,6 +1130,18 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('Diagnostics: plain title + a single Copy action, no inline output', async () => {
+      const page = await popupWith({});
+      await page.click('#tab-settings');
+      // The action is its own labeled row (title is just a title), and it copies.
+      await expect(page.locator('#copy-diagnostics')).toBeVisible();
+      await expect(page.locator('#copy-diagnostics')).toHaveText('Copy');
+      // The old title-line "Run diagnostics" button + the inline output pre are gone.
+      await expect(page.locator('#run-diagnostics')).toHaveCount(0);
+      await expect(page.locator('#diag-output')).toHaveCount(0);
+      await page.close();
+    });
+
     test('History auto-cleanup: entries older than N days are pruned on open', async () => {
       const DAY = 86400000;
       const now = Date.now();

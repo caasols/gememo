@@ -1470,11 +1470,12 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.sendMessage(activeMetTabId, { type: 'MM2C_CAPTURE_NOW' });
   });
 
-  // Run diagnostics — gather host/settings/permissions into a shareable report (RB-7b)
-  $('run-diagnostics').addEventListener('click', () => {
-    const btn = $('run-diagnostics');
+  // Copy diagnostics — gather host/settings/permissions into a shareable report
+  // and put it straight on the clipboard (no on-screen output) for bug reports (RB-7b).
+  $('copy-diagnostics').addEventListener('click', () => {
+    const btn = $('copy-diagnostics');
     btn.disabled = true;
-    btn.textContent = 'Running…';
+    btn.textContent = 'Gathering…';
     chrome.runtime.sendMessage({ type: 'MM2C_CHECK_HOST' }, (hostResp) => {
       chrome.storage.local.get(
         ['mm2c_output_app', 'mm2c_file_backup_enabled', 'mm2c_destinations'],
@@ -1492,20 +1493,12 @@ document.addEventListener('DOMContentLoaded', () => {
             platform:      navigator.userAgent,
             generatedAt:   new Date().toISOString(),
           });
-          const out = $('diag-output');
-          out.textContent = report;
-          out.classList.remove('hidden');
-          $('copy-diagnostics').classList.remove('hidden');
           btn.disabled = false;
-          btn.textContent = 'Run diagnostics';
+          navigator.clipboard.writeText(report)
+            .then(() => flashCopied(btn, 'Copy'))
+            .catch(() => { btn.textContent = 'Copy'; });
         }
       );
-    });
-  });
-  $('copy-diagnostics').addEventListener('click', () => {
-    navigator.clipboard.writeText($('diag-output').textContent || '').then(() => {
-      const btn = $('copy-diagnostics');
-      flashCopied(btn, 'Copy report');
     });
   });
 

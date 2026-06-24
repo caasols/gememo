@@ -1005,22 +1005,6 @@
     .segmented button.active { background: var(--primary); color: var(--surface); }
     .segmented button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
-    /* Diagnostics report (RB-7b) */
-    .diag-output {
-      font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
-      font-size: 11px;
-      color: var(--text-muted);
-      background: var(--surface-subtle);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px;
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-
     .hidden { display: none !important; }
 
     /* Retry cards — one per failed meeting capture */
@@ -1349,16 +1333,14 @@
       <p class="hint">One consent connects the Google Docs output + Calendar enrichment. <strong>Disconnect</strong> removes the stored tokens from this Mac, greys out Google Docs, and turns off Calendar enrichment.</p>
     </div>
 
-    <!-- Diagnostics (RB-7b) — maintenance tool; moved here from the About tab. -->
+    <!-- Diagnostics (RB-7b) — maintenance tools; moved here from the About tab.
+         Title is a plain header; each tool is its own labeled action row. -->
     <div class="widget">
-      <div class="widget-header">
-        <div class="widget-title">Diagnostics</div>
-        <button class="btn" id="run-diagnostics">Run diagnostics</button>
+      <div class="widget-title">Diagnostics</div>
+      <div class="row">
+        <span class="label">Copy diagnostics report</span>
+        <button class="btn" id="copy-diagnostics">Copy</button>
       </div>
-      <pre id="diag-output" class="diag-output hidden"></pre>
-      <button class="btn hidden" id="copy-diagnostics" style="align-self:flex-start">Copy report</button>
-
-      <!-- Promoted out of Beta — diagnostic tools worth having always available. -->
       <div class="row">
         <span class="label">Developer logs</span>
         <label class="toggle-wrap"><input type="checkbox" id="show-debug-logs"><span class="toggle-track"></span></label>
@@ -1367,7 +1349,7 @@
         <span class="label">Download activity log</span>
         <button class="btn" id="download-logs">Download</button>
       </div>
-      <p class="hint">Developer logs reveal the verbose debug entries in the History tab; Download exports the activity log to a file — both handy when reporting an issue.</p>
+      <p class="hint">Copy diagnostics (version, host status, your settings) to the clipboard for a bug report; Developer logs reveal the verbose debug entries in the History tab; Download exports the activity log to a file.</p>
     </div>
 
   </div><!-- /settings-panel -->
