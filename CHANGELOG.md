@@ -13,6 +13,9 @@ Gememo started as a single-file proof-of-concept that could leave a Google Meet 
 
 ## [Unreleased]
 
+### Changed
+- **Diagnostics section: the header is now just a title, and the report copies straight to the clipboard (no on-screen dump).** It previously made the section *title* an action ("Run diagnostics" sat on the title line) and rendered a verbose report into an inline box. Now it matches the Privacy-settings pattern — a plain **Diagnostics** header with each tool as its own labeled row: **Copy diagnostics report** → `Copy` (gathers version/host/settings/permissions and copies, briefly flashing "Copied!"), plus the existing Developer logs + Download activity log rows. (Extension reload only; host version bumped for lockstep.)
+
 ### Fixed
 - **"Add destination" no longer auto-assigns a not-installed app (e.g. Bear).** The new-row default and the Add-button-enabled check used `availableDestTypes`, which only excludes the primary + already-used apps — *not* install status. So clicking **Add destination** could march down the type list and land on a not-installed app like Bear (then shown greyed as "Bear — Not installed"), even though the dropdown hides those from *manual* selection. A new `addableDestTypes` filter now skips "Not installed" apps when choosing the default and when enabling the button; connectable apps (Google Docs, "Not connected") stay addable, matching the dropdown's own rule. Existing greyed rows are unaffected — remove them with the ✕. (Extension reload only; host version bumped for lockstep.)
 
