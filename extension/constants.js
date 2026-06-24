@@ -429,7 +429,11 @@ function obsidianVaultPathError(path) {
 // already-gathered facts. Keeping the formatting pure makes it unit-testable;
 // popup.js gathers the inputs (host ping, storage, manifest) and renders this.
 function buildDiagnosticsReport(info = {}) {
-  const destCount = Array.isArray(info.destinations) ? info.destinations.length : 0;
+  // List the extra destinations by friendly name, in add order — handy when a
+  // bug report is about routing (which apps a note should have reached).
+  const destNames = (Array.isArray(info.destinations) ? info.destinations : [])
+    .map(d => outputAppName(d && d.type)).filter(Boolean);
+  const destLine = destNames.length ? `${destNames.length} (${destNames.join(', ')})` : '0';
   const perms = Array.isArray(info.permissions) && info.permissions.length ? info.permissions.join(', ') : 'none';
   const host = info.hostOk
     ? `ready (v${info.hostVersion || '?'})${info.hostMismatch ? ' — version mismatch' : ''}`
@@ -439,8 +443,8 @@ function buildDiagnosticsReport(info = {}) {
     `Version: ${info.version || '?'}`,
     `Extension ID: ${info.extensionId || '?'}`,
     `Native host: ${host}`,
-    `Output app: ${info.outputApp || 'none'}`,
-    `Extra destinations: ${destCount}`,
+    `Output app: ${outputAppName(info.outputApp || 'none')}`,
+    `Extra destinations: ${destLine}`,
     `File backup: ${info.fileBackup ? 'on' : 'off'}`,
     `Permissions: ${perms}`,
     `Platform: ${info.platform || '?'}`,
