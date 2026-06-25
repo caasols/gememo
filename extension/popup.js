@@ -455,6 +455,8 @@ function applyState(s, tabId, live = null) {
   // Restored BEFORE renderLogs() below so the persisted filter applies on first paint.
   showDebugLogs = s.mm2c_show_debug_logs === true;
   $('show-debug-logs').checked = showDebugLogs;
+  // The raw log download is a debug-only tool → only shown in Developer mode.
+  $('download-logs-row').classList.toggle('hidden', !showDebugLogs);
   // Unified destinations: fold legacy "Also send to" apps in, dedupe to one per
   // app, drop the primary, persist the cleaned list (self-heal), then render.
   const _primary = s.mm2c_output_app || 'none';
@@ -1599,10 +1601,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Two-tier logging toggle — show/hide diagnostic (debug) entries (UX-6)
+  // Developer mode (UX-6) — show/hide the verbose debug rows in History AND the
+  // debug-only raw-log download row.
   $('show-debug-logs').addEventListener('change', (e) => {
     showDebugLogs = e.target.checked;
     save({ mm2c_show_debug_logs: showDebugLogs });
+    $('download-logs-row').classList.toggle('hidden', !showDebugLogs);
     chrome.storage.local.get(['mm2c_logs'], ({ mm2c_logs }) => renderLogs(mm2c_logs));
   });
 

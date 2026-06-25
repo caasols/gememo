@@ -1071,10 +1071,12 @@ test.describe('extension E2E harness', () => {
       await expect(page.getByText('Privacy settings')).toBeVisible();      // card title
       await expect(page.getByText('Local backups')).toBeVisible();         // retention sub-section
       await expect(page.locator('#clear-logs')).toBeVisible();
-      // Diagnostics: Developer logs toggle + Download are always visible.
+      // Diagnostics: Copy + the Developer-mode toggle are always visible; the raw
+      // log download is gated behind Developer mode (hidden by default).
       // (#show-debug-logs is a styled toggle: assert its visible label, not the opacity-0 input.)
+      await expect(page.locator('#copy-diagnostics')).toBeVisible();
       await expect(page.locator('label.toggle-wrap', { has: page.locator('#show-debug-logs') })).toBeVisible();
-      await expect(page.locator('#download-logs')).toBeVisible();
+      await expect(page.locator('#download-logs')).toBeHidden();
       // Rules-tab: the unified rules list (Default row) stays.
       await page.click('#tab-rules');
       await expect(page.locator('#default-rule')).toBeVisible();
@@ -1107,7 +1109,23 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
-    test('Developer logs toggle persists across popup opens', async () => {
+    test('Developer mode gates the raw log download; Copy diagnostics stays always-on', async () => {
+      const page = await popupWith({}); // dev mode off by default
+      await page.click('#tab-settings');
+      await expect(page.locator('#copy-diagnostics')).toBeVisible();   // lightweight tool — always on
+      await expect(page.locator('#download-logs')).toBeHidden();       // debug-only — gated, off
+      // Toggling Developer mode on reveals the download (change handler).
+      await page.locator('label.toggle-wrap', { has: page.locator('#show-debug-logs') }).click();
+      await expect(page.locator('#download-logs')).toBeVisible();
+      await page.close();
+      // A fresh popup with it on restores the download visible (applyState).
+      const page2 = await popupWith({ mm2c_show_debug_logs: true });
+      await page2.click('#tab-settings');
+      await expect(page2.locator('#download-logs')).toBeVisible();
+      await page2.close();
+    });
+
+    test('Developer mode toggle persists across popup opens', async () => {
       // Toggling it on saves the preference…
       const page = await popupWith({});
       await page.click('#tab-settings');
@@ -1123,7 +1141,7 @@ test.describe('extension E2E harness', () => {
       await page2.close();
     });
 
-    test('Developer logs toggle defaults OFF on a fresh install', async () => {
+    test('Developer mode toggle defaults OFF on a fresh install', async () => {
       const page = await popupWith({}); // empty storage = fresh install (no seeded key)
       await page.click('#tab-settings');
       await expect(page.locator('#show-debug-logs')).not.toBeChecked();

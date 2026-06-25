@@ -1342,14 +1342,15 @@
         <button class="btn" id="copy-diagnostics">Copy</button>
       </div>
       <div class="row">
-        <span class="label">Developer logs</span>
+        <span class="label">Developer mode</span>
         <label class="toggle-wrap"><input type="checkbox" id="show-debug-logs"><span class="toggle-track"></span></label>
       </div>
-      <div class="row">
+      <!-- Raw activity-log download is a debug-only artifact → gated behind Developer mode. -->
+      <div class="row hidden" id="download-logs-row">
         <span class="label">Download activity log</span>
         <button class="btn" id="download-logs">Download</button>
       </div>
-      <p class="hint">Copy diagnostics (version, host status, your settings) to the clipboard for a bug report; Developer logs reveal the verbose debug entries in the History tab; Download exports the activity log to a file.</p>
+      <p class="hint">Copy diagnostics (version, host status, your settings) to the clipboard for a bug report. Developer mode shows the verbose debug rows in the History tab and reveals the raw activity-log download — both only for diagnosing an issue.</p>
     </div>
 
   </div><!-- /settings-panel -->
