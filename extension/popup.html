@@ -579,6 +579,32 @@
     .log-dot.ok   { background: var(--success); }
     .log-dot.warn { background: var(--warn); }
     .log-dot.err  { background: var(--danger); }
+    /* Terminal save-state dots (refined groupOutcome) — green=all saved,
+       amber=partial save, red=failed; 'none'/in-progress stays the default grey. */
+    .log-dot.saved   { background: var(--success); }
+    .log-dot.partial { background: var(--warn); }
+    .log-dot.failed  { background: var(--danger); }
+    /* Unsaved (ended, never saved, recoverable) — reads as a problem, not benign
+       grey: a hollow danger ring so it's visually distinct from a failed save. */
+    .log-dot.unsaved {
+      background: transparent;
+      box-shadow: inset 0 0 0 2px var(--danger);
+    }
+
+    /* "Save now" on an Unsaved History group — a small inline action chip. */
+    .log-save-now-btn {
+      margin-left: auto;
+      font-size: 10px;
+      padding: 2px 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm, 4px);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .log-save-now-btn:hover:not(:disabled) { background: var(--border); }
+    .log-save-now-btn:disabled { opacity: 0.6; cursor: default; }
 
     .log-content { flex: 1; min-width: 0; }
 

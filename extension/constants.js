@@ -943,15 +943,59 @@ function logGroupKey(title, ts) {
   return `${day}|${title || 'System'}`;
 }
 
-// Pure helper — best-outcome status for a log group's entries (UX-7), shown as
-// a dot on the collapsed group header. Precedence by severity-of-interest:
-// a successful send (ok) wins; else any error; else any warning; else info.
+// Pure helper — the definitive terminal save-state for a meeting, derived from
+// its log entries' save outcomes. `ok` entries are save successes ("Saved to X"),
+// `err` entries are save failures; `info`/`warn` (snapshots, nudges) don't carry a
+// save outcome. Returns one of:
+//   'partial' — ≥1 save success AND ≥1 save failure (one dest saved, one failed)
+//   'saved'   — ≥1 save success, 0 failures
+//   'failed'  — ≥1 save failure, 0 successes
+//   'none'    — no save outcome at all (snapshots only / nothing yet)
+// 'none' is the actionable "never saved" / "in-progress" state; the popup splits
+// it into Unsaved vs in-progress using findUnsavedMeetings. Kept PURE so the dot
+// colour is honest (all-saved is green, a partial save is amber — not falsely green).
 function groupOutcome(entries) {
   const has = s => Array.isArray(entries) && entries.some(e => e.status === s);
-  if (has('ok'))   return 'ok';
-  if (has('err'))  return 'err';
-  if (has('warn')) return 'warn';
-  return 'info';
+  const ok  = has('ok');
+  const err = has('err');
+  if (ok && err) return 'partial';
+  if (ok)        return 'saved';
+  if (err)       return 'failed';
+  // A bare 'warn' is still a terminal save OUTCOME, not "never saved": the host
+  // logs a partial save (primary saved, an extra destination failed) as a single
+  // 'warn' (background.js), and "no notes captured" / "duplicate send skipped" are
+  // warns too. Treating these as 'none' would let findUnsavedMeetings offer to
+  // re-save a meeting that already saved its primary → a duplicate. So warn ≠ unsaved.
+  if (has('warn')) return 'partial';
+  return 'none';
+}
+
+// Pure helper — the meetings that are ENDED, UNSAVED, and RECOVERABLE, so the
+// popup can offer a one-click "Save now". A group qualifies when ALL hold:
+//   • groupOutcome(entries) === 'none' (no save success and no save failure);
+//   • its title is not the currently-active capture (activeTitle);
+//   • its most recent entry is older than the grace window (now - latestTs > graceMs),
+//     so a just-left meeting whose auto-capture is still in flight isn't flagged;
+//   • it has a snapshot entry (something on disk to recover) — a too-short meeting
+//     with no snapshot stays a quiet "no notes", not an actionable Unsaved card.
+// All inputs are injected (now / activeTitle / graceMs / hasSnapshot) so this is
+// unit-testable without a clock or live storage. `hasSnapshot(group)` defaults to a
+// scan for a "…snapshot saved…" message (the periodic-snapshot log line).
+function findUnsavedMeetings(groups, { now = Date.now(), activeTitle = '', graceMs = 90_000, hasSnapshot } = {}) {
+  const snapCheck = typeof hasSnapshot === 'function'
+    ? hasSnapshot
+    : (g) => Array.isArray(g.entries) && g.entries.some(e => /snapshot saved/i.test((e && e.message) || ''));
+  return (Array.isArray(groups) ? groups : []).filter(g => {
+    if (!g || !Array.isArray(g.entries) || !g.entries.length) return false;
+    if (groupOutcome(g.entries) !== 'none') return false;
+    if (g.title === activeTitle) return false;
+    const latestTs = g.entries.reduce((max, e) => {
+      const t = e && typeof e.ts === 'number' ? e.ts : 0;
+      return t > max ? t : max;
+    }, 0);
+    if (!(now - latestTs > graceMs)) return false;
+    return snapCheck(g);
+  });
 }
 
 // Pure helper — format a prompt-performance log line (P6-C). Captures the
