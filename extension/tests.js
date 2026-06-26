@@ -2481,18 +2481,86 @@ window.MM2C_TESTS = (() => {
   assert('formatPerfLog: rounds to one decimal',
     formatPerfLog(5000, 100, 50) === 'perf: Gemini flow 5.0s · prompt 100 chars · response 50 chars');
 
-  // groupOutcome — best-outcome status dot for a log group (UX-7).
-  // Precedence: ok > err > warn > info.
-  assert('groupOutcome: any ok → ok',
-    groupOutcome([{ status: 'info' }, { status: 'err' }, { status: 'ok' }]) === 'ok');
-  assert('groupOutcome: err over warn when no ok',
-    groupOutcome([{ status: 'warn' }, { status: 'err' }]) === 'err');
-  assert('groupOutcome: warn when no ok/err',
-    groupOutcome([{ status: 'info' }, { status: 'warn' }]) === 'warn');
-  assert('groupOutcome: all info → info',
-    groupOutcome([{ status: 'info' }, { status: 'info' }]) === 'info');
-  assert('groupOutcome: empty → info',
-    groupOutcome([]) === 'info');
+  // groupOutcome — definitive terminal save-state for a meeting's log entries.
+  // Derived from save successes (ok) and save failures (err):
+  //   ok & err → 'partial', ok only → 'saved', err only → 'failed',
+  //   a bare warn (partial save / "no notes" / duplicate-skipped) → 'partial', only info → 'none'.
+  assert('groupOutcome: ok only → saved',
+    groupOutcome([{ status: 'info' }, { status: 'ok' }]) === 'saved');
+  assert('groupOutcome: ok AND err → partial (one dest saved, one failed)',
+    groupOutcome([{ status: 'ok' }, { status: 'err' }]) === 'partial');
+  assert('groupOutcome: err only → failed',
+    groupOutcome([{ status: 'warn' }, { status: 'err' }]) === 'failed');
+  assert('groupOutcome: a bare warn (partial save / "no notes") → partial, NOT none',
+    groupOutcome([{ status: 'info' }, { status: 'warn' }]) === 'partial');
+  assert('groupOutcome: all info → none',
+    groupOutcome([{ status: 'info' }, { status: 'info' }]) === 'none');
+  assert('groupOutcome: empty → none',
+    groupOutcome([]) === 'none');
+  assert('groupOutcome: non-array → none',
+    groupOutcome(undefined) === 'none');
+
+  // findUnsavedMeetings — ended + unsaved + recoverable meetings (pure, injectable).
+  // A group qualifies when: groupOutcome === 'none' AND title !== activeTitle AND
+  // (now - latestEntryTs) > graceMs AND the group has a snapshot entry.
+  {
+    const SNAP = 'Periodic snapshot saved (1234 chars)';
+    const now = 1_000_000;
+    const grace = 90_000;
+    const mkGroup = (title, msgs, lastTs) => ({
+      title,
+      entries: msgs.map((m, i) => ({
+        status: m.status || 'info',
+        message: m.message || '',
+        ts: i === msgs.length - 1 ? lastTs : lastTs - 1000,
+      })),
+    });
+    const hasSnapshot = (g) => g.entries.some(e => /snapshot saved/i.test(e.message || ''));
+
+    const endedUnsaved = mkGroup('Standup', [{ message: SNAP }], now - grace - 1);
+    const justUnder    = mkGroup('Recent', [{ message: SNAP }], now - grace + 1);
+    const justOver     = mkGroup('JustOver', [{ message: SNAP }], now - grace - 1);
+    const noSnapshot   = mkGroup('TooShort', [{ message: 'Joined meeting' }], now - grace - 1);
+    const savedGroup   = mkGroup('Saved', [{ message: SNAP }, { status: 'ok', message: 'Saved to Craft' }], now - grace - 1);
+    const activeGroup  = mkGroup('Active', [{ message: SNAP }], now - grace - 1);
+
+    const opts = { now, activeTitle: 'Active', graceMs: grace, hasSnapshot };
+
+    const r1 = findUnsavedMeetings([endedUnsaved], opts).map(g => g.title);
+    assert('findUnsavedMeetings: ended + unsaved + snapshot → returned',
+      r1.length === 1 && r1[0] === 'Standup');
+
+    assert('findUnsavedMeetings: within grace (just under 90s) → excluded',
+      findUnsavedMeetings([justUnder], opts).length === 0);
+    assert('findUnsavedMeetings: just over 90s → returned',
+      findUnsavedMeetings([justOver], opts).length === 1);
+
+    assert('findUnsavedMeetings: active-title meeting → excluded',
+      findUnsavedMeetings([activeGroup], opts).length === 0);
+
+    assert('findUnsavedMeetings: no snapshot entry → excluded',
+      findUnsavedMeetings([noSnapshot], opts).length === 0);
+
+    assert('findUnsavedMeetings: a saved group → excluded',
+      findUnsavedMeetings([savedGroup], opts).length === 0);
+
+    // Regression: a PARTIAL save (primary saved, an extra dest failed) is logged as
+    // a single 'warn' — NOT ok+err. It must never be flagged unsaved, or "Save now"
+    // would re-route to all outputs and duplicate the primary.
+    const partialWarn = mkGroup('Partial',
+      [{ message: SNAP }, { status: 'warn', message: 'Saved to Obsidian · Craft failed' }], now - grace - 1);
+    assert('findUnsavedMeetings: a partial-save (warn) group → excluded (no duplicate re-save)',
+      findUnsavedMeetings([partialWarn], opts).length === 0);
+
+    assert('findUnsavedMeetings: tolerates non-array groups',
+      Array.isArray(findUnsavedMeetings(null, opts)) && findUnsavedMeetings(null, opts).length === 0);
+
+    const mixed = findUnsavedMeetings(
+      [endedUnsaved, justUnder, noSnapshot, savedGroup, activeGroup], opts
+    ).map(g => g.title);
+    assert('findUnsavedMeetings: filters a mixed list to only the recoverable one',
+      mixed.length === 1 && mixed[0] === 'Standup');
+  }
 
   // filterLogsByLevel — two-tier logging: hide debug entries by default (UX-6)
   const _logs = [

@@ -15,6 +15,11 @@ let expandedGroups = new Set();
 // template rows). Kept in-memory so a re-render on save doesn't reset the state.
 let expandedRuleIdx = new Set();
 
+// Ended + unsaved + recoverable meeting titles, computed once per renderLogs from
+// findUnsavedMeetings. Shared so renderRecovery can list the same set as cards
+// (the History "Save now" and the recovery card both key off this).
+let unsavedMeetingTitles = new Set();
+
 const GLOBAL_KEYS = [
   'mm2c_enabled', 'mm2c_prompt',
   'mm2c_output_app',
@@ -363,27 +368,49 @@ function renderTemplates(available) {
     </div>`).join('');
 }
 
-// Render the crash-recovery card from a persisted in-flight note (RB-1d).
-function renderRecovery(inflight) {
+// Render the recovery surface — the single "recover a note" place that covers two
+// signals: a stuck mid-send note (mm2c_inflight, RB-1d) AND ended-but-never-saved
+// meetings (findUnsavedMeetings, derived in renderLogs into unsavedTitles). Each
+// unsaved meeting gets a "Save now" card that fires recover_snapshot keyed by title.
+function renderRecovery(inflight, unsavedTitles = []) {
   const container = $('recovery-list');
   if (!container) return;
-  if (!inflightRecoverable(inflight)) { container.innerHTML = ''; return; }
-  const title = inflight.title
-    ? (inflight.title.length > 45 ? inflight.title.slice(0, 45) + '…' : inflight.title)
-    : 'Untitled meeting';
-  container.innerHTML = `
-    <div class="retry-card">
-      <div class="retry-card-header">
-        <div>
-          <div class="retry-card-title">${escapeHtml(title)}</div>
-          <div class="retry-card-hint">An unsent note was recovered after an interrupted capture.</div>
+  const shorten = (t) => (t && t.length > 45 ? t.slice(0, 45) + '…' : (t || 'Untitled meeting'));
+
+  const cards = [];
+
+  if (inflightRecoverable(inflight)) {
+    cards.push(`
+      <div class="retry-card">
+        <div class="retry-card-header">
+          <div>
+            <div class="retry-card-title">${escapeHtml(shorten(inflight.title))}</div>
+            <div class="retry-card-hint">An unsent note was recovered after an interrupted capture.</div>
+          </div>
         </div>
-      </div>
-      <div class="retry-card-actions">
-        <button class="btn" id="recover-send">Send now</button>
-        <button class="btn retry-dismiss-btn" id="recover-dismiss" title="Dismiss">✕</button>
-      </div>
-    </div>`;
+        <div class="retry-card-actions">
+          <button class="btn" id="recover-send">Send now</button>
+          <button class="btn retry-dismiss-btn" id="recover-dismiss" title="Dismiss">✕</button>
+        </div>
+      </div>`);
+  }
+
+  for (const title of (Array.isArray(unsavedTitles) ? unsavedTitles : [])) {
+    cards.push(`
+      <div class="retry-card">
+        <div class="retry-card-header">
+          <div>
+            <div class="retry-card-title">${escapeHtml(shorten(title))}</div>
+            <div class="retry-card-hint">This meeting ended without saving — recover it from its latest snapshot.</div>
+          </div>
+        </div>
+        <div class="retry-card-actions">
+          <button class="btn unsaved-save-now" data-title="${escapeHtml(title || '')}">Save now</button>
+        </div>
+      </div>`);
+  }
+
+  container.innerHTML = cards.join('');
 }
 
 function renderRetryList(list) {
@@ -520,7 +547,9 @@ function applyState(s, tabId, live = null) {
   renderLogs(logsToRender);
 
   renderRetryList(Array.isArray(s.mm2c_failed_list) ? s.mm2c_failed_list : []);
-  renderRecovery(s.mm2c_inflight);
+  // renderLogs (above) populated unsavedMeetingTitles; the recovery surface lists
+  // both the stuck in-flight note and each ended-unsaved meeting as a card.
+  renderRecovery(s.mm2c_inflight, [...unsavedMeetingTitles]);
   renderStats(s.mm2c_stats);
 }
 
@@ -865,6 +894,7 @@ function renderLogs(logs) {
   const countEl = $('logs-count');
 
   logs = filterLogsByLevel(logs, showDebugLogs); // two-tier: hide debug by default (UX-6)
+  unsavedMeetingTitles = new Set(); // recomputed below; reset so an empty render clears it
 
   if (!Array.isArray(logs) || logs.length === 0) {
     list.innerHTML = '<div class="log-empty">No activity yet. Notes will appear here after your meetings.</div>';
@@ -875,12 +905,35 @@ function renderLogs(logs) {
   const groups = groupLogs(logs);
   countEl.textContent = `${groups.length} meeting${groups.length === 1 ? '' : 's'} in the past days`;
 
+  // Which meetings ended without ever saving but still have a snapshot to recover?
+  // The popup has no live "currently-active meeting title" signal (MM2C_STATUS_QUERY
+  // doesn't carry one), so we treat the single most-recent group as "active" only
+  // while it is still within the grace window — that is exactly the in-flight case
+  // findUnsavedMeetings must not flag. groups are newest-first.
+  const GRACE_MS = 90_000;
+  const now = Date.now();
+  const newest = groups[0];
+  const newestLatestTs = newest
+    ? newest.entries.reduce((m, e) => (e && typeof e.ts === 'number' && e.ts > m ? e.ts : m), 0)
+    : 0;
+  const activeTitle = newest && (now - newestLatestTs) <= GRACE_MS ? newest.title : '';
+  const unsaved = findUnsavedMeetings(groups, { now, activeTitle, graceMs: GRACE_MS });
+  unsavedMeetingTitles = new Set(unsaved.map(g => g.title));
+
   const renderGroup = (group) => {
     const groupTitle = group.title || 'System';
     // Default collapsed; expanded only if persisted in the set (UXF-6).
     const key = logGroupKey(groupTitle, group.entries[0].ts);
     const groupClass = expandedGroups.has(key) ? 'log-group expanded' : 'log-group';
-    const outcome = groupOutcome(group.entries);
+    const isUnsaved = unsavedMeetingTitles.has(group.title);
+    // The header dot's state: an Unsaved meeting reads as a problem ("Not saved");
+    // an in-progress/within-grace 'none' group is a neutral grey; otherwise the
+    // terminal save-state (saved / partial / failed) from groupOutcome.
+    const rawOutcome = groupOutcome(group.entries);
+    const outcome = isUnsaved ? 'unsaved' : rawOutcome; // 'none' (in-progress) → grey dot, no action
+    const saveNowChip = isUnsaved
+      ? `<button class="log-save-now-btn" data-title="${escapeHtml(group.title || '')}" title="Save this meeting from its latest snapshot">Save now</button>`
+      : '';
     // Meta is just the time — the date lives in the day section header (UXF-4).
     const meta = formatTimeOnly(group.entries[0].ts);
 
@@ -915,9 +968,10 @@ function renderLogs(logs) {
     return `
       <div class="${groupClass}">
         <div class="log-group-header" data-group-key="${escapeHtml(key)}">
-          <span class="log-dot ${outcome}" title="Capture outcome"></span>
+          <span class="log-dot ${outcome}" title="${isUnsaved ? 'Not saved — recover from the latest snapshot' : 'Capture outcome'}"></span>
           <span class="log-group-title">${escapeHtml(groupTitle)}</span>
           <span class="log-group-meta">${escapeHtml(meta)}</span>
+          ${saveNowChip}
           ${openChip}
           <span class="log-group-chevron">▶</span>
         </div>
@@ -1004,6 +1058,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Crash-recovery card actions (RB-1d)
   $('recovery-list').addEventListener('click', (e) => {
+    const unsavedBtn = e.target.closest('.unsaved-save-now');
+    if (unsavedBtn) {
+      recoverSnapshot(unsavedBtn, unsavedBtn.dataset.title);
+      return;
+    }
     const sendBtn = e.target.closest('#recover-send');
     const dismissBtn = e.target.closest('#recover-dismiss');
     if (sendBtn) {
@@ -1408,6 +1467,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // "Save now" on an ended-unsaved meeting (History group + recovery card). Reuses
+  // the existing snapshot-recovery plumbing: background.js handles
+  // MM2C_RECOVER_SNAPSHOT → host recover_snapshot (find latest snapshot for that
+  // title → handle_capture → all outputs). On success the new "Recovered…" ok log
+  // flips the dot green on refresh; no_snapshot → "Nothing to recover".
+  function recoverSnapshot(btn, title) {
+    if (!title) return;
+    const original = btn.textContent;
+    btn.textContent = 'Saving…';
+    btn.disabled = true;
+    chrome.runtime.sendMessage({ type: 'MM2C_RECOVER_SNAPSHOT', meetingTitle: title }, (resp) => {
+      if (resp?.ok) {
+        // Refresh logs so the fresh "Recovered…" ok entry re-derives the group as
+        // Saved (green) and drops the Save-now button + recovery card.
+        chrome.storage.local.get(['mm2c_logs', 'mm2c_inflight'], (s) => {
+          renderLogs(s.mm2c_logs);
+          renderRecovery(s.mm2c_inflight, [...unsavedMeetingTitles]);
+        });
+      } else if (resp?.reason === 'no_snapshot') {
+        btn.textContent = 'Nothing to recover';
+      } else {
+        btn.textContent = original;
+        btn.disabled = false;
+      }
+    });
+  }
+
+  $('log-list').addEventListener('click', (e) => {
+    const saveBtn = e.target.closest('.log-save-now-btn');
+    if (!saveBtn) return;
+    e.stopPropagation(); // don't toggle the group disclosure
+    recoverSnapshot(saveBtn, saveBtn.dataset.title);
+  });
+
   $('log-list').addEventListener('click', (e) => {
     const retryBtn = e.target.closest('.log-retry-btn');
     if (!retryBtn) return;
@@ -1447,7 +1540,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Collapsible log groups — toggle the DOM and persist the choice (UXF-6) so
   // the 10 s auto-refresh and future sessions remember it.
   $('log-list').addEventListener('click', (e) => {
-    if (e.target.closest('.log-open-btn')) return; // Open handled above; don't toggle
+    if (e.target.closest('.log-open-btn')) return;     // Open handled above; don't toggle
+    if (e.target.closest('.log-save-now-btn')) return; // Save-now handled above; don't toggle
     const header = e.target.closest('.log-group-header');
     if (!header) return;
     const nowExpanded = header.closest('.log-group').classList.toggle('expanded');

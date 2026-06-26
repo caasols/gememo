@@ -765,6 +765,85 @@ test.describe('extension E2E harness', () => {
       await page.close();
     });
 
+    test('History: a saved meeting shows a green dot and NO recovery card (terminal save-state)', async () => {
+      const page = await popupWith({
+        mm2c_logs: [
+          { ts: Date.now() - 300000, status: 'info', title: 'Saved Mtg', message: 'Periodic snapshot saved (900 chars)', level: 'user' },
+          { ts: Date.now() - 200000, status: 'ok',   title: 'Saved Mtg', message: 'Saved to Craft', level: 'user' },
+        ],
+      });
+      await page.click('#tab-logs');
+      // Saved → the group header dot carries the 'saved' class (green).
+      await expect(page.locator('.log-group-header .log-dot.saved')).toHaveCount(1);
+      // No "Save now" button on a saved meeting, and no recovery card surfaces.
+      await expect(page.locator('.log-save-now-btn')).toHaveCount(0);
+      await expect(page.locator('#recovery-list .unsaved-save-now')).toHaveCount(0);
+      await page.close();
+    });
+
+    test('History: an ended-unsaved meeting renders a recovery card AND a History "Save now"', async () => {
+      const old = Date.now() - 5 * 60 * 1000; // well past the 90s grace
+      const page = await popupWith({
+        mm2c_logs: [
+          { ts: old,         status: 'info', title: 'Lost Mtg', message: 'Periodic snapshot saved (1200 chars)', level: 'user' },
+          { ts: old + 1000,  status: 'info', title: 'Lost Mtg', message: 'Periodic snapshot saved (1500 chars)', level: 'user' },
+        ],
+      });
+      await page.click('#tab-logs');
+      // The unsaved meeting's group header carries the 'unsaved' dot (distinct "Not saved").
+      await expect(page.locator('.log-group-header .log-dot.unsaved')).toHaveCount(1);
+      // A "Save now" button on the History group, keyed by the meeting title.
+      const histBtn = page.locator('.log-save-now-btn');
+      await expect(histBtn).toHaveCount(1);
+      await expect(histBtn).toHaveAttribute('data-title', 'Lost Mtg');
+      // AND the recovery surface lists a card for the same meeting.
+      const card = page.locator('#recovery-list .unsaved-save-now');
+      await expect(card).toHaveCount(1);
+      await expect(card).toHaveAttribute('data-title', 'Lost Mtg');
+      await page.close();
+    });
+
+    test('History: clicking "Save now" forwards recover_snapshot with the meeting title', async () => {
+      const old = Date.now() - 5 * 60 * 1000;
+      const page = await popupWith(
+        {
+          mm2c_output_app: 'craft',
+          mm2c_logs: [
+            { ts: old, status: 'info', title: 'Tripadvisor Sync', message: 'Periodic snapshot saved (2000 chars)', level: 'user' },
+          ],
+        },
+        { recover_snapshot: { status: 'ok', title: 'Tripadvisor Sync' }, ping: { status: 'ok' }, __default: { status: 'ok' } },
+      );
+      await page.click('#tab-logs');
+      await page.click('.log-save-now-btn');
+      // The host received a recover_snapshot for that exact meeting title.
+      await expect.poll(async () => {
+        const sent = await getSent(ext.serviceWorker);
+        return sent.some(s => s.msg.type === 'recover_snapshot' && s.msg.meetingTitle === 'Tripadvisor Sync');
+      }).toBe(true);
+      await page.close();
+    });
+
+    test('Recovery card "Save now" forwards recover_snapshot with the meeting title', async () => {
+      const old = Date.now() - 5 * 60 * 1000;
+      const page = await popupWith(
+        {
+          mm2c_output_app: 'craft',
+          mm2c_logs: [
+            { ts: old, status: 'info', title: 'Never Saved Mtg', message: 'Periodic snapshot saved (800 chars)', level: 'user' },
+          ],
+        },
+        { recover_snapshot: { status: 'ok', title: 'Never Saved Mtg' }, ping: { status: 'ok' }, __default: { status: 'ok' } },
+      );
+      // The recovery card lives on the main panel; click its Save now.
+      await page.click('#recovery-list .unsaved-save-now');
+      await expect.poll(async () => {
+        const sent = await getSent(ext.serviceWorker);
+        return sent.some(s => s.msg.type === 'recover_snapshot' && s.msg.meetingTitle === 'Never Saved Mtg');
+      }).toBe(true);
+      await page.close();
+    });
+
     test('setup wizard shows the capture step unchecked until the first note is saved (RB-7a)', async () => {
       // host ping ok (host step ✓) + output app set (output step ✓) + no notes
       // saved yet (capture step ✗) ⇒ wizard stays visible, not auto-dismissed.
