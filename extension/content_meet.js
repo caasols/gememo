@@ -59,6 +59,13 @@
   let currentTitleTemplate = '';         // per-rule note-title template, resolved at join (RB-4d)
   let snapshotsPausedFlag  = false;      // true while the "notes paused" badge/toast nudge is active (tab hidden mid-meeting)
   let pausedNudgeTimer     = null;       // debounce so a quick tab-switch doesn't flag the paused nudge
+  let meetingEndCaptureTimer = null;     // debounce handle for the capture-on-meeting-end safety net (RES-1 L1)
+  const MEETING_END_CAPTURE_DELAY_MS = 2500; // wait after the Leave button vanishes before treating it as a real end
+  // Meeting lifecycle state (module scope so attachInterceptor can seed `wasInMeeting`
+  // at first hook — the observer is narrowed to the toolbar, which on a quiet call may
+  // never fire a join-transition mutation, leaving the leave transition undetectable).
+  let wasInMeeting   = false; // true while the Leave button is present
+  let meetingEndedAt = 0;     // Date.now() of last Leave-button disappearance; 0 = never left
 
   // ── Meeting state reset ────────────────────────────────────────────────────
   // Zeros all per-meeting flags. Called from the MutationObserver lifecycle block
@@ -97,6 +104,7 @@
     captureProactivelyAttempted = false;
     snapshotCount               = 0;
     if (meetingSnapshotTimer) { clearTimeout(meetingSnapshotTimer); meetingSnapshotTimer = null; }
+    clearTimeout(meetingEndCaptureTimer); meetingEndCaptureTimer = null;
     clearTimeout(pausedNudgeTimer);
     if (snapshotsPausedFlag) safeSend({ type: 'MM2C_SNAPSHOTS_RESUMED' });
     snapshotsPausedFlag = false;
@@ -141,8 +149,8 @@
     // NOTE: observer and observedNode are declared at module scope (above) so
     // that attachInterceptor() — a hoisted function at IIFE scope — can reference
     // them. The remaining vars below are only needed inside this callback.
-    let wasInMeeting        = false; // true while Leave button is present
-    let meetingEndedAt      = 0;     // Date.now() of last Leave-button disappearance; 0 = never left
+    wasInMeeting            = false; // reset on each storage.get (extension reload)
+    meetingEndedAt          = 0;     // reset on each storage.get (extension reload)
     observedNode            = document.body; // reset to body on each storage.get (extension reload)
     let attachDebounceTimer = null;          // debounce handle for attachInterceptor calls from observer
 
@@ -165,9 +173,22 @@
         // Just left a meeting
         wasInMeeting   = false;
         meetingEndedAt = Date.now();
+        // Capture-on-meeting-end safety net (RES-1 L1): if the Leave click was
+        // missed (stale hook, network drop, auto-end), the only signal left is
+        // the Leave button vanishing. Debounce so a transient toolbar re-render
+        // doesn't trip it, then save from the latest snapshot if still gone.
+        clearTimeout(meetingEndCaptureTimer);
+        const endedTitle = currentMeetingTitle || getMeetingTitle();
+        meetingEndCaptureTimer = setTimeout(() => {
+          if (getLeaveButton()) return;                    // reappeared → transient toolbar re-render, not an end
+          if (intercepting || capturedProactively) return; // already captured (Leave click or Gemini-deactivation)
+          sendLog('Meeting ended without a captured Leave — saving from the latest snapshot');
+          captureProactively(endedTitle);
+        }, MEETING_END_CAPTURE_DELAY_MS);
       } else if (!wasInMeeting && inMeeting) {
         // Joined a meeting (or page loaded mid-meeting)
         wasInMeeting = true;
+        clearTimeout(meetingEndCaptureTimer); // back in a meeting → cancel any pending end-capture
         if (meetingEndedAt > 0) {
           // Second or subsequent meeting in this tab — reset all per-meeting state
           resetMeetingState();
@@ -250,7 +271,6 @@
       if (enabled) {
         attachInterceptor();
       } else if (hooked) {
-        hooked.removeEventListener('click', onLeaveClick, true);
         hooked = null;
       }
     }
@@ -1337,11 +1357,17 @@
     if (!enabled) return;
     const btn = getLeaveButton();
     if (!btn || btn === hooked) return;
-    if (hooked) hooked.removeEventListener('click', onLeaveClick, true);
-    btn.addEventListener('click', onLeaveClick, { capture: true });
+    // Leave clicks are intercepted via document-level delegation (RES-1 L2), not a
+    // per-node listener — so a toolbar re-render that swaps the Leave-button node
+    // can't orphan the handler. `hooked` now only marks "seen the Leave button"
+    // for first-hook detection below.
     const firstHook = !hooked;
     hooked = btn;
     if (firstHook) {
+      // Mark the meeting as joined for the observer's leave-detection lifecycle.
+      // The observer is narrowed to the toolbar and may never fire a live join
+      // transition on a quiet call, so seed it here at first sight of the button.
+      wasInMeeting = true;
       meetingJoinedAt = Date.now();
       // Schedule meeting-anchored snapshots: first fires exactly snapshotIntervalMs after
       // joining, then every snapshotIntervalMs after that. Stops automatically when the
@@ -1536,6 +1562,16 @@
     e.preventDefault();
     e.stopImmediatePropagation();
     showCloseOverlay();
+  }, true);
+
+  // Robust leave interception (RES-1): delegate from the document so a toolbar
+  // re-render that swaps the Leave-button node can't orphan the handler.
+  document.addEventListener('click', (e) => {
+    if (!enabled) return;
+    const t = e.target;
+    if (t && t.closest && t.closest(firstSel('leaveButton', 'button[aria-label="Leave call"]'))) {
+      onLeaveClick(e);
+    }
   }, true);
 
   // Expose DOM-reading functions for offline fixture tests.
