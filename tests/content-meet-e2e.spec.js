@@ -197,6 +197,174 @@ test.describe('content_meet e2e (fake Meet over localhost)', () => {
     }
   });
 
+  // ── RES-1 (Layer 2) — leave interception survives a Leave-button node swap ───
+  // A long multi-person Meet re-renders the toolbar and REPLACES the Leave-button
+  // DOM node. The old per-node click hook is then orphaned and the user's Leave
+  // click is missed. Document-level delegation must still intercept the click on
+  // the fresh node and forward the primary MM2C_RESPONSE capture.
+  test('Leave interception survives a Leave-button node replacement (RES-1 L2)', async () => {
+    test.setTimeout(60_000);
+
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      mm2c_output_app: 'craft',
+    });
+
+    const page = await ext.context.newPage();
+    try {
+      await page.goto(fake.url, { waitUntil: 'domcontentloaded' });
+
+      await expect
+        .poll(
+          async () =>
+            (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.meetingsAttended,
+          { timeout: 15_000 }
+        )
+        .toBe(1);
+
+      // Simulate the toolbar re-render: remove the original Leave button and append
+      // a fresh node with the same selector into the same controls container.
+      await page.evaluate(() => {
+        const old = document.querySelector('button[aria-label="Leave call"]');
+        const container = old.parentNode;
+        old.remove();
+        const fresh = document.createElement('button');
+        fresh.setAttribute('aria-label', 'Leave call');
+        fresh.textContent = 'Leave call';
+        container.appendChild(fresh);
+      });
+
+      // The original per-node hook is stale; only document delegation can catch this.
+      await page.click('button[aria-label="Leave call"]');
+
+      await expect
+        .poll(
+          async () => {
+            const sent = await getSent(ext.serviceWorker);
+            return sent.some(
+              (s) =>
+                s.msg.type !== 'snapshot' &&
+                typeof s.msg.transcript === 'string' &&
+                s.msg.transcript.includes(SENTINEL_TRANSCRIPT)
+            );
+          },
+          { timeout: 40_000 }
+        )
+        .toBe(true);
+    } finally {
+      await page.close();
+    }
+  });
+
+  // ── RES-1 (Layer 1) — meeting ends with no Leave click → safety-net capture ──
+  // If the Leave click is missed entirely (button vanishes on a network drop /
+  // auto-end), the capture-on-meeting-end safety net must save from the latest
+  // snapshot after the debounce window.
+  test('meeting ending without a Leave click captures via the safety net (RES-1 L1)', async () => {
+    test.setTimeout(60_000);
+
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      mm2c_output_app: 'craft',
+    });
+
+    const page = await ext.context.newPage();
+    try {
+      await page.goto(fake.url, { waitUntil: 'domcontentloaded' });
+
+      await expect
+        .poll(
+          async () =>
+            (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.meetingsAttended,
+          { timeout: 15_000 }
+        )
+        .toBe(1);
+
+      // The meeting ends WITHOUT any Leave click: remove the Leave button entirely.
+      await page.evaluate(() => {
+        document.querySelector('button[aria-label="Leave call"]').remove();
+      });
+
+      // After the 2.5s debounce + the Gemini flow, the safety net forwards the
+      // primary MM2C_RESPONSE capture.
+      await expect
+        .poll(
+          async () => {
+            const sent = await getSent(ext.serviceWorker);
+            return sent.some(
+              (s) =>
+                s.msg.type !== 'snapshot' &&
+                typeof s.msg.transcript === 'string' &&
+                s.msg.transcript.includes(SENTINEL_TRANSCRIPT)
+            );
+          },
+          { timeout: 45_000 }
+        )
+        .toBe(true);
+    } finally {
+      await page.close();
+    }
+  });
+
+  // ── RES-1 (Layer 1) — a transient toolbar blink must NOT capture ─────────────
+  // A brief Leave-button disappearance/reappearance within the debounce window is
+  // a transient re-render, not a meeting end. The safety net's getLeaveButton()
+  // re-check must skip capture and the user stays in the call.
+  test('a transient Leave-button blink does not trigger a capture (RES-1 L1)', async () => {
+    test.setTimeout(60_000);
+
+    await stubNativeMessage(ext.serviceWorker, { __default: { status: 'ok' } });
+    await seedStorage(ext.serviceWorker, {
+      mm2c_stats: { meetingsAttended: 0, notesSaved: 0, wordsCaptured: 0, totalMeetingMinutes: 0 },
+      mm2c_output_app: 'craft',
+    });
+
+    const page = await ext.context.newPage();
+    try {
+      await page.goto(fake.url, { waitUntil: 'domcontentloaded' });
+
+      await expect
+        .poll(
+          async () =>
+            (await getStorage(ext.serviceWorker, ['mm2c_stats'])).mm2c_stats?.meetingsAttended,
+          { timeout: 15_000 }
+        )
+        .toBe(1);
+
+      // Transient blink: remove the Leave button, then re-append it within ~1s
+      // (well under the 2.5s debounce).
+      await page.evaluate(() => {
+        const old = document.querySelector('button[aria-label="Leave call"]');
+        const container = old.parentNode;
+        old.remove();
+        setTimeout(() => {
+          const fresh = document.createElement('button');
+          fresh.setAttribute('aria-label', 'Leave call');
+          fresh.textContent = 'Leave call';
+          container.appendChild(fresh);
+        }, 800);
+      });
+
+      // Wait past the debounce window — no capture should ever fire.
+      await page.waitForTimeout(3500);
+
+      const sent = await getSent(ext.serviceWorker);
+      const captured = sent.some(
+        (s) =>
+          s.msg.type !== 'snapshot' &&
+          typeof s.msg.transcript === 'string' &&
+          s.msg.transcript.includes(SENTINEL_TRANSCRIPT)
+      );
+      expect(captured).toBe(false);
+      // …and the page is still in the call (Leave button reappeared).
+      await expect(page.locator('button[aria-label="Leave call"]')).toBeVisible();
+    } finally {
+      await page.close();
+    }
+  });
+
   // 2c-fail — a failed Leave-capture must KEEP the in-flight note (marked failed)
   // so the RB-1d recovery card can surface it. Regression guard for the bug where
   // clearInflightNote() ran on failure too, deleting the only recovery copy.
