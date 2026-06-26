@@ -26,6 +26,8 @@ docs/superpowers/
 # ── Internal development documents ──────────────────────────────────────────
 # These contain implementation notes and backlog items not meant for public consumption.
 ROADMAP.md
+docs/ux-audit/
+docs/store-listing.md
 
 # ── Test artefacts (generated, not source) ───────────────────────────────────
 node_modules/
